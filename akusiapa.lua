@@ -988,7 +988,7 @@ task.spawn(function()
     end
 end)
 
--- ================== IDLE DETECTOR + CHAIR SWITCH ==================
+-- ================== IDLE DETECTOR + CHAIR SWITCH (AGRESIF) ==================
 local lastActivityTime = tick()
 local isSwitching = false
 
@@ -1001,13 +1001,29 @@ task.spawn(function()
         if s.EnableChairSwitch and tick() - lastActivityTime > s.IdleSwitchTime then
             isSwitching = true
             getgenv().forceStopMath = true
+            warn("[Idle Switch] Mulai pindah kursi karena idle...")
+
             keluarKursi()
+
+            -- Coba cari kursi lain
             local newChair = findAnotherChair()
-            if newChair then myChair = newChair end
+            if not newChair then
+                warn("[Idle Switch] Ga ada kursi lain, jalan menjauh dulu...")
+                local awayPos = CharRef.Root.Position + Vector3.new(math.random(-20,20), 0, math.random(-20,20))
+                jalanKe(awayPos)
+                task.wait(1)
+                newChair = findNearestChair(100)
+                if newChair == myChair then
+                    newChair = findAnotherChair() or findNearestChair(200)
+                end
+            end
+
+            myChair = newChair
             dudukKeKursi(false)
             getgenv().forceStopMath = false
             isSwitching = false
             lastActivityTime = tick()
+            warn("[Idle Switch] Selesai pindah kursi.")
         end
     end
 end)
