@@ -1,13 +1,12 @@
 --[[
 ================================================================================
   👑 KING AKBAR - ULTIMATE AUTO FARM SCRIPT
-     v6.1 FINAL – OFFICE NO TELEPORT + NEAREST CHAIR FIX
+     v6.2 FINAL – OFFICE NO TELEPORT + NEAREST CHAIR FIX
 ================================================================================
     [+] Developer   : King Akbar
     [+] Update      : - Auto Office 100% Jalan (No Teleport)
                       - Balik ke kursi TERDEKAT setelah print (Hemat waktu)
-                      - Tambah UI Slider Waktu Idle (Anti Bug Soal)
-                      - Fix perhitungan uang awal & pendapatan di webhook
+                      - Fix Bug berdiri lagi setelah duduk dari print (Timer di-reset)
                       - Fix Bug duduk pakai CFrame Drop
                       - Fix Auto ganti kursi saat idle (hanya ganti kalau macet soal)
                       - Fix Pembacaan soal matematika (Desimal & huruf X)
@@ -674,7 +673,6 @@ local function findNearestChair(radius)
         for _, compChild in ipairs(compFolder:GetChildren()) do
             local chairModel = compChild:FindFirstChild("Chair")
             if chairModel and chairModel:IsA("Model") then
-                -- Fix: Cari Seat/VehicleSeat dulu kalau ada
                 local seat = chairModel:FindFirstChildWhichIsA("Seat") or chairModel:FindFirstChildWhichIsA("VehicleSeat")
                 local handle = seat or chairModel:FindFirstChild("Handle")
                 
@@ -763,13 +761,16 @@ local function keluarKursi()
     if not hum then return end
     if hum.SeatPart then myChair = hum.SeatPart end
     hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
-    -- Fix: Angkat dikit biar keluar dari kursi tanpa nyangkut
     if root then
         root.CFrame = root.CFrame * CFrame.new(0, 3, 0)
     end
     hum.Jump = true
     task.wait(math.random(4,7)/10)
 end
+
+-- Variabel global buat timer anti-bug
+local lastActivityTime = tick()
+local isSwitching = false
 
 -- Duduk dengan nempel kursi, CFrame Drop Fix
 local function dudukKeKursi(useNearest)
@@ -786,10 +787,8 @@ local function dudukKeKursi(useNearest)
     local root = CharRef.Root
     if not hum or not root or not targetHandle then return false end
 
-    -- Jalan tepat ke Handle
     jalanKe(targetHandle.Position)
 
-    -- Fix Bug Ngga Duduk: Kalau udah deket, teleport halus ke atas kursi biar auto duduk
     if (root.Position - targetHandle.Position).Magnitude < 10 then
         root.CFrame = CFrame.new(targetHandle.Position + Vector3.new(0, 4, 0))
         task.wait(0.5)
@@ -806,7 +805,6 @@ local function dudukKeKursi(useNearest)
             break
         end
         
-        -- Trigger paksa kalau udah dekat
         if (root.Position - targetHandle.Position).Magnitude < 5 then
             pcall(function()
                 if targetHandle:IsA("Seat") or targetHandle:IsA("VehicleSeat") then
@@ -821,7 +819,6 @@ local function dudukKeKursi(useNearest)
         task.wait(0.4)
     end
 
-    -- Kalau masih gagal, coba maju dikit ke depan kursi
     if not dudukBerhasil then
         local forward = targetHandle.CFrame.LookVector * 2
         jalanKe(targetHandle.Position + forward)
@@ -846,9 +843,10 @@ local function dudukKeKursi(useNearest)
         end
     end
 
-    -- Beri jeda agar UI soal muncul (penting!)
     if dudukBerhasil then
         task.wait(1.5)
+        -- FIX UTAMA: Reset timer anti-bug tiap kali bot berhasil duduk!
+        lastActivityTime = tick()
     end
 
     return dudukBerhasil
@@ -881,7 +879,6 @@ local function scanPromptPrint()
     return nil
 end
 
--- Fix Baca Soal: Bisa baca desimal & huruf X untuk perkalian
 local function cariSoalBaru()
     for _, v in pairs(playerGui:GetDescendants()) do
         if (v:IsA("TextLabel") or v:IsA("TextButton")) and v.Visible and v.Text ~= "" then
@@ -1012,6 +1009,10 @@ task.spawn(function()
             dudukKeKursi(true)
             task.wait(math.random(8,15)/10)
             soalCacheValid = nil
+            
+            -- FIX UTAMA: Pastikan timer di-reset habis print biar nggak langsung berdiri lagi
+            lastActivityTime = tick()
+            
             getgenv().isGoingToPrinter = false
             getgenv().forceStopMath = false
         end
@@ -1019,9 +1020,6 @@ task.spawn(function()
 end)
 
 -- ================== IDLE DETECTOR + CHAIR SWITCH (ANTI BUG GANTI KURSI) ==================
-local lastActivityTime = tick()
-local isSwitching = false
-
 task.spawn(function()
     while true do
         task.wait(1)
@@ -1029,7 +1027,7 @@ task.spawn(function()
         local s = State.OfficeSettings
         if getgenv().isGoingToPrinter or getgenv().forceStopMath or isSwitching then continue end
         
-        -- Fix: Reset timer kalau lagi duduk santai (nggak ada soal), biar nggak ganti kursi
+        -- Reset timer kalau lagi duduk santai (nggak ada soal), biar nggak ganti kursi
         if CharRef.Humanoid and CharRef.Humanoid.SeatPart then
             if not cariSoalBaru() then
                 lastActivityTime = tick()
@@ -1094,7 +1092,6 @@ task.spawn(function()
             if getgenv().forceStopMath or not State.IsOfficeActive then break end
             if btn:IsA("TextButton") and btn.Visible then
                 local btnText = btn.Text
-                -- Fix: Cari di dalam TextLabel kalau text tombol utama kosong
                 if btnText == "" or tonumber(btnText) == nil then
                     for _, child in ipairs(btn:GetDescendants()) do
                         if child:IsA("TextLabel") and child.Text ~= "" then
@@ -1104,7 +1101,6 @@ task.spawn(function()
                     end
                 end
                 
-                -- Hapus spasi & koma pada tombol angka
                 local cleanBtnText = string.gsub(tostring(btnText), "[,%s]", "")
                 if tonumber(cleanBtnText) == jawaban then
                     ditemukan = true
@@ -1122,7 +1118,6 @@ task.spawn(function()
             end
         end
         
-        -- Fix: Kalau tombol nggak ketemu, coba cari TextBox buat ngetik jawaban
         if not ditemukan then
             for _, tb in pairs(playerGui:GetDescendants()) do
                 if getgenv().forceStopMath or not State.IsOfficeActive then break end
@@ -2167,7 +2162,7 @@ WindUI:SetTheme("dark")
 TabInfo:Select()
 
 WindUI:Notify({
-    Title    = "👑 KING AKBAR V6.1 SIAP!",
-    Content  = "Office Bug Fix: Anti Ganti Kursi & Auto Duduk Lancar!",
+    Title    = "👑 KING AKBAR V6.2 SIAP!",
+    Content  = "Print Fix: Nggak bakal berdiri lagi abis duduk!",
     Duration = 5,
 })
