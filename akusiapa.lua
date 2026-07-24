@@ -1,13 +1,16 @@
 --[[
 ================================================================================
   👑 KING AKBAR - ULTIMATE AUTO FARM SCRIPT
-     v6.0 FINAL – OFFICE NO TELEPORT + NEAREST CHAIR FIX
+     v6.1 FINAL – OFFICE NO TELEPORT + NEAREST CHAIR FIX
 ================================================================================
     [+] Developer   : King Akbar
     [+] Update      : - Auto Office 100% Jalan (No Teleport)
                       - Balik ke kursi TERDEKAT setelah print (Hemat waktu)
                       - Tambah UI Slider Waktu Idle (Anti Bug Soal)
                       - Fix perhitungan uang awal & pendapatan di webhook
+                      - Fix Bug duduk pakai CFrame Drop
+                      - Fix Auto ganti kursi saat idle (hanya ganti kalau macet soal)
+                      - Fix Pembacaan soal matematika (Desimal & huruf X)
 ================================================================================
 ]]--
 
@@ -641,7 +644,7 @@ local function StopBaristaScript(reason)
     end
 end
 
--- // 12. OFFICE JOB SYSTEM (NO TELEPORT + NEAREST CHAIR)
+-- // 12. OFFICE JOB SYSTEM (NO TELEPORT + NEAREST CHAIR FIX)
 local playerGui = LocalPlayer:WaitForChild("PlayerGui")
 
 local function hasText(str, keyword)
@@ -663,7 +666,7 @@ local myChair = nil
 local function findNearestChair(radius)
     local origin = CharRef.Root and CharRef.Root.Position
     if not origin then return nil end
-    radius = radius or 100
+    radius = radius or 200
 
     local compFolder = workspace:FindFirstChild("Computers")
     if compFolder then
@@ -671,7 +674,10 @@ local function findNearestChair(radius)
         for _, compChild in ipairs(compFolder:GetChildren()) do
             local chairModel = compChild:FindFirstChild("Chair")
             if chairModel and chairModel:IsA("Model") then
-                local handle = chairModel:FindFirstChild("Handle")
+                -- Fix: Cari Seat/VehicleSeat dulu kalau ada
+                local seat = chairModel:FindFirstChildWhichIsA("Seat") or chairModel:FindFirstChildWhichIsA("VehicleSeat")
+                local handle = seat or chairModel:FindFirstChild("Handle")
+                
                 if handle and handle:IsA("BasePart") then
                     local dist = (handle.Position - origin).Magnitude
                     if dist < bestDist then
@@ -687,7 +693,7 @@ local function findNearestChair(radius)
     -- fallback ke kursi biasa
     local best, bestDist = nil, radius
     for _, v in pairs(workspace:GetDescendants()) do
-        if v:IsA("Seat") and v:IsA("BasePart") then
+        if (v:IsA("Seat") or v:IsA("VehicleSeat")) and v:IsA("BasePart") then
             local dist = (v.Position - origin).Magnitude
             if dist < bestDist then best, bestDist = v, dist end
         end
@@ -700,11 +706,13 @@ local function findAnotherChair()
     if not origin then return nil end
     local compFolder = workspace:FindFirstChild("Computers")
     if compFolder then
-        local best, bestDist = nil, 100
+        local best, bestDist = nil, 200
         for _, compChild in ipairs(compFolder:GetChildren()) do
             local chairModel = compChild:FindFirstChild("Chair")
             if chairModel and chairModel:IsA("Model") then
-                local handle = chairModel:FindFirstChild("Handle")
+                local seat = chairModel:FindFirstChildWhichIsA("Seat") or chairModel:FindFirstChildWhichIsA("VehicleSeat")
+                local handle = seat or chairModel:FindFirstChild("Handle")
+                
                 if handle and handle:IsA("BasePart") and handle ~= myChair then
                     local dist = (handle.Position - origin).Magnitude
                     if dist < bestDist then bestDist = dist; best = handle end
@@ -751,18 +759,25 @@ end
 
 local function keluarKursi()
     local hum = CharRef.Humanoid
+    local root = CharRef.Root
     if not hum then return end
     if hum.SeatPart then myChair = hum.SeatPart end
     hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
-    hum:ChangeState(Enum.HumanoidStateType.Jumping)
+    -- Fix: Angkat dikit biar keluar dari kursi tanpa nyangkut
+    if root then
+        root.CFrame = root.CFrame * CFrame.new(0, 3, 0)
+    end
+    hum.Jump = true
     task.wait(math.random(4,7)/10)
 end
 
--- Duduk dengan nempel kursi, tanpa klik prompt, auto duduk
+-- Duduk dengan nempel kursi, CFrame Drop Fix
 local function dudukKeKursi(useNearest)
+    if myChair and not myChair.Parent then myChair = nil end
+
     local targetHandle = myChair
     if useNearest or not targetHandle then
-        targetHandle = findNearestChair(100)
+        targetHandle = findNearestChair(200)
         if not targetHandle then return false end
     end
     myChair = targetHandle
@@ -771,8 +786,14 @@ local function dudukKeKursi(useNearest)
     local root = CharRef.Root
     if not hum or not root or not targetHandle then return false end
 
-    -- Jalan tepat ke Handle (nempel)
+    -- Jalan tepat ke Handle
     jalanKe(targetHandle.Position)
+
+    -- Fix Bug Ngga Duduk: Kalau udah deket, teleport halus ke atas kursi biar auto duduk
+    if (root.Position - targetHandle.Position).Magnitude < 10 then
+        root.CFrame = CFrame.new(targetHandle.Position + Vector3.new(0, 4, 0))
+        task.wait(0.5)
+    end
 
     hum:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
 
@@ -784,11 +805,18 @@ local function dudukKeKursi(useNearest)
             dudukBerhasil = true
             break
         end
+        
         -- Trigger paksa kalau udah dekat
-        if (root.Position - targetHandle.Position).Magnitude < 4.5 then
-            hum.Sit = true
-            task.wait(0.15)
-            hum.Sit = false
+        if (root.Position - targetHandle.Position).Magnitude < 5 then
+            pcall(function()
+                if targetHandle:IsA("Seat") or targetHandle:IsA("VehicleSeat") then
+                    targetHandle:Sit(hum)
+                else
+                    hum.Sit = true
+                    task.wait(0.2)
+                    hum.Sit = false
+                end
+            end)
         end
         task.wait(0.4)
     end
@@ -798,23 +826,24 @@ local function dudukKeKursi(useNearest)
         local forward = targetHandle.CFrame.LookVector * 2
         jalanKe(targetHandle.Position + forward)
         task.wait(0.8)
-        -- Coba paksa lagi
+        root.CFrame = CFrame.new(targetHandle.Position + Vector3.new(0, 4, 0))
+        task.wait(0.5)
+        
         for i = 1, 4 do
             if (root.Position - targetHandle.Position).Magnitude < 5 then
-                hum.Sit = true
-                task.wait(0.1)
-                hum.Sit = false
+                pcall(function()
+                    if targetHandle:IsA("Seat") or targetHandle:IsA("VehicleSeat") then
+                        targetHandle:Sit(hum)
+                    else
+                        hum.Sit = true
+                        task.wait(0.1)
+                        hum.Sit = false
+                    end
+                end)
                 if hum.SeatPart then dudukBerhasil = true break end
             end
             task.wait(0.5)
         end
-    end
-
-    -- Fallback Seat langsung (kalau Handle adalah Seat)
-    if not dudukBerhasil and targetHandle:IsA("Seat") then
-        targetHandle:Sit(hum)
-        task.wait(0.5)
-        dudukBerhasil = hum.SeatPart ~= nil
     end
 
     -- Beri jeda agar UI soal muncul (penting!)
@@ -852,10 +881,11 @@ local function scanPromptPrint()
     return nil
 end
 
+-- Fix Baca Soal: Bisa baca desimal & huruf X untuk perkalian
 local function cariSoalBaru()
     for _, v in pairs(playerGui:GetDescendants()) do
-        if v:IsA("TextLabel") and v.Visible and v.Text ~= "" then
-            local a, op, b = string.match(v.Text, "(%d+)%s*([%+%-%*/])%s*(%d+)")
+        if (v:IsA("TextLabel") or v:IsA("TextButton")) and v.Visible and v.Text ~= "" then
+            local a, op, b = string.match(v.Text, "(%d+%.?%d*)%s*([%+%-%*/xX])%s*(%d+%.?%d*)")
             if a and op and b then
                 return v
             end
@@ -988,7 +1018,7 @@ task.spawn(function()
     end
 end)
 
--- ================== IDLE DETECTOR + CHAIR SWITCH (AGRESIF) ==================
+-- ================== IDLE DETECTOR + CHAIR SWITCH (ANTI BUG GANTI KURSI) ==================
 local lastActivityTime = tick()
 local isSwitching = false
 
@@ -998,78 +1028,85 @@ task.spawn(function()
         if not State.IsOfficeActive then continue end
         local s = State.OfficeSettings
         if getgenv().isGoingToPrinter or getgenv().forceStopMath or isSwitching then continue end
+        
+        -- Fix: Reset timer kalau lagi duduk santai (nggak ada soal), biar nggak ganti kursi
+        if CharRef.Humanoid and CharRef.Humanoid.SeatPart then
+            if not cariSoalBaru() then
+                lastActivityTime = tick()
+            end
+        end
+        
+        -- Ganti kursi HANYA kalau ada soal tapi nggak dijawab selama X detik
         if s.EnableChairSwitch and tick() - lastActivityTime > s.IdleSwitchTime then
             isSwitching = true
             getgenv().forceStopMath = true
-            warn("[Idle Switch] Mulai pindah kursi karena idle...")
-
             keluarKursi()
-
-            -- Coba cari kursi lain
             local newChair = findAnotherChair()
-            if not newChair then
-                warn("[Idle Switch] Ga ada kursi lain, jalan menjauh dulu...")
-                local awayPos = CharRef.Root.Position + Vector3.new(math.random(-20,20), 0, math.random(-20,20))
-                jalanKe(awayPos)
-                task.wait(1)
-                newChair = findNearestChair(100)
-                if newChair == myChair then
-                    newChair = findAnotherChair() or findNearestChair(200)
-                end
-            end
-
-            myChair = newChair
+            if newChair then myChair = newChair end
             dudukKeKursi(false)
             getgenv().forceStopMath = false
             isSwitching = false
             lastActivityTime = tick()
-            warn("[Idle Switch] Selesai pindah kursi.")
         end
     end
 end)
 
--- ================== MATH THREAD ==================
+-- ================== MATH THREAD (FIX BACA TOMBOL & TEXTBOX) ==================
 task.spawn(function()
     while true do
-        task.wait(0.8)
+        task.wait(0.5)
         if not State.IsOfficeActive or getgenv().forceStopMath or getgenv().isGoingToPrinter then continue end
         local hum = CharRef.Humanoid
         if not hum or not hum.SeatPart then
             if myChair then
                 dudukKeKursi(false)
-                task.wait(2)  -- tunggu UI soal setelah duduk ulang
+                task.wait(2)
             end
             task.wait(1)
             continue
         end
 
         local soalLabel = (soalCacheValid and soalCacheValid.Parent and soalCacheValid.Visible) and soalCacheValid or cariSoalBaru()
-        if not soalLabel then task.wait(0.8) continue end
+        if not soalLabel then task.wait(0.5) continue end
 
         lastActivityTime = tick()
 
         local text = soalLabel.Text
-        local a, op, b = string.match(text, "(%d+)%s*([%+%-%*/])%s*(%d+)")
+        local a, op, b = string.match(text, "(%d+%.?%d*)%s*([%+%-%*/xX])%s*(%d+%.?%d*)")
         if not a then soalCacheValid = nil continue end
 
         local n1, n2 = tonumber(a), tonumber(b)
         local jawaban
+        if op == "x" or op == "X" then op = "*" end
+        
         if     op == "+" then jawaban = n1 + n2
         elseif op == "-" then jawaban = n1 - n2
         elseif op == "*" then jawaban = n1 * n2
         elseif op == "/" and n2 ~= 0 then jawaban = n1 / n2
         else soalCacheValid = nil continue end
 
+        if jawaban == math.floor(jawaban) then
+            jawaban = math.floor(jawaban)
+        end
+
         local ditemukan = false
         for _, btn in pairs(playerGui:GetDescendants()) do
             if getgenv().forceStopMath or not State.IsOfficeActive then break end
             if btn:IsA("TextButton") and btn.Visible then
                 local btnText = btn.Text
+                -- Fix: Cari di dalam TextLabel kalau text tombol utama kosong
                 if btnText == "" or tonumber(btnText) == nil then
-                    local cl = btn:FindFirstChildOfClass("TextLabel")
-                    if cl then btnText = cl.Text end
+                    for _, child in ipairs(btn:GetDescendants()) do
+                        if child:IsA("TextLabel") and child.Text ~= "" then
+                            btnText = child.Text
+                            break
+                        end
+                    end
                 end
-                if tonumber(btnText) == jawaban then
+                
+                -- Hapus spasi & koma pada tombol angka
+                local cleanBtnText = string.gsub(tostring(btnText), "[,%s]", "")
+                if tonumber(cleanBtnText) == jawaban then
                     ditemukan = true
                     local s = State.OfficeSettings
                     task.wait(math.random(s.MathDelayMin * 10, s.MathDelayMax * 10) / 10)
@@ -1084,6 +1121,26 @@ task.spawn(function()
                 end
             end
         end
+        
+        -- Fix: Kalau tombol nggak ketemu, coba cari TextBox buat ngetik jawaban
+        if not ditemukan then
+            for _, tb in pairs(playerGui:GetDescendants()) do
+                if getgenv().forceStopMath or not State.IsOfficeActive then break end
+                if tb:IsA("TextBox") and tb.Visible then
+                    tb.Text = tostring(jawaban)
+                    task.wait(0.2)
+                    Services.VIM:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+                    task.wait(0.1)
+                    Services.VIM:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+                    ditemukan = true
+                    State.OfficeMathSolved = (State.OfficeMathSolved or 0) + 1
+                    lastActivityTime = tick()
+                    task.wait(State.OfficeSettings.AfterAnswerDelay)
+                    break
+                end
+            end
+        end
+        
         if not ditemukan then soalCacheValid = nil end
     end
 end)
@@ -1256,10 +1313,10 @@ local function StartOfficeScript()
         end
     else
         local seat = CharRef.Humanoid.SeatPart
-        if seat and seat.Name == "Handle" and seat.Parent and seat.Parent.Name == "Chair" then
+        if seat and seat:IsA("BasePart") then
             myChair = seat
         else
-            myChair = findNearestChair(100)
+            myChair = findNearestChair(200)
         end
     end
 
@@ -1866,7 +1923,7 @@ SectionOffice:Slider({
 
 SectionOffice:Slider({
     Title = "🔄 Waktu Idle Anti-Bug (detik)",
-    Desc = "Kalau nggak jawab soal lebih dari ini, auto ganti kursi",
+    Desc = "Kalau ada soal tapi nggak dijawab lebih dari ini, auto ganti kursi",
     Step = 1,
     Value = { Min = 5, Max = 60, Default = 15 },
     Callback = function(v) State.OfficeSettings.IdleSwitchTime = v end,
@@ -2110,7 +2167,7 @@ WindUI:SetTheme("dark")
 TabInfo:Select()
 
 WindUI:Notify({
-    Title    = "👑 KING AKBAR V6.0 SIAP!",
-    Content  = "Office No-Teleport & Nearest Chair Fix!",
+    Title    = "👑 KING AKBAR V6.1 SIAP!",
+    Content  = "Office Bug Fix: Anti Ganti Kursi & Auto Duduk Lancar!",
     Duration = 5,
 })
