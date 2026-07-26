@@ -1,19 +1,21 @@
 --[[
 ================================================================================
-  👑 KING AKBAR - ULTIMATE AUTO FARM SCRIPT
-     v6.2 FINAL – OFFICE NO TELEPORT + NEAREST CHAIR FIX
+  👑 KING AKBAR - ULTIMATE AUTO FARM SCRIPT 👑
 ================================================================================
     [+] Developer   : King Akbar
-    [+] Update      : - Auto Office 100% Jalan (No Teleport)
-                      - Balik ke kursi TERDEKAT setelah print (Hemat waktu)
-                      - Fix Bug berdiri lagi setelah duduk dari print (Timer di-reset)
-                      - Fix Bug duduk pakai CFrame Drop
-                      - Fix Auto ganti kursi saat idle (hanya ganti kalau macet soal)
-                      - Fix Pembacaan soal matematika (Desimal & huruf X)
+    [+] Version     : DDS FREE EDITION (v5.8 FINAL - OFFICE START FIX)
+    [+] Changelog   : - Monitoring Office scan langsung teks "Rp." di UI
+                      - Uang Awal dikunci, profit akurat
+                      - Cache label uang biar nggak lag
+                      - Auto ganti kursi kalo sepi soal
+                      - Fix: Office langsung jawab pas start (timer idle di-reset)
+                      - Bypass Network Pause auto-active
 ================================================================================
 ]]--
 
--- // 0. LOAD WINDUI
+-- ============================================================================
+-- // 0. LOAD WINDUI (SAFE)
+-- ============================================================================
 local WindUI
 do
     local ok, result = pcall(function()
@@ -27,7 +29,7 @@ do
         warn("[King Akbar] WindUI gagal load: " .. tostring(result))
         WindUI = {
             CreateWindow = function() return {
-                Tab = function() return {
+                Tab            = function() return {
                     Paragraph  = function() return { Set = function() end } end,
                     Toggle     = function() end,
                     Button     = function() end,
@@ -53,7 +55,9 @@ do
     end
 end
 
+-- ============================================================================
 -- // 1. SERVICES & REFERENCES
+-- ============================================================================
 local Services = {
     Players            = game:GetService("Players"),
     RunService         = game:GetService("RunService"),
@@ -89,7 +93,9 @@ LocalPlayer.CharacterAdded:Connect(function(newChar)
     CharRef.Root      = newChar:WaitForChild("HumanoidRootPart")
 end)
 
+-- ============================================================================
 -- // 2. STATE MANAGER
+-- ============================================================================
 local State = {
     IsBaristaActive    = false,
     IsOfficeActive     = false,
@@ -105,24 +111,11 @@ local State = {
     SessionStartTime   = 0,
     LastStopReason     = "",
     MachineFixCount    = 0,
+    -- Stats Office
     OfficeMathSolved   = 0,
     OfficePrints       = 0,
+    -- Stats Courier
     CourierDelivered   = 0,
-    WebhookEnabled     = false,
-    WebhookURL         = "",
-    WebhookInterval    = 5,
-    WebhookStartMoney  = 0,
-    OfficeSettings = {
-        MathDelayMin      = 0.8,
-        MathDelayMax      = 2.5,
-        AfterAnswerDelay  = 3,
-        AntiIdleInterval  = 45,
-        PrinterCheckInterval = 3,
-        EnableAntiIdle    = true,
-        EnableAutoPrinter = true,
-        EnableChairSwitch = true,
-        IdleSwitchTime    = 15,
-    }
 }
 
 LocalPlayer.Idled:Connect(function()
@@ -134,7 +127,7 @@ LocalPlayer.Idled:Connect(function()
     end
 end)
 
--- BYPASS NETWORK PAUSE
+-- BYPASS NETWORK PAUSE (AUTO JALAN)
 task.spawn(function()
     while true do
         pcall(function()
@@ -142,19 +135,25 @@ task.spawn(function()
             local robloxGui = coreGui:FindFirstChild("RobloxGui")
             if robloxGui then
                 local pauseScript = robloxGui:FindFirstChild("CoreScripts/NetworkPause")
-                if pauseScript then pauseScript:Destroy() end
+                if pauseScript then
+                    pauseScript:Destroy()
+                end
             end
         end)
         task.wait(0.2)
     end
 end)
 
+-- ============================================================================
 -- // 3. HUMANIZATION (RNG WAIT)
+-- ============================================================================
 local function rWait(minSec, maxSec)
     task.wait(math.random((minSec or 0.5) * 1000, (maxSec or 1.5) * 1000) / 1000)
 end
 
--- // 4. GetPlayerMoney
+-- ============================================================================
+-- // 4. GetPlayerMoney (untuk monitoring & barista)
+-- ============================================================================
 local function GetPlayerMoney()
     local money = 0
     pcall(function()
@@ -174,7 +173,9 @@ local function GetPlayerMoney()
     return money
 end
 
--- // 5. ADMIN SENSOR
+-- ============================================================================
+-- // 5. ADMIN SENSOR (tanpa webhook)
+-- ============================================================================
 local GAME_GROUP_ID  = 11378976
 local MIN_STAFF_RANK = 200
 
@@ -192,7 +193,9 @@ end
 for _, p in ipairs(Services.Players:GetPlayers()) do CheckForAdmin(p) end
 Services.Players.PlayerAdded:Connect(CheckForAdmin)
 
+-- ============================================================================
 -- // 6. SPLASH SCREEN
+-- ============================================================================
 do
     local sg = Instance.new("ScreenGui")
     sg.Name = "BaristaSplash"; sg.ResetOnSpawn = false
@@ -287,7 +290,9 @@ do
     task.wait(3)
 end
 
+-- ============================================================================
 -- // 7. CONSTANTS & PATHS (BARISTA)
+-- ============================================================================
 local Constants = {
     START_SHIFT  = Vector3.new(-4991.23, 4.29, -715.26),
     COLOR_ORANGE = Color3.fromRGB(230, 150, 30),
@@ -332,7 +337,9 @@ local Paths = {
     },
 }
 
+-- ============================================================================
 -- // 8. ANTI-LAG & LAYAR HITAM
+-- ============================================================================
 local BlackGui
 local function ToggleBlackScreen(on)
     pcall(function() Services.RunService:Set3dRenderingEnabled(not on) end)
@@ -354,7 +361,9 @@ local function ToggleBlackScreen(on)
     end
 end
 
+-- ============================================================================
 -- // 9. UTILITY (BARISTA)
+-- ============================================================================
 local function WalkToPoint(pos)
     if not CharRef.Humanoid or not CharRef.Root then return end
     CharRef.Humanoid.Sit = false
@@ -452,7 +461,9 @@ local function FindByColor(parent, col, tol)
     return bestD < (tol or 0.6) and best or nil
 end
 
+-- ============================================================================
 -- // 10. AI MINIGAME (BARISTA)
+-- ============================================================================
 local function StartMinigameAI()
     if State.AiThread then task.cancel(State.AiThread) end
     State.AiThread = task.spawn(function()
@@ -510,7 +521,9 @@ local function StartMinigameAI()
     end)
 end
 
+-- ============================================================================
 -- // 11. BARISTA FARMING LOOP
+-- ============================================================================
 local function TakeJob()
     State.StatusText = "🏃 Lagi jalan ambil shift..."
     WalkToPoint(Constants.START_SHIFT); rWait(0.4, 0.8)
@@ -643,7 +656,9 @@ local function StopBaristaScript(reason)
     end
 end
 
--- // 12. OFFICE JOB SYSTEM (NO TELEPORT + NEAREST CHAIR FIX)
+-- ============================================================================
+-- // 12. OFFICE JOB SYSTEM (V5.8 FINAL - MONITORING UI SCAN + START FIX)
+-- ============================================================================
 local playerGui = LocalPlayer:WaitForChild("PlayerGui")
 
 local function hasText(str, keyword)
@@ -659,41 +674,27 @@ local function eksekusiPromptTahan(pp)
     end
 end
 
-local myChair = nil
+local myChair            = nil
+local CachedTargetLabel  = nil
+local CachedTargetParent = nil
 
--- Pencarian Kursi di folder Computers (struktur game asli)
+-- ================== CARI KURSI ==================
 local function findNearestChair(radius)
     local origin = CharRef.Root and CharRef.Root.Position
     if not origin then return nil end
-    radius = radius or 200
-
-    local compFolder = workspace:FindFirstChild("Computers")
-    if compFolder then
-        local best, bestDist = nil, radius
-        for _, compChild in ipairs(compFolder:GetChildren()) do
-            local chairModel = compChild:FindFirstChild("Chair")
-            if chairModel and chairModel:IsA("Model") then
-                local seat = chairModel:FindFirstChildWhichIsA("Seat") or chairModel:FindFirstChildWhichIsA("VehicleSeat")
-                local handle = seat or chairModel:FindFirstChild("Handle")
-                
-                if handle and handle:IsA("BasePart") then
-                    local dist = (handle.Position - origin).Magnitude
-                    if dist < bestDist then
-                        bestDist = dist
-                        best = handle
-                    end
-                end
+    radius = radius or 50
+    local best, bestD = nil, radius
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v:IsA("ProximityPrompt") and v.Enabled and hasText(v.ActionText, "sit") then
+            local part = v.Parent
+            if part and part:IsA("BasePart") then
+                local d = (part.Position - origin).Magnitude
+                if d < bestD then best, bestD = v, d end
             end
         end
-        if best then return best end
-    end
-
-    -- fallback ke kursi biasa
-    local best, bestDist = nil, radius
-    for _, v in pairs(workspace:GetDescendants()) do
-        if (v:IsA("Seat") or v:IsA("VehicleSeat")) and v:IsA("BasePart") then
-            local dist = (v.Position - origin).Magnitude
-            if dist < bestDist then best, bestDist = v, dist end
+        if v:IsA("Seat") and v:IsA("BasePart") then
+            local d = (v.Position - origin).Magnitude
+            if d < bestD then best, bestD = v, d end
         end
     end
     return best
@@ -702,27 +703,25 @@ end
 local function findAnotherChair()
     local origin = CharRef.Root and CharRef.Root.Position
     if not origin then return nil end
-    local compFolder = workspace:FindFirstChild("Computers")
-    if compFolder then
-        local best, bestDist = nil, 200
-        for _, compChild in ipairs(compFolder:GetChildren()) do
-            local chairModel = compChild:FindFirstChild("Chair")
-            if chairModel and chairModel:IsA("Model") then
-                local seat = chairModel:FindFirstChildWhichIsA("Seat") or chairModel:FindFirstChildWhichIsA("VehicleSeat")
-                local handle = seat or chairModel:FindFirstChild("Handle")
-                
-                if handle and handle:IsA("BasePart") and handle ~= myChair then
-                    local dist = (handle.Position - origin).Magnitude
-                    if dist < bestDist then bestDist = dist; best = handle end
-                end
+    local radius = 50
+    local best, bestD = nil, radius
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v:IsA("ProximityPrompt") and v.Enabled and hasText(v.ActionText, "sit") then
+            local part = v.Parent
+            if part and part:IsA("BasePart") and part ~= myChair then
+                local d = (part.Position - origin).Magnitude
+                if d < bestD then best, bestD = part, d end
             end
         end
-        if best then return best end
+        if v:IsA("Seat") and v:IsA("BasePart") and v ~= myChair then
+            local d = (v.Position - origin).Magnitude
+            if d < bestD then best, bestD = v, d end
+        end
     end
-    return nil
+    return best
 end
 
--- Jalan Murni Pakai Kaki (No Teleport)
+-- ================== BERJALAN KE TITIK ==================
 local function jalanKe(pos)
     local root = CharRef.Root
     local hum = CharRef.Humanoid
@@ -755,103 +754,37 @@ local function jalanKe(pos)
     end
 end
 
+-- ================== DUDUK & BANGUN ==================
 local function keluarKursi()
     local hum = CharRef.Humanoid
-    local root = CharRef.Root
     if not hum then return end
     if hum.SeatPart then myChair = hum.SeatPart end
     hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
-    if root then
-        root.CFrame = root.CFrame * CFrame.new(0, 3, 0)
-    end
-    hum.Jump = true
+    hum:ChangeState(Enum.HumanoidStateType.Jumping)
     task.wait(math.random(4,7)/10)
 end
 
--- Variabel global buat timer anti-bug
-local lastActivityTime = tick()
-local isSwitching = false
-
--- Duduk dengan nempel kursi, CFrame Drop Fix
-local function dudukKeKursi(useNearest)
-    if myChair and not myChair.Parent then myChair = nil end
-
-    local targetHandle = myChair
-    if useNearest or not targetHandle then
-        targetHandle = findNearestChair(200)
-        if not targetHandle then return false end
-    end
-    myChair = targetHandle
-
+local function dudukKeKursi()
+    if not myChair then return false end
     local hum = CharRef.Humanoid
-    local root = CharRef.Root
-    if not hum or not root or not targetHandle then return false end
-
-    jalanKe(targetHandle.Position)
-
-    if (root.Position - targetHandle.Position).Magnitude < 10 then
-        root.CFrame = CFrame.new(targetHandle.Position + Vector3.new(0, 4, 0))
-        task.wait(0.5)
-    end
-
+    if not hum then return false end
+    hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+    jalanKe(myChair.Position + Vector3.new(0,2,0))
+    task.wait(math.random(3,6)/10)
     hum:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
-
-    local timeout = 8
-    local start = tick()
-    local dudukBerhasil = false
-    while tick() - start < timeout do
-        if hum.SeatPart then
-            dudukBerhasil = true
-            break
-        end
-        
-        if (root.Position - targetHandle.Position).Magnitude < 5 then
-            pcall(function()
-                if targetHandle:IsA("Seat") or targetHandle:IsA("VehicleSeat") then
-                    targetHandle:Sit(hum)
-                else
-                    hum.Sit = true
-                    task.wait(0.2)
-                    hum.Sit = false
-                end
-            end)
-        end
-        task.wait(0.4)
+    task.wait(0.1)
+    if myChair:IsA("Seat") or myChair:IsA("VehicleSeat") then
+        myChair:Sit(hum); task.wait(0.5); return true
     end
-
-    if not dudukBerhasil then
-        local forward = targetHandle.CFrame.LookVector * 2
-        jalanKe(targetHandle.Position + forward)
-        task.wait(0.8)
-        root.CFrame = CFrame.new(targetHandle.Position + Vector3.new(0, 4, 0))
-        task.wait(0.5)
-        
-        for i = 1, 4 do
-            if (root.Position - targetHandle.Position).Magnitude < 5 then
-                pcall(function()
-                    if targetHandle:IsA("Seat") or targetHandle:IsA("VehicleSeat") then
-                        targetHandle:Sit(hum)
-                    else
-                        hum.Sit = true
-                        task.wait(0.1)
-                        hum.Sit = false
-                    end
-                end)
-                if hum.SeatPart then dudukBerhasil = true break end
-            end
-            task.wait(0.5)
+    for _, child in pairs(myChair:GetChildren()) do
+        if child:IsA("ProximityPrompt") and child.Enabled then
+            eksekusiPromptTahan(child); task.wait(0.5); return true
         end
     end
-
-    if dudukBerhasil then
-        task.wait(1.5)
-        -- FIX UTAMA: Reset timer anti-bug tiap kali bot berhasil duduk!
-        lastActivityTime = tick()
-    end
-
-    return dudukBerhasil
+    return false
 end
 
+-- ================== PRINTER STUFF ==================
 local function cekPanggilanPrinter()
     for _, gui in pairs(playerGui:GetDescendants()) do
         if gui:IsA("TextLabel") and gui.Visible and hasText(gui.Text, "printer") then
@@ -879,11 +812,56 @@ local function scanPromptPrint()
     return nil
 end
 
+-- ================== PRINT THREAD ==================
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if not State.IsOfficeActive or getgenv().isGoingToPrinter then continue end
+        if cekPanggilanPrinter() then
+            getgenv().isGoingToPrinter = true
+            getgenv().forceStopMath = true
+            task.wait(math.random(8,18)/10)
+            keluarKursi()
+            local printerPos = nil
+            for i=1,10 do
+                local pp = scanPromptPrint()
+                if pp and pp.Parent:IsA("BasePart") then
+                    printerPos = pp.Parent.Position + Vector3.new(0,0,2); break
+                end
+                task.wait(0.5)
+            end
+            if printerPos then
+                jalanKe(printerPos)
+                task.wait(math.random(4,8)/10)
+                for i=1,5 do
+                    local pp = scanPromptPrint()
+                    if pp then
+                        task.wait(math.random(4,10)/10)
+                        eksekusiPromptTahan(pp)
+                        State.OfficePrints = (State.OfficePrints or 0) + 1
+                        break
+                    end
+                    task.wait(0.5)
+                end
+                task.wait(math.random(15,25)/10)
+            end
+            dudukKeKursi()
+            task.wait(math.random(8,15)/10)
+            CachedTargetLabel, CachedTargetParent = nil, nil
+            getgenv().isGoingToPrinter = false
+            getgenv().forceStopMath = false
+        end
+    end
+end)
+
+-- ================== MATH STUFF ==================
 local function cariSoalBaru()
+    CachedTargetLabel, CachedTargetParent = nil, nil
     for _, v in pairs(playerGui:GetDescendants()) do
-        if (v:IsA("TextLabel") or v:IsA("TextButton")) and v.Visible and v.Text ~= "" then
-            local a, op, b = string.match(v.Text, "(%d+%.?%d*)%s*([%+%-%*/xX])%s*(%d+%.?%d*)")
+        if v:IsA("TextLabel") and v.Visible and v.Text ~= "" then
+            local a, op, b = string.match(v.Text, "(%d+)%s*([%+%-%*/])%s*(%d+)")
             if a and op and b then
+                CachedTargetLabel, CachedTargetParent = v, v.Parent
                 return v
             end
         end
@@ -891,157 +869,47 @@ local function cariSoalBaru()
     return nil
 end
 
-local soalCacheValid = nil
-local function klikTombol(btn)
-    if not btn then return false end
-    local success = false
-
-    if getconnections then
-        pcall(function()
-            for _, conn in ipairs(getconnections(btn.MouseButton1Click)) do
-                if type(conn.Function) == "function" then
-                    task.spawn(conn.Function)
-                    success = true
-                elseif conn.Fire then
-                    conn:Fire()
-                    success = true
-                end
-            end
-            
-            for _, conn in ipairs(getconnections(btn.Activated)) do
-                if type(conn.Function) == "function" then
-                    task.spawn(conn.Function)
-                    success = true
-                elseif conn.Fire then
-                    conn:Fire()
-                    success = true
-                end
-            end
-        end)
-    end
-
-    if not success and firesignal then
-        pcall(function() firesignal(btn.MouseButton1Down) end)
-        pcall(function() firesignal(btn.MouseButton1Click) end)
-        pcall(function() firesignal(btn.Activated) end)
-        pcall(function() firesignal(btn.MouseButton1Up) end)
-        success = true
-    end
-
-    if not success then
-        pcall(function()
-            if btn:IsA("GuiButton") then
-                btn.Active = true
-                btn:Activate()
-            end
-        end)
-        success = true
-    end
-
-    return success
+local function soalCacheValid()
+    return CachedTargetLabel and CachedTargetLabel.Parent and CachedTargetLabel.Visible
 end
 
--- ================== PRINT THREAD (WALKING NO TELEPORT) ==================
-task.spawn(function()
-    while true do
-        local s = State.OfficeSettings
-        task.wait(s.PrinterCheckInterval)
-        if not State.IsOfficeActive or not s.EnableAutoPrinter or getgenv().isGoingToPrinter then continue end
-        
-        if cekPanggilanPrinter() then
-            getgenv().isGoingToPrinter = true
-            getgenv().forceStopMath = true
-            task.wait(math.random(8,18)/10)
-            keluarKursi()
-            
-            local printerPos = nil
-            local targetPrompt = nil
-            for i=1,10 do
-                local pp = scanPromptPrint()
-                if pp and pp.Parent:IsA("BasePart") then
-                    printerPos = pp.Parent.Position + Vector3.new(0,0,2)
-                    targetPrompt = pp
-                    break
-                end
-                task.wait(0.5)
-            end
-            
-            if printerPos and targetPrompt then
-                jalanKe(printerPos)
-                task.wait(math.random(4,8)/10)
-                
-                local printBerhasil = false
-                for i=1, 5 do
-                    local pp = scanPromptPrint()
-                    if pp and pp.Parent and pp.Parent:IsA("BasePart") then
-                        if (pp.Parent.Position - CharRef.Root.Position).Magnitude < 15 then
-                            task.wait(math.random(4,10)/10)
-                            eksekusiPromptTahan(pp)
-                            
-                            local timeout = tick() + 8
-                            while tick() < timeout do
-                                local currentPp = scanPromptPrint()
-                                if not currentPp or currentPp ~= pp then
-                                    printBerhasil = true
-                                    break
-                                end
-                                task.wait(0.3)
-                            end
-                            
-                            if printBerhasil then
-                                State.OfficePrints = (State.OfficePrints or 0) + 1
-                                break
-                            end
-                        else
-                            jalanKe(pp.Parent.Position + Vector3.new(0,0,2))
-                        end
-                    else
-                        printBerhasil = true
-                        break
-                    end
-                    task.wait(0.5)
-                end
-                
-                task.wait(math.random(5,10)/10)
-            end
-            
-            -- Balik ke kursi TERDEKAT
-            dudukKeKursi(true)
-            task.wait(math.random(8,15)/10)
-            soalCacheValid = nil
-            
-            -- FIX UTAMA: Pastikan timer di-reset habis print biar nggak langsung berdiri lagi
-            lastActivityTime = tick()
-            
-            getgenv().isGoingToPrinter = false
-            getgenv().forceStopMath = false
-        end
-    end
-end)
+local function klikTombol(btn)
+    if not btn then return false end
+    local ok = pcall(function() if firesignal then firesignal(btn.MouseButton1Click) end end)
+    if ok then return true end
+    ok = pcall(function() if firesignal then firesignal(btn.Activated) end end)
+    if ok then return true end
+    ok = pcall(function() if getconnections then for _,c in pairs(getconnections(btn.MouseButton1Click)) do c:Fire() end end end)
+    if ok then return true end
+    ok = pcall(function()
+        local pos = btn.AbsolutePosition + btn.AbsoluteSize/2
+        Services.VIM:SendMouseButtonEvent(pos.X, pos.Y, 0, true, game, 1)
+        task.wait(0.05)
+        Services.VIM:SendMouseButtonEvent(pos.X, pos.Y, 0, false, game, 1)
+    end)
+    return ok
+end
 
--- ================== IDLE DETECTOR + CHAIR SWITCH (ANTI BUG GANTI KURSI) ==================
+-- ================== IDLE DETECTOR + CHAIR SWITCH ==================
+local lastActivityTime = tick()
+local isSwitching = false
+local IDLE_SWITCH_TIME = 60
+
 task.spawn(function()
     while true do
         task.wait(1)
         if not State.IsOfficeActive then continue end
-        local s = State.OfficeSettings
         if getgenv().isGoingToPrinter or getgenv().forceStopMath or isSwitching then continue end
-        
-        -- Reset timer kalau lagi duduk santai (nggak ada soal), biar nggak ganti kursi
-        if CharRef.Humanoid and CharRef.Humanoid.SeatPart then
-            if not cariSoalBaru() then
-                lastActivityTime = tick()
-            end
-        end
-        
-        -- Ganti kursi HANYA kalau ada soal tapi nggak dijawab selama X detik
-        if s.EnableChairSwitch and tick() - lastActivityTime > s.IdleSwitchTime then
+        if tick() - lastActivityTime > IDLE_SWITCH_TIME then
             isSwitching = true
             getgenv().forceStopMath = true
+            WindUI:Notify({ Title = "🔄 Office", Content = "Sepi soal, ganti kursi dulu...", Duration = 3 })
             keluarKursi()
             local newChair = findAnotherChair()
-            if newChair then myChair = newChair end
-            dudukKeKursi(false)
+            if newChair then
+                myChair = newChair
+            end
+            dudukKeKursi()
             getgenv().forceStopMath = false
             isSwitching = false
             lastActivityTime = tick()
@@ -1049,43 +917,34 @@ task.spawn(function()
     end
 end)
 
--- ================== MATH THREAD (FIX BACA TOMBOL & TEXTBOX) ==================
+-- ================== MATH THREAD ==================
 task.spawn(function()
     while true do
-        task.wait(0.5)
+        task.wait(0.2)
         if not State.IsOfficeActive or getgenv().forceStopMath or getgenv().isGoingToPrinter then continue end
         local hum = CharRef.Humanoid
         if not hum or not hum.SeatPart then
-            if myChair then
-                dudukKeKursi(false)
-                task.wait(2)
-            end
+            if myChair then dudukKeKursi() end
             task.wait(1)
             continue
         end
 
-        local soalLabel = (soalCacheValid and soalCacheValid.Parent and soalCacheValid.Visible) and soalCacheValid or cariSoalBaru()
-        if not soalLabel then task.wait(0.5) continue end
+        local soalLabel = soalCacheValid() and CachedTargetLabel or cariSoalBaru()
+        if not soalLabel then task.wait(0.8) continue end
 
         lastActivityTime = tick()
 
         local text = soalLabel.Text
-        local a, op, b = string.match(text, "(%d+%.?%d*)%s*([%+%-%*/xX])%s*(%d+%.?%d*)")
-        if not a then soalCacheValid = nil continue end
+        local a, op, b = string.match(text, "(%d+)%s*([%+%-%*/])%s*(%d+)")
+        if not a then CachedTargetLabel, CachedTargetParent = nil, nil continue end
 
         local n1, n2 = tonumber(a), tonumber(b)
         local jawaban
-        if op == "x" or op == "X" then op = "*" end
-        
         if     op == "+" then jawaban = n1 + n2
         elseif op == "-" then jawaban = n1 - n2
         elseif op == "*" then jawaban = n1 * n2
         elseif op == "/" and n2 ~= 0 then jawaban = n1 / n2
-        else soalCacheValid = nil continue end
-
-        if jawaban == math.floor(jawaban) then
-            jawaban = math.floor(jawaban)
-        end
+        else CachedTargetLabel, CachedTargetParent = nil, nil continue end
 
         local ditemukan = false
         for _, btn in pairs(playerGui:GetDescendants()) do
@@ -1093,59 +952,31 @@ task.spawn(function()
             if btn:IsA("TextButton") and btn.Visible then
                 local btnText = btn.Text
                 if btnText == "" or tonumber(btnText) == nil then
-                    for _, child in ipairs(btn:GetDescendants()) do
-                        if child:IsA("TextLabel") and child.Text ~= "" then
-                            btnText = child.Text
-                            break
-                        end
-                    end
+                    local cl = btn:FindFirstChildOfClass("TextLabel")
+                    if cl then btnText = cl.Text end
                 end
-                
-                local cleanBtnText = string.gsub(tostring(btnText), "[,%s]", "")
-                if tonumber(cleanBtnText) == jawaban then
+                if tonumber(btnText) == jawaban then
                     ditemukan = true
-                    local s = State.OfficeSettings
-                    task.wait(math.random(s.MathDelayMin * 10, s.MathDelayMax * 10) / 10)
+                    task.wait(math.random(8,25)/10)
                     if getgenv().forceStopMath or not State.IsOfficeActive then break end
                     if klikTombol(btn) then
                         State.OfficeMathSolved = (State.OfficeMathSolved or 0) + 1
                         lastActivityTime = tick()
-                        task.wait(s.AfterAnswerDelay)
                     end
                     task.wait(math.random(4,12)/10)
                     break
                 end
             end
         end
-        
-        if not ditemukan then
-            for _, tb in pairs(playerGui:GetDescendants()) do
-                if getgenv().forceStopMath or not State.IsOfficeActive then break end
-                if tb:IsA("TextBox") and tb.Visible then
-                    tb.Text = tostring(jawaban)
-                    task.wait(0.2)
-                    Services.VIM:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
-                    task.wait(0.1)
-                    Services.VIM:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
-                    ditemukan = true
-                    State.OfficeMathSolved = (State.OfficeMathSolved or 0) + 1
-                    lastActivityTime = tick()
-                    task.wait(State.OfficeSettings.AfterAnswerDelay)
-                    break
-                end
-            end
-        end
-        
-        if not ditemukan then soalCacheValid = nil end
+        if not ditemukan then CachedTargetLabel, CachedTargetParent = nil, nil end
     end
 end)
 
 -- ================== ANTI-IDLE EVENT ==================
 task.spawn(function()
     while true do
-        local s = State.OfficeSettings
-        task.wait(s.AntiIdleInterval)
-        if State.IsOfficeActive and s.EnableAntiIdle then
+        task.wait(10)
+        if State.IsOfficeActive then
             pcall(function()
                 game:GetService("ReplicatedStorage"):WaitForChild("EventEvents"):WaitForChild("GetMyJoinedEvents"):InvokeServer({})
             end)
@@ -1153,9 +984,12 @@ task.spawn(function()
     end
 end)
 
--- ================== MONITORING GUI ==================
+-- ================== MONITORING GUI (FIX ZEROS & AUTO SCAN UI) ==================
 local CoreGui = (gethui and gethui()) or game:GetService("CoreGui")
+local Players = game:GetService("Players")
+local LocalPlayer2 = Players.LocalPlayer
 local TrackerGui = nil
+
 local CachedMoneyLabel = nil
 
 local function parseNumber(val)
@@ -1183,8 +1017,9 @@ local function formatTime(seconds)
 end
 
 local function CariLabelUang()
-    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+    local playerGui = LocalPlayer2:FindFirstChild("PlayerGui")
     if not playerGui then return nil end
+
     for _, guiObject in ipairs(playerGui:GetDescendants()) do
         if guiObject:IsA("TextLabel") or guiObject:IsA("TextButton") then
             local text = guiObject.Text
@@ -1200,19 +1035,24 @@ local function DapatkanUangPemain()
     if CachedMoneyLabel and CachedMoneyLabel.Parent then
         return parseNumber(CachedMoneyLabel.Text)
     end
+
     CachedMoneyLabel = CariLabelUang()
     if CachedMoneyLabel then
         return parseNumber(CachedMoneyLabel.Text)
     end
+    
     return GetPlayerMoney()
 end
 
 local function buatMonitoringGUI()
     local uangSekarang = DapatkanUangPemain()
+    
     if not getgenv().UangAwalDikunci or getgenv().UangAwalDikunci == 0 then
         getgenv().UangAwalDikunci = uangSekarang
     end
+    
     getgenv().WaktuMulai = getgenv().WaktuMulai or tick()
+    
     local uangAwal = getgenv().UangAwalDikunci
 
     if TrackerGui and TrackerGui.Parent then TrackerGui:Destroy() end
@@ -1269,19 +1109,33 @@ local function buatMonitoringGUI()
 
     task.spawn(function()
         while TrackerGui and TrackerGui.Parent do
-            pcall(function()
+            local success, err = pcall(function()
                 local currentMoney = DapatkanUangPemain()
+                
                 if uangAwal == 0 and currentMoney > 0 then
                     getgenv().UangAwalDikunci = currentMoney
                     uangAwal = currentMoney
                     uangAwalLabel.Text = formatNumber(uangAwal)
                 end
+                
                 local profit = currentMoney - uangAwal
+                
                 pendapatanLabel.Text = (profit >= 0 and "+" or "") .. formatNumber(profit)
-                soalLabel.Text = tostring(State.OfficeMathSolved or 0)
-                printLabel.Text = tostring(State.OfficePrints or 0)
+                
+                if type(State) == "table" then
+                    soalLabel.Text = tostring(State.OfficeMathSolved or 0)
+                    printLabel.Text = tostring(State.OfficePrints or 0)
+                else
+                    soalLabel.Text = "0"
+                    printLabel.Text = "0"
+                end
+                
                 uptimeLabel.Text = formatTime(tick() - getgenv().WaktuMulai)
             end)
+
+            if not success then
+                warn("Monitoring Error: ", tostring(err))
+            end
             task.wait(1)
         end
     end)
@@ -1291,6 +1145,7 @@ local function matikanMonitoring()
     if TrackerGui and TrackerGui.Parent then TrackerGui:Destroy(); TrackerGui = nil end
 end
 
+-- ================== START & STOP FUNCS (DENGAN FIX TIMER IDLE) ==================
 local function StartOfficeScript()
     if State.IsOfficeActive then return end
     State.IsOfficeActive = true
@@ -1298,24 +1153,35 @@ local function StartOfficeScript()
     State.OfficePrints = 0
     getgenv().fullAuto = true
 
+    -- Reset cache & kuncian lama
     CachedMoneyLabel = nil
     getgenv().UangAwalDikunci = nil
     getgenv().WaktuMulai = tick()
 
+    -- Kalau belum duduk, cari kursi dulu
     if not CharRef.Humanoid or not CharRef.Humanoid.SeatPart then
-        if not dudukKeKursi(true) then
+        WindUI:Notify({ Title = "🔍 Office", Content = "Mencari kursi kerja...", Duration = 3 })
+        local sitPrompt = findNearestChair(60)
+        if sitPrompt then
+            if sitPrompt:IsA("ProximityPrompt") then
+                myChair = sitPrompt.Parent
+                jalanKe(myChair.Position + Vector3.new(0,2,0))
+                task.wait(0.5)
+                dudukKeKursi()
+            elseif sitPrompt:IsA("Seat") then
+                myChair = sitPrompt
+                dudukKeKursi()
+            end
+        else
             WindUI:Notify({ Title = "⚠️ Office", Content = "Kursi nggak ketemu, duduk manual dulu bos!", Duration = 5 })
         end
     else
-        local seat = CharRef.Humanoid.SeatPart
-        if seat and seat:IsA("BasePart") then
-            myChair = seat
-        else
-            myChair = findNearestChair(200)
-        end
+        myChair = CharRef.Humanoid.SeatPart
     end
 
+    -- **PENTING:** Reset timer idle supaya langsung jawab soal begitu start
     lastActivityTime = tick()
+
     buatMonitoringGUI()
     WindUI:Notify({ Title = "✅ Office", Content = "Auto Office jalan! Uang Awal discan otomatis.", Duration = 4 })
 end
@@ -1325,7 +1191,7 @@ local function StopOfficeScript()
     getgenv().fullAuto = false
     getgenv().forceStopMath = false
     getgenv().isGoingToPrinter = false
-    soalCacheValid = nil
+    CachedTargetLabel, CachedTargetParent = nil, nil
 
     CachedMoneyLabel = nil
     getgenv().UangAwalDikunci = nil
@@ -1336,7 +1202,9 @@ local function StopOfficeScript()
     WindUI:Notify({ Title = "🛑 Office", Content = "Auto Office dimatiin.", Duration = 3 })
 end
 
--- // 13. AUTO COURIER
+-- ============================================================================
+-- // 13. AUTO COURIER (INTEGRATED)
+-- ============================================================================
 local CourierJob = {
     Name = "Courier",
     TeamId = 11378976,
@@ -1674,7 +1542,9 @@ local function StopCourierScript()
     end
 end
 
+-- ============================================================================
 -- // 14. INJECT A-CHASSIS
+-- ============================================================================
 local function InjectMesin(HP_Mult, RPM_Add, Ratio_Mult, FD_Mult, NamaMode)
     local char = game:GetService("Players").LocalPlayer.Character
     if char and char:FindFirstChild("Humanoid") and char.Humanoid.SeatPart then
@@ -1729,64 +1599,9 @@ local function InjectMesin(HP_Mult, RPM_Add, Ratio_Mult, FD_Mult, NamaMode)
     end
 end
 
--- // WEBHOOK AUTO SEND SYSTEM
-local function SendWebhookReport()
-    if not State.WebhookURL or State.WebhookURL == "" then return end
-    local req = request or http_request or (syn and syn.request)
-    if not req then return end
-
-    local currentMoney = DapatkanUangPemain()
-    
-    if State.WebhookStartMoney == 0 or State.WebhookStartMoney > currentMoney then
-        State.WebhookStartMoney = currentMoney
-    end
-    
-    local profit = currentMoney - State.WebhookStartMoney
-    local uptimeStr = formatTime(tick() - (getgenv().WaktuMulai or tick()))
-    local status = State.IsOfficeActive and "Office Aktif" or (State.IsBaristaActive and "Barista Aktif" or (State.IsCourierActive and "Courier Aktif" or "Idle"))
-
-    local data = {
-        ["embeds"] = {{
-            ["title"] = "👑 King Akbar - Laporan Auto Farm",
-            ["color"] = tonumber(0x5707AB),
-            ["fields"] = {
-                { ["name"] = "💼 Status",            ["value"] = status,                          ["inline"] = true },
-                { ["name"] = "⏱️ Waktu Berjalan",    ["value"] = uptimeStr,                        ["inline"] = true },
-                { ["name"] = "💰 Uang Saat Ini",     ["value"] = "Rp. " .. formatNumber(currentMoney), ["inline"] = true },
-                { ["name"] = "📈 Total Pendapatan",   ["value"] = "Rp. " .. formatNumber(profit),  ["inline"] = true },
-                { ["name"] = "🧮 Soal Dijawab",       ["value"] = tostring(State.OfficeMathSolved or 0), ["inline"] = true },
-                { ["name"] = "🖨️ Total Print",        ["value"] = tostring(State.OfficePrints or 0), ["inline"] = true },
-                { ["name"] = "🛵 Paket Dikirim",      ["value"] = tostring(State.CourierDelivered or 0), ["inline"] = true },
-            },
-            ["footer"] = { ["text"] = "King Akbar Auto Farm System" },
-            ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
-        }}
-    }
-
-    pcall(function()
-        req({
-            Url = State.WebhookURL,
-            Method = "POST",
-            Headers = {["Content-Type"] = "application/json"},
-            Body = game:GetService("HttpService"):JSONEncode(data)
-        })
-    end)
-end
-
-task.spawn(function()
-    while true do
-        task.wait(5)
-        if State.WebhookEnabled then
-            SendWebhookReport()
-            local targetTime = tick() + (State.WebhookInterval * 60)
-            while tick() < targetTime and State.WebhookEnabled do
-                task.wait(1)
-            end
-        end
-    end
-end)
-
--- // 15. UI
+-- ============================================================================
+-- // 15. UI — 7 TAB (Webhook dihapus)
+-- ============================================================================
 local wSz = IsMobile and UDim2.fromOffset(420, 320) or UDim2.fromOffset(580, 460)
 local mnSz = IsMobile and Vector2.new(600, 300) or Vector2.new(600, 350)
 local mxSz = IsMobile and Vector2.new(650, 400) or Vector2.new(850, 560)
@@ -1809,7 +1624,9 @@ local Window = WindUI:CreateWindow({
     ScrollBarEnabled            = true,
 })
 
+-- ============================
 -- TAB 1: INFO
+-- ============================
 local TabInfo = Window:Tab({ Title = "Info", Icon = "info", Border = true })
 
 local memberCount = "N/A"
@@ -1861,7 +1678,9 @@ local ServerInfo = TabInfo:Paragraph({
     }
 })
 
+-- ============================
 -- TAB 2: AUTO FARM
+-- ============================
 local TabFarm = Window:Tab({ Title = "Auto Farm", Icon = "coffee", Border = true })
 
 local SectionBarista = TabFarm:Section({
@@ -1892,38 +1711,6 @@ SectionOffice:Toggle({
     Callback = function(on) if on then StartOfficeScript() else StopOfficeScript() end end,
 })
 
-SectionOffice:Slider({
-    Title = "⏱️ Jeda Minimal Sebelum Klik (detik)",
-    Desc = "Contoh: 0.8 detik (makin kecil makin cepat)",
-    Step = 0.1,
-    Value = { Min = 0.1, Max = 3, Default = 0.8 },
-    Callback = function(v) State.OfficeSettings.MathDelayMin = v end,
-})
-
-SectionOffice:Slider({
-    Title = "⏱️ Jeda Maksimal Sebelum Klik (detik)",
-    Desc = "Contoh: 2.5 detik (makin besar makin santai)",
-    Step = 0.1,
-    Value = { Min = 0.5, Max = 5, Default = 2.5 },
-    Callback = function(v) State.OfficeSettings.MathDelayMax = v end,
-})
-
-SectionOffice:Slider({
-    Title = "⏸️ Jeda Setelah Jawab Benar (detik)",
-    Desc = "Contoh: 3 detik (biar server nggak kaget)",
-    Step = 0.5,
-    Value = { Min = 0.5, Max = 10, Default = 3 },
-    Callback = function(v) State.OfficeSettings.AfterAnswerDelay = v end,
-})
-
-SectionOffice:Slider({
-    Title = "🔄 Waktu Idle Anti-Bug (detik)",
-    Desc = "Kalau ada soal tapi nggak dijawab lebih dari ini, auto ganti kursi",
-    Step = 1,
-    Value = { Min = 5, Max = 60, Default = 15 },
-    Callback = function(v) State.OfficeSettings.IdleSwitchTime = v end,
-})
-
 local SectionCourier = TabFarm:Section({
     Title = "Auto Courier",
     Box = true,
@@ -1938,62 +1725,9 @@ SectionCourier:Toggle({
     Callback = function(on) if on then StartCourierScript() else StopCourierScript() end end,
 })
 
--- TAB 2.5: WEBHOOK
-local TabWebhook = Window:Tab({ Title = "Webhook", Icon = "link", Border = true })
-
-local WebhookSection = TabWebhook:Section({
-    Title = "Pengaturan Discord Webhook",
-    Box = true,
-    BoxBorder = true,
-    Opened = true,
-})
-
-WebhookSection:Input({
-    Title = "🔗 URL Webhook",
-    Placeholder = "Paste link Discord Webhook di sini...",
-    Callback = function(text)
-        State.WebhookURL = text
-    end
-})
-
-WebhookSection:Slider({
-    Title = "⏱️ Kirim Setiap (Menit)",
-    Desc = "Script otomatis ngirim laporan cuan ke Discord sesuai menit ini",
-    Step = 1,
-    Value = { Min = 1, Max = 60, Default = 5 },
-    Callback = function(v) State.WebhookInterval = v end,
-})
-
-WebhookSection:Toggle({
-    Title    = "Kirim Notif Otomatis",
-    Desc     = "Nyalain auto-send laporan cuan ke Discord",
-    Value    = false,
-    Callback = function(on) 
-        State.WebhookEnabled = on 
-        if on then
-            State.WebhookStartMoney = DapatkanUangPemain()
-            WindUI:Notify({ Title = "✅ Webhook Aktif", Content = "Laporan otomatis akan dikirim tiap " .. State.WebhookInterval .. " menit.", Duration = 4 })
-        else
-            WindUI:Notify({ Title = "🛑 Webhook Mati", Content = "Auto-send dimatiin.", Duration = 3 })
-        end
-    end,
-})
-
-WebhookSection:Button({
-    Title = "📡 Tes Kirim Webhook Sekarang",
-    Callback = function()
-        if not State.WebhookURL or State.WebhookURL == "" then
-            WindUI:Notify({ Title = "⚠️ Error", Content = "Isi URL Webhook dulu bos!", Duration = 3 })
-            return
-        end
-        
-        State.WebhookStartMoney = DapatkanUangPemain()
-        SendWebhookReport()
-        WindUI:Notify({ Title = "✅ Sukses", Content = "Webhook berhasil dikirim ke Discord!", Duration = 3 })
-    end
-})
-
+-- ============================
 -- TAB 3: KEAMANAN
+-- ============================
 local TabSec = Window:Tab({ Title = "Keamanan", Icon = "shield", Border = true })
 
 local Perlindungan = TabSec:Section({
@@ -2019,7 +1753,9 @@ Perlindungan:Toggle({
     Callback = function(on) State.AntiAFK = on end,
 })
 
+-- ============================
 -- TAB 4: PERFORMA
+-- ============================
 local TabPerf = Window:Tab({ Title = "Performa", Icon = "zap", Border = true })
 
 local HematDaya = TabPerf:Section({
@@ -2036,7 +1772,9 @@ HematDaya:Toggle({
     Callback = function(on) ToggleBlackScreen(on) end,
 })
 
+-- ============================
 -- TAB 5: PENGATURAN
+-- ============================
 local TabCfg = Window:Tab({ Title = "Pengaturan", Icon = "settings", Border = true })
 
 local Konfigurasi = TabCfg:Section({
@@ -2054,7 +1792,9 @@ Konfigurasi:Slider({
     Callback = function(v) State.ActionDelay = v end,
 })
 
+-- ============================
 -- TAB 6: MODE INSTAN
+-- ============================
 local TabPreset = Window:Tab({ Title = "🏎️ Mode Instan", Icon = "car", Border = true })
 
 local ModeCepat = TabPreset:Section({
@@ -2086,7 +1826,9 @@ ModeCepat:Button({
     end
 })
 
+-- ============================
 -- TAB 7: CUSTOM SETTING
+-- ============================
 local TabCustom = Window:Tab({ Title = "⚙️ Custom Setting", Icon = "sliders", Border = true })
 
 local TuneSendiri = TabCustom:Section({
@@ -2127,13 +1869,20 @@ TuneSendiri:Button({
     Callback = function() InjectMesin(customHP, customRPM, customRatio, customFD, "Custom Tune Aktif") end
 })
 
+-- ============================
 -- OPEN BUTTON & FPS TAG
+-- ============================
 Window:EditOpenButton({
     Title           = "Open King Akbar",
     Icon            = "crown",
-    CornerRadius    = UDim.new(0, 8),
-    StrokeThickness = 1,
-    Color           = ColorSequence.new(Color3.fromRGB(30, 30, 35), Color3.fromRGB(15, 15, 20)),
+    CornerRadius    = UDim.new(0, 12),
+    StrokeThickness = 2,
+    Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromHex("#ffffff")),
+        ColorSequenceKeypoint.new(1, Color3.fromHex("#0a0a0a")),
+    }),
+    Enabled   = true,
+    Draggable = true,
 })
 
 local FpsTag = Window:Tag({
@@ -2156,13 +1905,15 @@ task.spawn(function()
     end
 end)
 
+-- ============================
 -- INIT
+-- ============================
 Window:SetIconSize(47)
 WindUI:SetTheme("dark")
 TabInfo:Select()
 
 WindUI:Notify({
-    Title    = "👑 KING AKBAR V6.2 SIAP!",
-    Content  = "Print Fix: Nggak bakal berdiri lagi abis duduk!",
+    Title    = "👑 KING AKBAR V5.8 FINAL SIAP!",
+    Content  = "Office langsung jawab soal pas start. Gas cuan!",
     Duration = 5,
 })
