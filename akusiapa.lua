@@ -3,18 +3,12 @@
   👑 KING AKBAR - ULTIMATE AUTO FARM SCRIPT 👑
 ================================================================================
     [+] Developer   : King Akbar
-    [+] Version     : DDS FREE EDITION (v7.4 DELAY JUMP + INSTANT SIT)
-    [+] Changelog   : - TP pertama langsung duduk instan (Anti kick)
-                      - Pindah kursi/balik printer dikasih jeda 1-2 detik sebelum loncat
-                      - Begitu nyampe kursi tujuan langsung duduk (gak lama)
-                      - Metode TP cuma pas pertama nyalain Auto Office
-                      - Pindah kursi & balik dari printer pakai metode Jalan Kaki
-                      - Fix Pindah Kursi (TP bener-bener ke kursi baru)
-                      - Tambah Jeda 1.5 Detik setelah duduk biar UI matematika muncul
-                      - BUANG WalkSpeed & JumpPower Spoofer (Penyebab Method 0x1)
+    [+] Version     : DDS FREE EDITION (v7.7 HUMANIZE DELAY)
+    [+] Changelog   : - Jeda jawab soal dirandom 1.5 - 3.5 detik (Anti Kicked)
+                      - Fix PC nggak ngejawab soal (Bypass btn.Active check)
+                      - Bisa baca simbol kali (×) dan bagi (÷)
+                      - Monitoring langsung nambah pas klik
                       - Bypass V3 Ringan (Bebas Heartbeat, Anti FPS Drop)
-                      - Matikan semua output F9 (Sembunyi dari Anti-Cheat)
-                      - [NEW] Lock Sit State: Karakter nggak bisa duduk nyerempet saat ke printer!
 ================================================================================
 ]]--
 
@@ -769,7 +763,7 @@ local function StopBaristaScript(reason)
 end
 
 -- ============================================================================
--- // 13. OFFICE JOB SYSTEM
+-- // 13. OFFICE JOB SYSTEM (DENGAN PERBAIKAN MONITORING & KAMERA PRINTER)
 -- ============================================================================
 local playerGui = LocalPlayer:WaitForChild("PlayerGui")
 
@@ -886,7 +880,6 @@ local function jalanKe(pos)
     end
 end
 
--- FIX LONCAT: Kasih jeda 1-2 detik sebelum loncat dari kursi
 local function keluarKursi()
     local hum = CharRef.Humanoid
     if not hum then return end
@@ -898,7 +891,6 @@ local function keluarKursi()
     end
 end
 
--- DUDUK KURSI: Pake parameter instantTP
 local function dudukKeKursi(instantTP)
     if not myChair then return false end
     local hum = CharRef.Humanoid
@@ -915,14 +907,13 @@ local function dudukKeKursi(instantTP)
     local targetCFrame = seat and seat.CFrame or (handle and handle.CFrame) or myChair.CFrame
     
     if instantTP then
-        -- METODE TP (Cuma pas pertama nyalain)
         if CharRef.Root then
             CharRef.Root.CFrame = targetCFrame
-            task.wait(0.1) -- Jeda super pendek biar physics nyatet TP (Anti Kick)
+            task.wait(0.1)
         end
         if seat then
             seat:Sit(hum)
-            task.wait(1.5) -- Jeda 1.5 detik biar UI matematika muncul
+            task.wait(1.5)
             return true
         else
             for _, child in pairs(myChair:GetChildren()) do
@@ -934,15 +925,11 @@ local function dudukKeKursi(instantTP)
             end
         end
     else
-        -- METODE JALAN KAKI (Pas pindah kursi atau balik dari printer)
         jalanKe(targetCFrame.Position + Vector3.new(0, 2, 0))
-        
-        -- [FIX OTOMATIS DUDUK] Nyalakan lagi kemampuan duduk karakter sebelum duduk
         hum:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
-        
         if seat then
             seat:Sit(hum)
-            task.wait(1.5) -- Jeda 1.5 detik biar UI muncul
+            task.wait(1.5)
             return true
         else
             for _, child in pairs(myChair:GetChildren()) do
@@ -970,7 +957,7 @@ local function cariSoalBaru()
     CachedTargetLabel, CachedTargetParent, CachedTargetText = nil, nil, nil
     for _, v in pairs(playerGui:GetDescendants()) do
         if v:IsA("TextLabel") and v.Visible and v.Text ~= "" then
-            local isMath = string.match(v.Text, "%d+%s*[%+%-%*/]%s*%d+")
+            local isMath = string.match(v.Text, "%d+%s*[%+%-%*/xX×÷]%s*%d+")
             if isMath then
                 CachedTargetLabel  = v
                 CachedTargetParent = v.Parent
@@ -990,19 +977,24 @@ end
 
 local function getButtonText(btn)
     if not btn then return "" end
-    local text = normalizeText(btn.Text or "")
-    if text ~= "" and tonumber(text) then return text end
-    for _, child in pairs(btn:GetDescendants()) do
-        if child:IsA("TextLabel") and child.Visible then
-            local clText = normalizeText(child.Text or "")
-            if clText ~= "" and tonumber(clText) then return clText end
+    local rawText = ""
+    if btn:IsA("TextButton") then rawText = btn.Text or "" end
+    
+    if rawText == "" then
+        for _, child in pairs(btn:GetDescendants()) do
+            if child:IsA("TextLabel") and child.Visible and child.Text ~= "" then
+                rawText = child.Text
+                break
+            end
         end
     end
-    return text
+    
+    local numStr = string.match(rawText, "%-?%d+")
+    return numStr or rawText
 end
 
 local function klikTombol(btn)
-    if not btn or not btn.Visible or not btn.Active then return false end
+    if not btn or not btn.Visible then return false end
     
     if type(firesignal) == "function" then
         local ok1 = pcall(function() firesignal(btn.MouseButton1Click) end)
@@ -1012,25 +1004,36 @@ local function klikTombol(btn)
     end
     
     if type(getconnections) == "function" then
-        local ok3 = pcall(function() for _, c in pairs(getconnections(btn.MouseButton1Click)) do c:Fire() end end)
+        local ok3 = pcall(function() 
+            for _, c in pairs(getconnections(btn.MouseButton1Click)) do c:Fire() end 
+        end)
         if ok3 then task.wait(0.05) return true end
+        local ok4 = pcall(function() 
+            for _, c in pairs(getconnections(btn.Activated)) do c:Fire() end 
+        end)
+        if ok4 then task.wait(0.05) return true end
     end
     
-    local ok4 = pcall(function()
+    local ok5 = pcall(function()
         local pos = btn.AbsolutePosition + (btn.AbsoluteSize / 2)
         if pos.X <= 0 or pos.Y <= 0 then return end
         Services.VIM:SendMouseButtonEvent(pos.X, pos.Y, 0, true, game, 1)
         task.wait(0.08)
         Services.VIM:SendMouseButtonEvent(pos.X, pos.Y, 0, false, game, 1)
     end)
-    return ok4
+    return ok5
 end
 
 local function hitungSoal(text)
-    local cleanText = string.gsub(text, "[xX]", "*")
+    local cleanText = string.gsub(text, "[xX×]", "*")
+    cleanText = string.gsub(cleanText, "÷", "/")
+    
     local mathStr = string.match(cleanText, "(%d[%d%s%+%-%*%/]+)")
     if not mathStr then return nil end
     
+    mathStr = string.match(mathStr, "^(.+%d)") 
+    if not mathStr then return nil end
+
     local func, err = loadstring("return " .. mathStr)
     if func then
         local success, result = pcall(func)
@@ -1056,12 +1059,10 @@ task.spawn(function()
         if tick() - lastActivityTime > IDLE_SWITCH_TIME then
             isSwitching = true
             getgenv().forceStopMath = true
-            keluarKursi() -- Jeda 1-2 detik sebelum loncat
+            keluarKursi()
             local newChair = findAnotherChair()
-            if newChair then 
-                myChair = newChair 
-            end
-            dudukKeKursi(false) -- Metode jalan kaki
+            if newChair then myChair = newChair end
+            dudukKeKursi(false)
             CachedTargetLabel, CachedTargetParent, CachedTargetText = nil, nil, nil
             getgenv().forceStopMath = false
             isSwitching = false
@@ -1077,7 +1078,7 @@ task.spawn(function()
         if not State.IsOfficeActive or getgenv().forceStopMath or getgenv().isGoingToPrinter then continue end
         local hum = CharRef.Humanoid
         if not hum or not hum.SeatPart then
-            if myChair then dudukKeKursi(false) end -- Metode jalan kaki
+            if myChair then dudukKeKursi(false) end
             task.wait(1.5)
             continue
         end
@@ -1090,8 +1091,9 @@ task.spawn(function()
         
         local availableOptions = {}
         local buttonsList = {}
+        
         for _, btn in pairs(playerGui:GetDescendants()) do
-            if btn:IsA("TextButton") and btn.Visible and btn.Active then
+            if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible then
                 local btnText = getButtonText(btn)
                 local btnNum = tonumber(btnText)
                 if btnNum then
@@ -1112,7 +1114,9 @@ task.spawn(function()
             if getgenv().forceStopMath or not State.IsOfficeActive then break end
             if math.abs(data.num - jawaban) < 0.01 then
                 ditemukan = true
-                task.wait(math.random(10,25)/10)
+                
+                -- 🛡️ HUMANIZE DELAY: Jeda random 1.5 sampai 3.5 detik biar nggak kedetek bot
+                task.wait(math.random(15, 35) / 10)
                 
                 if getgenv().forceStopMath or not State.IsOfficeActive then break end
                 
@@ -1123,7 +1127,8 @@ task.spawn(function()
                     ditemukan = false
                 end
                 
-                task.wait(math.random(5,12)/10)
+                -- Jeda setelah jawab biar soal berikutnya muncul (0.5 - 1.5 detik)
+                task.wait(math.random(5, 15) / 10)
                 break
             end
         end
@@ -1157,12 +1162,11 @@ task.spawn(function()
             getgenv().forceStopMath = true
             
             task.wait(math.random(8,18)/10)
-            keluarKursi() -- Jeda 1-2 detik sebelum loncat ke printer
+            keluarKursi()
             
             local hum = CharRef.Humanoid
             local root = CharRef.Root
             
-            -- [FIX OTOMATIS DUDUK] Matikan kemampuan duduk karakter sementara
             if hum then
                 hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
             end
@@ -1184,17 +1188,21 @@ task.spawn(function()
             end
             
             if printerPart and targetPrompt then
-                -- Aman jalan lurus ke printer, karakter nggak akan duduk nyerempet kursi
                 jalanKe(printerPart.Position + Vector3.new(0, 0, 2.5))
                 
-                task.wait(math.random(4,8)/10)
-                
-                if CharRef.Root then
-                    CharRef.Root.CFrame = CFrame.lookAt(CharRef.Root.Position, Vector3.new(printerPart.Position.X, CharRef.Root.Position.Y, printerPart.Position.Z))
+                if CharRef.Root and printerPart then
+                    local lookTarget = Vector3.new(printerPart.Position.X, CharRef.Root.Position.Y, printerPart.Position.Z)
+                    CharRef.Root.CFrame = CFrame.lookAt(CharRef.Root.Position, lookTarget)
+                    local cam = workspace.CurrentCamera
+                    if cam then
+                        cam.CameraType = Enum.CameraType.Scriptable
+                        cam.CFrame = CFrame.lookAt(CharRef.Root.Position + Vector3.new(0, 3, 0), lookTarget)
+                        task.wait(0.1)
+                        cam.CameraType = Enum.CameraType.Custom
+                    end
                 end
-                task.wait(0.5)
-                task.wait(math.random(4,10)/10)
                 
+                task.wait(math.random(4,10)/10)
                 eksekusiPromptTahan(targetPrompt)
                 State.OfficePrints = (State.OfficePrints or 0) + 1
                 
@@ -1205,7 +1213,12 @@ task.spawn(function()
                 end
             end
             
-            dudukKeKursi(false) -- Metode jalan kaki (Balik dari printer)
+            local cam = workspace.CurrentCamera
+            if cam and cam.CameraType == Enum.CameraType.Scriptable then
+                cam.CameraType = Enum.CameraType.Custom
+            end
+            
+            dudukKeKursi(false)
             task.wait(math.random(8,15)/10)
             
             CachedTargetLabel, CachedTargetParent, CachedTargetText = nil, nil, nil
@@ -1383,7 +1396,6 @@ local function matikanMonitoring()
     if TrackerGui and TrackerGui.Parent then TrackerGui:Destroy(); TrackerGui = nil end
 end
 
--- METODE TP PERTAMA (Pas baru nyalain Auto Office)
 local function StartOfficeScript()
     if State.IsOfficeActive then return end
     State.IsOfficeActive = true
@@ -1410,7 +1422,7 @@ local function StartOfficeScript()
 
         if targetChair then
             myChair = targetChair
-            dudukKeKursi(true) -- TP LANGSUNG DUDUK
+            dudukKeKursi(true)
         else
             local sitPrompt = findNearestChair(60)
             if sitPrompt then
@@ -1419,7 +1431,7 @@ local function StartOfficeScript()
                 else
                     myChair = sitPrompt
                 end
-                dudukKeKursi(true) -- TP LANGSUNG DUDUK
+                dudukKeKursi(true)
             else
                 WindUI:Notify({ Title = "⚠️ Office", Content = "Kursi nggak ketemu, duduk manual dulu bos!", Duration = 5 })
             end
@@ -1439,13 +1451,11 @@ local function StopOfficeScript()
     getgenv().forceStopMath = false
     getgenv().isGoingToPrinter = false
     
-    -- Pastikan state duduk dikembalikan saat script dimatikan
     if CharRef.Humanoid then
         CharRef.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
     end
 
     CachedTargetLabel, CachedTargetParent, CachedTargetText = nil, nil, nil
-
     CachedMoneyLabel = nil
     getgenv().UangAwalDikunci = nil
 
@@ -2068,7 +2078,7 @@ WindUI:SetTheme("dark")
 TabInfo:Select()
 
 WindUI:Notify({
-    Title    = "👑 KING AKBAR V7.4 SIAP!",
-    Content  = "Delay Jump & Instant Sit Fix!",
+    Title    = "👑 KING AKBAR V7.7 SIAP!",
+    Content  = "Delay Random Anti-Cheat!",
     Duration = 5,
 })
