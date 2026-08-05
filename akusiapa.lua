@@ -3,13 +3,13 @@
   👑 KING AKBAR - ULTIMATE AUTO FARM SCRIPT 👑
 ================================================================================
     [+] Developer   : King Akbar
-    [+] Version     : DDS FREE EDITION (v6.1 SILENT MODE + FULL BYPASS)
-    [+] Changelog   : - Matikan semua output F9 (Sembunyi dari Anti-Cheat)
-                      - Integrasi ULTIMATE FULL BYPASS (Anti-Kick, Adonis Destroyer)
+    [+] Version     : DDS FREE EDITION (v6.2 BRUTAL BYPASS + HTTP BLOCK)
+    [+] Changelog   : - Webhook & HTTP Blocker (Blokir lapor ke Discord/Website)
+                      - Brutal Namecall Hook (Baca argumen table & block lebih ketat)
+                      - Anti-Respawn Adonis Destroyer (Pakai Heartbeat 60FPS)
+                      - Matikan semua output F9 (Sembunyi dari Anti-Cheat)
                       - Office pakai Remote Hook untuk Printer (Anti-Cheat Safe)
-                      - Deteksi Soal 3 Angka (cth: 5 * 2 + 10)
-                      - Filter UI "Koleksi Anomali" biar gak kebaca soal
-                      - Auto ganti kursi kalo sepi soal
+                      - Deteksi Soal 3 Angka & Filter UI Anomali
                       - Bypass Network Pause auto-active
 ================================================================================
 ]]--
@@ -22,7 +22,7 @@ local warn = function() end
 local error = function() end
 
 -- ============================================================================
--- // 0. ULTIMATE FULL BYPASS (All-In-One)
+-- // 0. ULTIMATE FULL BYPASS (All-In-One Standalone)
 -- ============================================================================
 do
     local LocalPlayer = game:GetService("Players").LocalPlayer
@@ -37,7 +37,23 @@ do
         end
     end)
 
-    -- 2. NAMECALL HOOK (Block Kick & Remote Report)
+    -- 2. WEBHOOK / HTTP BLOCKER (Blokir ke Discord/Website)
+    pcall(function()
+        local requestFunc = (syn and syn.request) or http_request or (fluxus and fluxus.request) or request or (http and http.request)
+        if requestFunc then
+            local oldRequest = requestFunc
+            hookfunction(requestFunc, function(opts)
+                local url = string.lower(tostring(opts.Url or opts.url or ""))
+                -- Kalau URLnya bukan roblox.com, batalkan requestnya!
+                if not (url:find("roblox.com") or url:find("rbxcdn")) then
+                    return { StatusCode = 200, Body = "{\"success\":true}", Success = true }
+                end
+                return oldRequest(opts)
+            end)
+        end
+    end)
+
+    -- 3. BRUTAL NAMECALL HOOK (Block Kick, Laporan, & Koordinat)
     pcall(function()
         local mt = getrawmetatable(game)
         local oldNamecall = mt.__namecall
@@ -47,22 +63,29 @@ do
             local method = getnamecallmethod()
             local args = {...}
             
+            -- A. Block Kick / Disconnect
             if (method == "Kick" or method == "kick" or method == "Disconnect") and self == LocalPlayer then
                 return wait(9e9)
             end
             
+            -- B. Block Adonis & Anti-Cheat Lapor ke Server
             if method == "FireServer" or method == "InvokeServer" then
                 local remoteName = string.lower(tostring(self.Name))
                 local parentName = self.Parent and string.lower(tostring(self.Parent.Name)) or ""
                 local argStr = ""
                 for _, arg in pairs(args) do
-                    if type(arg) == "string" then argStr = argStr .. string.lower(arg) .. " " end
+                    if type(arg) == "string" then argStr = argStr .. string.lower(arg) .. " " 
+                    elseif type(arg) == "table" then
+                        pcall(function()
+                            for k, v in pairs(arg) do argStr = argStr .. tostring(v):lower() .. " " end
+                        end)
+                    end
                 end
                 
-                local blockWords = {"kick", "ban", "detect", "adonis", "anticheat", "cheat", "exploit", "speed", "teleport", "tp", "fly", "noclip"}
+                local blockWords = {"kick", "ban", "detect", "adonis", "anticheat", "cheat", "exploit", "speed", "teleport", "tp", "fly", "noclip", "log", "report", "webhook", "suspicious", "flag", "macro", "autofarm", "bot", "discord"}
                 local isBlocked = false
                 
-                if remoteName:find("adonis") or parentName:find("adonis") or remoteName:find("anticheat") or remoteName:find("detector") or remoteName:find("admin") then
+                if remoteName:find("adonis") or parentName:find("adonis") or remoteName:find("anticheat") or remoteName:find("detector") or remoteName:find("admin") or remoteName:find("log") or remoteName:find("report") then
                     isBlocked = true
                 end
                 
@@ -70,20 +93,20 @@ do
                     if argStr:find(word) then isBlocked = true break end
                 end
                 
-                if isBlocked then return nil end
+                if isBlocked then 
+                    return nil 
+                end
             end
-            
             return oldNamecall(self, ...)
         end)
         if setreadonly then setreadonly(mt, true) end
     end)
 
-    -- 3. WALKSPEED & JUMPPOWER SPOOFER
+    -- 4. WALKSPEED & JUMPPOWER SPOOFER
     pcall(function()
         local mt = getrawmetatable(game)
         local oldIndex = mt.__index
         if setreadonly then setreadonly(mt, false) end
-        
         mt.__index = newcclosure(function(self, key)
             if not checkcaller() then
                 if key == "WalkSpeed" and self:IsA("Humanoid") then return 16 end
@@ -94,16 +117,16 @@ do
         if setreadonly then setreadonly(mt, true) end
     end)
 
-    -- 4. LOAD EXTERNAL ANTI-KICK
+    -- 5. LOAD EXTERNAL ANTI-KICK
     pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/Pixeluted/adoniscries/main/Source.lua", true))() end)
     pcall(function() loadstring(game:HttpGet('https://raw.githubusercontent.com/SUUUUUS00000/MEGGD-Anti-kick/refs/heads/main/MEGGD%20Best%20Anti-kick.lua'))() end)
 
-    -- 5. ADONIS / ANTI-CHEAT DESTROYER
+    -- 6. ANTI-RESPAWN ADONIS DESTROYER (Heartbeat)
+    local RunService = game:GetService("RunService")
     local hui = gethui and gethui() or game:GetService("CoreGui")
     local pg = LocalPlayer:WaitForChild("PlayerGui")
     local cg = game:GetService("CoreGui")
     local sp = game:GetService("ReplicatedStorage")
-    local ws = workspace
 
     local function killCheat(parent)
         if not parent then return end
@@ -118,14 +141,31 @@ do
         end
     end
 
-    task.spawn(function()
-        while task.wait(0.5) do
-            pcall(killCheat, pg)
-            pcall(killCheat, cg)
-            pcall(killCheat, hui)
-            pcall(killCheat, sp)
-        end
+    -- Jalan 60x per detik (Secepat kilat)
+    RunService.Heartbeat:Connect(function()
+        pcall(killCheat, pg)
+        pcall(killCheat, cg)
+        pcall(killCheat, hui)
     end)
+
+    -- Cegah Loader nge-clone ulang
+    local function monitor(parent)
+        if not parent then return end
+        parent.DescendantAdded:Connect(function(child)
+            local name = string.lower(child.Name)
+            if name:find("adonis") or name:find("ae_") or name:find("admin") or name:find("anticheat") or name:find("detector") then
+                pcall(function()
+                    if child:IsA("LocalScript") or child:IsA("ModuleScript") or child:IsA("Script") then child.Disabled = true end
+                    child:Destroy()
+                end)
+            end
+        end)
+    end
+
+    pcall(monitor, pg)
+    pcall(monitor, cg)
+    pcall(monitor, hui)
+    pcall(monitor, sp)
 end
 
 -- ============================================================================
@@ -2086,7 +2126,7 @@ WindUI:SetTheme("dark")
 TabInfo:Select()
 
 WindUI:Notify({
-    Title    = "👑 KING AKBAR V6.1 SIAP!",
-    Content  = "Silent Mode & Ultimate Bypass Aktif. Gas cuan!",
+    Title    = "👑 KING AKBAR V6.2 SIAP!",
+    Content  = "Brutal Bypass & HTTP Block Aktif. Gas cuan!",
     Duration = 5,
 })
