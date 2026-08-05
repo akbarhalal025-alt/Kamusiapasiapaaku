@@ -3,15 +3,18 @@
   👑 KING AKBAR - ULTIMATE AUTO FARM SCRIPT 👑
 ================================================================================
     [+] Developer   : King Akbar
-    [+] Version     : DDS FREE EDITION (v6.7 INSTANT TP OFFICE)
-    [+] Changelog   : - Auto Office langsung TP ke kursi saat dinyalakan
+    [+] Version     : DDS FREE EDITION (v7.4 DELAY JUMP + INSTANT SIT)
+    [+] Changelog   : - TP pertama langsung duduk instan (Anti kick)
+                      - Pindah kursi/balik printer dikasih jeda 1-2 detik sebelum loncat
+                      - Begitu nyampe kursi tujuan langsung duduk (gak lama)
+                      - Metode TP cuma pas pertama nyalain Auto Office
+                      - Pindah kursi & balik dari printer pakai metode Jalan Kaki
+                      - Fix Pindah Kursi (TP bener-bener ke kursi baru)
+                      - Tambah Jeda 1.5 Detik setelah duduk biar UI matematika muncul
                       - BUANG WalkSpeed & JumpPower Spoofer (Penyebab Method 0x1)
-                      - Fix cara keluar kursi biar gak kebaca Humanoid tampering
                       - Bypass V3 Ringan (Bebas Heartbeat, Anti FPS Drop)
-                      - Webhook & HTTP Blocker (Blokir lapor ke Discord/Website)
-                      - Adonis Destroyer Ringan (Cek tiap 2 detik)
                       - Matikan semua output F9 (Sembunyi dari Anti-Cheat)
-                      - Auto Redeem Fix (InvokeServer)
+                      - [NEW] Lock Sit State: Karakter nggak bisa duduk nyerempet saat ke printer!
 ================================================================================
 ]]--
 
@@ -28,7 +31,6 @@ local error = function() end
 do
     local LocalPlayer = game:GetService("Players").LocalPlayer
 
-    -- 1. GC CORE ANTI-KICK
     pcall(function()
         for k, v in pairs(getgc(true)) do
             if pcall(function() return rawget(v, "indexInstance") end) and type(rawget(v, "indexInstance")) == "table" and (rawget(v, "indexInstance"))[1] == "kick" then
@@ -38,7 +40,6 @@ do
         end
     end)
 
-    -- 2. WEBHOOK / HTTP BLOCKER (Blokir ke Discord/Website)
     pcall(function()
         local requestFunc = (syn and syn.request) or http_request or (fluxus and fluxus.request) or request or (http and http.request)
         if requestFunc then
@@ -53,7 +54,6 @@ do
         end
     end)
 
-    -- 3. RINGAN NAMECALL HOOK (Block Kick & Remote Curiga)
     pcall(function()
         local mt = getrawmetatable(game)
         local oldNamecall = mt.__namecall
@@ -79,11 +79,9 @@ do
         if setreadonly then setreadonly(mt, true) end
     end)
 
-    -- 4. LOAD EXTERNAL ANTI-KICK
     pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/Pixeluted/adoniscries/main/Source.lua", true))() end)
     pcall(function() loadstring(game:HttpGet('https://raw.githubusercontent.com/SUUUUUS00000/MEGGD-Anti-kick/refs/heads/main/MEGGD%20Best%20Anti-kick.lua'))() end)
 
-    -- 5. ADONIS DESTROYER (Bebas Lag, Cek tiap 2 detik)
     local hui = gethui and gethui() or game:GetService("CoreGui")
     local pg = LocalPlayer:WaitForChild("PlayerGui")
     local cg = game:GetService("CoreGui")
@@ -477,7 +475,6 @@ end
 -- ============================================================================
 local function WalkToPoint(pos)
     if not CharRef.Humanoid or not CharRef.Root then return end
-    -- FIX: Pake ChangeState biar gak kena tampering detection
     if CharRef.Humanoid.Sit then
         CharRef.Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
         task.wait(0.2)
@@ -794,6 +791,13 @@ local CachedTargetLabel  = nil
 local CachedTargetParent = nil
 local CachedTargetText   = nil
 
+local function isSameChair(obj)
+    if not myChair or not obj then return false end
+    if obj == myChair then return true end
+    if obj:IsAncestorOf(myChair) or myChair:IsAncestorOf(obj) then return true end
+    return false
+end
+
 local function findNearestChair(radius)
     local origin = CharRef.Root and CharRef.Root.Position
     if not origin then return nil end
@@ -804,12 +808,19 @@ local function findNearestChair(radius)
             local part = v.Parent
             if part and part:IsA("BasePart") then
                 local d = (part.Position - origin).Magnitude
-                if d < bestD then best, bestD = v, d end
+                if d < bestD then best, bestD = part, d end
             end
         end
         if v:IsA("Seat") and v:IsA("BasePart") then
             local d = (v.Position - origin).Magnitude
             if d < bestD then best, bestD = v, d end
+        end
+        if v.Name == "Chair" and v:IsA("Model") then
+            local handle = v:FindFirstChild("Handle")
+            if handle then
+                local d = (handle.Position - origin).Magnitude
+                if d < bestD then best, bestD = v, d end
+            end
         end
     end
     return best
@@ -818,19 +829,26 @@ end
 local function findAnotherChair()
     local origin = CharRef.Root and CharRef.Root.Position
     if not origin then return nil end
-    local radius = 50
+    local radius = 150
     local best, bestD = nil, radius
     for _, v in pairs(workspace:GetDescendants()) do
         if v:IsA("ProximityPrompt") and v.Enabled and hasText(v.ActionText, "sit") then
             local part = v.Parent
-            if part and part:IsA("BasePart") and part ~= myChair then
+            if part and part:IsA("BasePart") and not isSameChair(part) then
                 local d = (part.Position - origin).Magnitude
                 if d < bestD then best, bestD = part, d end
             end
         end
-        if v:IsA("Seat") and v:IsA("BasePart") and v ~= myChair then
+        if v:IsA("Seat") and v:IsA("BasePart") and not isSameChair(v) then
             local d = (v.Position - origin).Magnitude
             if d < bestD then best, bestD = v, d end
+        end
+        if v.Name == "Chair" and v:IsA("Model") and not isSameChair(v) then
+            local handle = v:FindFirstChild("Handle")
+            if handle then
+                local d = (handle.Position - origin).Magnitude
+                if d < bestD then best, bestD = v, d end
+            end
         end
     end
     return best
@@ -868,30 +886,72 @@ local function jalanKe(pos)
     end
 end
 
--- FIX ANTI-TAMPERING: Gak pake SetStateEnabled, langsung pake ChangeState
+-- FIX LONCAT: Kasih jeda 1-2 detik sebelum loncat dari kursi
 local function keluarKursi()
     local hum = CharRef.Humanoid
     if not hum then return end
-    if hum.SeatPart then myChair = hum.SeatPart end
-    hum:ChangeState(Enum.HumanoidStateType.Jumping)
-    task.wait(math.random(4,7)/10)
+    if hum.SeatPart then 
+        myChair = hum.SeatPart
+        task.wait(math.random(10, 20)/10) -- Jeda 1 sampai 2 detik sebelum loncat
+        hum:ChangeState(Enum.HumanoidStateType.Jumping)
+        task.wait(0.3)
+    end
 end
 
-local function dudukKeKursi()
+-- DUDUK KURSI: Pake parameter instantTP
+local function dudukKeKursi(instantTP)
     if not myChair then return false end
     local hum = CharRef.Humanoid
     if not hum then return false end
     
-    keluarKursi()
-    jalanKe(myChair.Position + Vector3.new(0,2,0))
-    task.wait(math.random(3,6)/10)
+    if hum.SeatPart then return true end
     
-    if myChair:IsA("Seat") or myChair:IsA("VehicleSeat") then
-        myChair:Sit(hum); task.wait(0.5); return true
+    if not instantTP then
+        keluarKursi()
     end
-    for _, child in pairs(myChair:GetChildren()) do
-        if child:IsA("ProximityPrompt") and child.Enabled then
-            eksekusiPromptTahan(child); task.wait(0.5); return true
+    
+    local seat = myChair:IsA("Seat") and myChair or myChair:FindFirstChildWhichIsA("Seat") or myChair:FindFirstChildWhichIsA("VehicleSeat")
+    local handle = myChair:FindFirstChild("Handle")
+    local targetCFrame = seat and seat.CFrame or (handle and handle.CFrame) or myChair.CFrame
+    
+    if instantTP then
+        -- METODE TP (Cuma pas pertama nyalain)
+        if CharRef.Root then
+            CharRef.Root.CFrame = targetCFrame
+            task.wait(0.1) -- Jeda super pendek biar physics nyatet TP (Anti Kick)
+        end
+        if seat then
+            seat:Sit(hum)
+            task.wait(1.5) -- Jeda 1.5 detik biar UI matematika muncul
+            return true
+        else
+            for _, child in pairs(myChair:GetChildren()) do
+                if child:IsA("ProximityPrompt") and child.Enabled then
+                    eksekusiPromptTahan(child)
+                    task.wait(1.5)
+                    return true
+                end
+            end
+        end
+    else
+        -- METODE JALAN KAKI (Pas pindah kursi atau balik dari printer)
+        jalanKe(targetCFrame.Position + Vector3.new(0, 2, 0))
+        
+        -- [FIX OTOMATIS DUDUK] Nyalakan lagi kemampuan duduk karakter sebelum duduk
+        hum:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
+        
+        if seat then
+            seat:Sit(hum)
+            task.wait(1.5) -- Jeda 1.5 detik biar UI muncul
+            return true
+        else
+            for _, child in pairs(myChair:GetChildren()) do
+                if child:IsA("ProximityPrompt") and child.Enabled then
+                    eksekusiPromptTahan(child)
+                    task.wait(1.5)
+                    return true
+                end
+            end
         end
     end
     return false
@@ -996,10 +1056,12 @@ task.spawn(function()
         if tick() - lastActivityTime > IDLE_SWITCH_TIME then
             isSwitching = true
             getgenv().forceStopMath = true
-            keluarKursi()
+            keluarKursi() -- Jeda 1-2 detik sebelum loncat
             local newChair = findAnotherChair()
-            if newChair then myChair = newChair end
-            dudukKeKursi()
+            if newChair then 
+                myChair = newChair 
+            end
+            dudukKeKursi(false) -- Metode jalan kaki
             CachedTargetLabel, CachedTargetParent, CachedTargetText = nil, nil, nil
             getgenv().forceStopMath = false
             isSwitching = false
@@ -1015,7 +1077,7 @@ task.spawn(function()
         if not State.IsOfficeActive or getgenv().forceStopMath or getgenv().isGoingToPrinter then continue end
         local hum = CharRef.Humanoid
         if not hum or not hum.SeatPart then
-            if myChair then dudukKeKursi() end
+            if myChair then dudukKeKursi(false) end -- Metode jalan kaki
             task.wait(1.5)
             continue
         end
@@ -1095,7 +1157,15 @@ task.spawn(function()
             getgenv().forceStopMath = true
             
             task.wait(math.random(8,18)/10)
-            keluarKursi()
+            keluarKursi() -- Jeda 1-2 detik sebelum loncat ke printer
+            
+            local hum = CharRef.Humanoid
+            local root = CharRef.Root
+            
+            -- [FIX OTOMATIS DUDUK] Matikan kemampuan duduk karakter sementara
+            if hum then
+                hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+            end
             
             local printerPart = nil
             local targetPrompt = nil
@@ -1114,7 +1184,9 @@ task.spawn(function()
             end
             
             if printerPart and targetPrompt then
+                -- Aman jalan lurus ke printer, karakter nggak akan duduk nyerempet kursi
                 jalanKe(printerPart.Position + Vector3.new(0, 0, 2.5))
+                
                 task.wait(math.random(4,8)/10)
                 
                 if CharRef.Root then
@@ -1133,7 +1205,7 @@ task.spawn(function()
                 end
             end
             
-            dudukKeKursi()
+            dudukKeKursi(false) -- Metode jalan kaki (Balik dari printer)
             task.wait(math.random(8,15)/10)
             
             CachedTargetLabel, CachedTargetParent, CachedTargetText = nil, nil, nil
@@ -1260,7 +1332,7 @@ local function buatMonitoringGUI()
         local LVal = Instance.new("TextLabel"); LVal.Size = UDim2.new(1,0,0,14); LVal.Position = UDim2.new(0,0,1,-14); LVal.BackgroundTransparency = 1; LVal.Text = "0"; LVal.TextColor3 = Color3.fromRGB(220,220,220); LVal.Font = Enum.Font.GothamBold; LVal.TextSize = 12; LVal.TextXAlignment = Enum.TextXAlignment.Left; LVal.Parent = L
         local Ri = Instance.new("Frame"); Ri.Size = UDim2.new(0.5,-3,1,0); Ri.Position = UDim2.new(0.5,3,0,0); Ri.BackgroundTransparency = 1; Ri.Parent = R
         local RLab = Instance.new("TextLabel"); RLab.Size = UDim2.new(1,0,0,12); RLab.BackgroundTransparency = 1; RLab.Text = labelKanan; RLab.TextColor3 = Color3.fromRGB(140,140,140); RLab.Font = Enum.Font.GothamMedium; RLab.TextSize = 10; RLab.TextXAlignment = Enum.TextXAlignment.Left; RLab.Parent = Ri
-    local RVal = Instance.new("TextLabel"); RVal.Size = UDim2.new(1,0,0,14); RVal.Position = UDim2.new(0,0,1,-14); RVal.BackgroundTransparency = 1; RVal.Text = "0"; RVal.TextColor3 = Color3.fromRGB(220,220,220); RVal.Font = Enum.Font.GothamBold; RVal.TextSize = 12; RVal.TextXAlignment = Enum.TextXAlignment.Left; RVal.Parent = Ri
+        local RVal = Instance.new("TextLabel"); RVal.Size = UDim2.new(1,0,0,14); RVal.Position = UDim2.new(0,0,1,-14); RVal.BackgroundTransparency = 1; RVal.Text = "0"; RVal.TextColor3 = Color3.fromRGB(220,220,220); RVal.Font = Enum.Font.GothamBold; RVal.TextSize = 12; RVal.TextXAlignment = Enum.TextXAlignment.Left; RVal.Parent = Ri
         return LVal, RVal
     end
 
@@ -1311,7 +1383,7 @@ local function matikanMonitoring()
     if TrackerGui and TrackerGui.Parent then TrackerGui:Destroy(); TrackerGui = nil end
 end
 
--- INI BAGIAN YANG DIUBAH: TP LANGSUNG KE KURSI
+-- METODE TP PERTAMA (Pas baru nyalain Auto Office)
 local function StartOfficeScript()
     if State.IsOfficeActive then return end
     State.IsOfficeActive = true
@@ -1324,49 +1396,30 @@ local function StartOfficeScript()
     getgenv().WaktuMulai = tick()
 
     if not CharRef.Humanoid or not CharRef.Humanoid.SeatPart then
-        WindUI:Notify({ Title = "🔍 Office", Content = "Nyari & TP ke kursi kerja...", Duration = 3 })
-        
+        WindUI:Notify({ Title = "🔍 Office", Content = "Mencari kursi & TP...", Duration = 3 })
         local targetChair = nil
         pcall(function()
-            local comps = workspace:FindFirstChild("Computers")
-            if comps and #comps:GetChildren() >= 13 then
-                local comp13 = comps:GetChildren()[13]
-                if comp13 and comp13:FindFirstChild("Chair") then
-                    targetChair = comp13:FindFirstChild("Chair")
+            for _, comp in pairs(workspace.Computers:GetChildren()) do
+                local chair = comp:FindFirstChild("Chair")
+                if chair then
+                    targetChair = chair
+                    break
                 end
             end
         end)
 
-        if targetChair and targetChair:FindFirstChild("Handle") then
-            if CharRef.Root then
-                CharRef.Root.CFrame = targetChair.Handle.CFrame * CFrame.new(0, 4, 0)
-                task.wait(0.5)
-            end
+        if targetChair then
             myChair = targetChair
-            if myChair:IsA("Seat") or myChair:IsA("VehicleSeat") then
-                myChair:Sit(CharRef.Humanoid)
-                task.wait(0.5)
-            else
-                for _, child in pairs(myChair:GetChildren()) do
-                    if child:IsA("ProximityPrompt") and child.Enabled then
-                        eksekusiPromptTahan(child)
-                        task.wait(0.5)
-                        break
-                    end
-                end
-            end
+            dudukKeKursi(true) -- TP LANGSUNG DUDUK
         else
             local sitPrompt = findNearestChair(60)
             if sitPrompt then
                 if sitPrompt:IsA("ProximityPrompt") then
                     myChair = sitPrompt.Parent
-                    jalanKe(myChair.Position + Vector3.new(0,2,0))
-                    task.wait(0.5)
-                    dudukKeKursi()
-                elseif sitPrompt:IsA("Seat") then
+                else
                     myChair = sitPrompt
-                    dudukKeKursi()
                 end
+                dudukKeKursi(true) -- TP LANGSUNG DUDUK
             else
                 WindUI:Notify({ Title = "⚠️ Office", Content = "Kursi nggak ketemu, duduk manual dulu bos!", Duration = 5 })
             end
@@ -1385,6 +1438,12 @@ local function StopOfficeScript()
     getgenv().fullAuto = false
     getgenv().forceStopMath = false
     getgenv().isGoingToPrinter = false
+    
+    -- Pastikan state duduk dikembalikan saat script dimatikan
+    if CharRef.Humanoid then
+        CharRef.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
+    end
+
     CachedTargetLabel, CachedTargetParent, CachedTargetText = nil, nil, nil
 
     CachedMoneyLabel = nil
@@ -2009,7 +2068,7 @@ WindUI:SetTheme("dark")
 TabInfo:Select()
 
 WindUI:Notify({
-    Title    = "👑 KING AKBAR V6.7 SIAP!",
-    Content  = "Instant TP Office Aktif! Gas cuan aman!",
+    Title    = "👑 KING AKBAR V7.4 SIAP!",
+    Content  = "Delay Jump & Instant Sit Fix!",
     Duration = 5,
 })
