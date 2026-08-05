@@ -3,8 +3,9 @@
   👑 KING AKBAR - ULTIMATE AUTO FARM SCRIPT 👑
 ================================================================================
     [+] Developer   : King Akbar
-    [+] Version     : DDS FREE EDITION (v7.8.2 AUTO TAKE OFFICE JOB)
-    [+] Changelog   : - Auto Office otomatis ambil job sebelum TP ke kursi
+    [+] Version     : DDS FREE EDITION (v7.8.3 DELAY AMAN AMBIL JOB)
+    [+] Changelog   : - Jeda ambil job Office diperlama jadi 3-5 detik (Aman)
+                      - Auto Office otomatis ambil job sebelum TP ke kursi
                       - Fix Fake Name nggak ganti (OVERRIDE BillboardGui & TextLabel)
                       - Tambah Fitur Fake Name (Default: King Akbar)
                       - Jeda jawab soal dirandom 1.5 - 3.5 detik (Anti Kicked)
@@ -1449,7 +1450,9 @@ local function StartOfficeScript()
         }
         game:GetService("ReplicatedStorage"):WaitForChild("JobEvents"):WaitForChild("TeamChangeRequest"):FireServer(unpack(args))
     end)
-    task.wait(1) -- Jeda 1 detik biar server nyatet jobnya
+    
+    -- ⏳ JEDA AMAN: 3 sampai 5 detik random biar server nyatet job dengan bener
+    task.wait(math.random(30, 50) / 10)
 
     if not CharRef.Humanoid or not CharRef.Humanoid.SeatPart then
         WindUI:Notify({ Title = "🔍 Office", Content = "Mencari kursi & TP...", Duration = 3 })
@@ -1706,7 +1709,7 @@ local function ghostGlideMotor(targetPos)
     virtualGyro:Destroy()
     noclip:Disconnect()
     pp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-    pp.AssemblyAngularVelocity = Vector3.new(0,0,0)
+    pp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
 
     forceDismount()
 end
@@ -2153,7 +2156,7 @@ WindUI:SetTheme("dark")
 TabInfo:Select()
 
 WindUI:Notify({
-    Title    = "👑 KING AKBAR V7.8.2 SIAP!",
-    Content  = "Auto Ambil Job Office Aktif!",
+    Title    = "👑 KING AKBAR V7.8.3 SIAP!",
+    Content  = "Delay Ambil Job Aman!",
     Duration = 5,
 })
