@@ -3,16 +3,15 @@
   👑 KING AKBAR - ULTIMATE AUTO FARM SCRIPT 👑
 ================================================================================
     [+] Developer   : King Akbar
-    [+] Version     : DDS FREE EDITION (v6.5 REDEEM FIX + ZERO-LAG BYPASS)
-    [+] Changelog   : - Perbaiki Remote Auto Redeem (Pakai InvokeServer yg bener)
-                      - Perapihin kata-kata UI jadi "Redeem All"
-                      - Bypass V3 (Bebas Heartbeat, Anti FPS Drop)
+    [+] Version     : DDS FREE EDITION (v6.7 INSTANT TP OFFICE)
+    [+] Changelog   : - Auto Office langsung TP ke kursi saat dinyalakan
+                      - BUANG WalkSpeed & JumpPower Spoofer (Penyebab Method 0x1)
+                      - Fix cara keluar kursi biar gak kebaca Humanoid tampering
+                      - Bypass V3 Ringan (Bebas Heartbeat, Anti FPS Drop)
                       - Webhook & HTTP Blocker (Blokir lapor ke Discord/Website)
-                      - Adonis Destroyer Ringan (Cek tiap 2 detik, 1 level child)
+                      - Adonis Destroyer Ringan (Cek tiap 2 detik)
                       - Matikan semua output F9 (Sembunyi dari Anti-Cheat)
-                      - Office pakai Remote Hook untuk Printer (Anti-Cheat Safe)
-                      - Deteksi Soal 3 Angka & Filter UI Anomali
-                      - Bypass Network Pause auto-active
+                      - Auto Redeem Fix (InvokeServer)
 ================================================================================
 ]]--
 
@@ -46,7 +45,6 @@ do
             local oldRequest = requestFunc
             hookfunction(requestFunc, function(opts)
                 local url = string.lower(tostring(opts.Url or opts.url or ""))
-                -- Kalau URLnya bukan roblox.com, batalkan requestnya!
                 if not (url:find("roblox.com") or url:find("rbxcdn")) then
                     return { StatusCode = 200, Body = "{\"success\":true}", Success = true }
                 end
@@ -64,18 +62,16 @@ do
         mt.__namecall = newcclosure(function(self, ...)
             local method = getnamecallmethod()
             
-            -- A. Block Kick
-            if (method == "Kick" or method == "kick") and self == LocalPlayer then
+            if (method == "Kick" or method == "kick" or method == "Disconnect") and self == LocalPlayer then
                 return wait(9e9)
             end
             
-            -- B. Block Adonis Lapor ke Server (Cuma cek nama remotenya biar gak lag)
             if method == "FireServer" or method == "InvokeServer" then
                 local remoteName = string.lower(tostring(self.Name))
                 local parentName = self.Parent and string.lower(tostring(self.Parent.Name)) or ""
                 
                 if remoteName:find("adonis") or parentName:find("adonis") or remoteName:find("anticheat") or remoteName:find("detector") or remoteName:find("admin") or remoteName:find("log") or remoteName:find("report") then
-                    return nil -- Potong sinyal
+                    return nil
                 end
             end
             return oldNamecall(self, ...)
@@ -83,30 +79,11 @@ do
         if setreadonly then setreadonly(mt, true) end
     end)
 
-    -- 4. WALKSPEED & JUMPPOWER SPOOFER (ZERO LAG)
-    pcall(function()
-        local mt = getrawmetatable(game)
-        local oldIndex = mt.__index
-        if setreadonly then setreadonly(mt, false) end
-        
-        mt.__index = newcclosure(function(self, key)
-            -- Cuma ngecek kalau keywordnya sama persis, ini super ringan!
-            if key == "WalkSpeed" or key == "JumpPower" then
-                if typeof(self) == "Instance" and self:IsA("Humanoid") then
-                    if key == "WalkSpeed" then return 16 end
-                    if key == "JumpPower" then return 50 end
-                end
-            end
-            return oldIndex(self, key)
-        end)
-        if setreadonly then setreadonly(mt, true) end
-    end)
-
-    -- 5. LOAD EXTERNAL ANTI-KICK
+    -- 4. LOAD EXTERNAL ANTI-KICK
     pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/Pixeluted/adoniscries/main/Source.lua", true))() end)
     pcall(function() loadstring(game:HttpGet('https://raw.githubusercontent.com/SUUUUUS00000/MEGGD-Anti-kick/refs/heads/main/MEGGD%20Best%20Anti-kick.lua'))() end)
 
-    -- 6. ADONIS DESTROYER (Bebas Lag, Cek tiap 2 detik)
+    -- 5. ADONIS DESTROYER (Bebas Lag, Cek tiap 2 detik)
     local hui = gethui and gethui() or game:GetService("CoreGui")
     local pg = LocalPlayer:WaitForChild("PlayerGui")
     local cg = game:GetService("CoreGui")
@@ -248,10 +225,8 @@ local State = {
     SessionStartTime   = 0,
     LastStopReason     = "",
     MachineFixCount    = 0,
-    -- Stats Office
     OfficeMathSolved   = 0,
     OfficePrints       = 0,
-    -- Stats Courier
     CourierDelivered   = 0,
 }
 
@@ -288,7 +263,7 @@ local function rWait(minSec, maxSec)
 end
 
 -- ============================================================================
--- // 5. GetPlayerMoney (untuk monitoring & barista)
+-- // 5. GetPlayerMoney
 -- ============================================================================
 local function GetPlayerMoney()
     local money = 0
@@ -310,7 +285,7 @@ local function GetPlayerMoney()
 end
 
 -- ============================================================================
--- // 6. ADMIN SENSOR (tanpa webhook)
+-- // 6. ADMIN SENSOR
 -- ============================================================================
 local GAME_GROUP_ID  = 11378976
 local MIN_STAFF_RANK = 200
@@ -502,7 +477,11 @@ end
 -- ============================================================================
 local function WalkToPoint(pos)
     if not CharRef.Humanoid or not CharRef.Root then return end
-    CharRef.Humanoid.Sit = false
+    -- FIX: Pake ChangeState biar gak kena tampering detection
+    if CharRef.Humanoid.Sit then
+        CharRef.Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+        task.wait(0.2)
+    end
     local hp = pos + Vector3.new(math.random(-15,15)/10, 0, math.random(-15,15)/10)
     CharRef.Humanoid:MoveTo(hp)
     local t = 10
@@ -793,7 +772,7 @@ local function StopBaristaScript(reason)
 end
 
 -- ============================================================================
--- // 13. OFFICE JOB SYSTEM (V5.9 REMOTE HOOK + MATH FIX)
+-- // 13. OFFICE JOB SYSTEM
 -- ============================================================================
 local playerGui = LocalPlayer:WaitForChild("PlayerGui")
 
@@ -889,11 +868,11 @@ local function jalanKe(pos)
     end
 end
 
+-- FIX ANTI-TAMPERING: Gak pake SetStateEnabled, langsung pake ChangeState
 local function keluarKursi()
     local hum = CharRef.Humanoid
     if not hum then return end
     if hum.SeatPart then myChair = hum.SeatPart end
-    hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
     hum:ChangeState(Enum.HumanoidStateType.Jumping)
     task.wait(math.random(4,7)/10)
 end
@@ -902,11 +881,11 @@ local function dudukKeKursi()
     if not myChair then return false end
     local hum = CharRef.Humanoid
     if not hum then return false end
-    hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+    
+    keluarKursi()
     jalanKe(myChair.Position + Vector3.new(0,2,0))
     task.wait(math.random(3,6)/10)
-    hum:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
-    task.wait(0.1)
+    
     if myChair:IsA("Seat") or myChair:IsA("VehicleSeat") then
         myChair:Sit(hum); task.wait(0.5); return true
     end
@@ -1281,7 +1260,7 @@ local function buatMonitoringGUI()
         local LVal = Instance.new("TextLabel"); LVal.Size = UDim2.new(1,0,0,14); LVal.Position = UDim2.new(0,0,1,-14); LVal.BackgroundTransparency = 1; LVal.Text = "0"; LVal.TextColor3 = Color3.fromRGB(220,220,220); LVal.Font = Enum.Font.GothamBold; LVal.TextSize = 12; LVal.TextXAlignment = Enum.TextXAlignment.Left; LVal.Parent = L
         local Ri = Instance.new("Frame"); Ri.Size = UDim2.new(0.5,-3,1,0); Ri.Position = UDim2.new(0.5,3,0,0); Ri.BackgroundTransparency = 1; Ri.Parent = R
         local RLab = Instance.new("TextLabel"); RLab.Size = UDim2.new(1,0,0,12); RLab.BackgroundTransparency = 1; RLab.Text = labelKanan; RLab.TextColor3 = Color3.fromRGB(140,140,140); RLab.Font = Enum.Font.GothamMedium; RLab.TextSize = 10; RLab.TextXAlignment = Enum.TextXAlignment.Left; RLab.Parent = Ri
-        local RVal = Instance.new("TextLabel"); RVal.Size = UDim2.new(1,0,0,14); RVal.Position = UDim2.new(0,0,1,-14); RVal.BackgroundTransparency = 1; RVal.Text = "0"; RVal.TextColor3 = Color3.fromRGB(220,220,220); RVal.Font = Enum.Font.GothamBold; RVal.TextSize = 12; RVal.TextXAlignment = Enum.TextXAlignment.Left; RVal.Parent = Ri
+    local RVal = Instance.new("TextLabel"); RVal.Size = UDim2.new(1,0,0,14); RVal.Position = UDim2.new(0,0,1,-14); RVal.BackgroundTransparency = 1; RVal.Text = "0"; RVal.TextColor3 = Color3.fromRGB(220,220,220); RVal.Font = Enum.Font.GothamBold; RVal.TextSize = 12; RVal.TextXAlignment = Enum.TextXAlignment.Left; RVal.Parent = Ri
         return LVal, RVal
     end
 
@@ -1332,6 +1311,7 @@ local function matikanMonitoring()
     if TrackerGui and TrackerGui.Parent then TrackerGui:Destroy(); TrackerGui = nil end
 end
 
+-- INI BAGIAN YANG DIUBAH: TP LANGSUNG KE KURSI
 local function StartOfficeScript()
     if State.IsOfficeActive then return end
     State.IsOfficeActive = true
@@ -1344,20 +1324,52 @@ local function StartOfficeScript()
     getgenv().WaktuMulai = tick()
 
     if not CharRef.Humanoid or not CharRef.Humanoid.SeatPart then
-        WindUI:Notify({ Title = "🔍 Office", Content = "Mencari kursi kerja...", Duration = 3 })
-        local sitPrompt = findNearestChair(60)
-        if sitPrompt then
-            if sitPrompt:IsA("ProximityPrompt") then
-                myChair = sitPrompt.Parent
-                jalanKe(myChair.Position + Vector3.new(0,2,0))
+        WindUI:Notify({ Title = "🔍 Office", Content = "Nyari & TP ke kursi kerja...", Duration = 3 })
+        
+        local targetChair = nil
+        pcall(function()
+            local comps = workspace:FindFirstChild("Computers")
+            if comps and #comps:GetChildren() >= 13 then
+                local comp13 = comps:GetChildren()[13]
+                if comp13 and comp13:FindFirstChild("Chair") then
+                    targetChair = comp13:FindFirstChild("Chair")
+                end
+            end
+        end)
+
+        if targetChair and targetChair:FindFirstChild("Handle") then
+            if CharRef.Root then
+                CharRef.Root.CFrame = targetChair.Handle.CFrame * CFrame.new(0, 4, 0)
                 task.wait(0.5)
-                dudukKeKursi()
-            elseif sitPrompt:IsA("Seat") then
-                myChair = sitPrompt
-                dudukKeKursi()
+            end
+            myChair = targetChair
+            if myChair:IsA("Seat") or myChair:IsA("VehicleSeat") then
+                myChair:Sit(CharRef.Humanoid)
+                task.wait(0.5)
+            else
+                for _, child in pairs(myChair:GetChildren()) do
+                    if child:IsA("ProximityPrompt") and child.Enabled then
+                        eksekusiPromptTahan(child)
+                        task.wait(0.5)
+                        break
+                    end
+                end
             end
         else
-            WindUI:Notify({ Title = "⚠️ Office", Content = "Kursi nggak ketemu, duduk manual dulu bos!", Duration = 5 })
+            local sitPrompt = findNearestChair(60)
+            if sitPrompt then
+                if sitPrompt:IsA("ProximityPrompt") then
+                    myChair = sitPrompt.Parent
+                    jalanKe(myChair.Position + Vector3.new(0,2,0))
+                    task.wait(0.5)
+                    dudukKeKursi()
+                elseif sitPrompt:IsA("Seat") then
+                    myChair = sitPrompt
+                    dudukKeKursi()
+                end
+            else
+                WindUI:Notify({ Title = "⚠️ Office", Content = "Kursi nggak ketemu, duduk manual dulu bos!", Duration = 5 })
+            end
         end
     else
         myChair = CharRef.Humanoid.SeatPart
@@ -1378,8 +1390,6 @@ local function StopOfficeScript()
     CachedMoneyLabel = nil
     getgenv().UangAwalDikunci = nil
 
-    local hum = CharRef.Humanoid
-    if hum then hum:SetStateEnabled(Enum.HumanoidStateType.Seated, true) end
     matikanMonitoring()
     WindUI:Notify({ Title = "🛑 Office", Content = "Auto Office dimatiin.", Duration = 3 })
 end
@@ -1491,13 +1501,11 @@ local function forceDismount()
     local char = LocalPlayer.Character
     local hum = char and char:FindFirstChild("Humanoid")
     if not char or not hum then return end
-    hum.Sit = false
     hum.Jump = true
     task.wait(0.1)
     if hum.SeatPart then
         char:PivotTo(char:GetPivot() * CFrame.new(0, 2, 0))
-        hum.Sit = false
-        hum.Jump = true
+        hum:ChangeState(Enum.HumanoidStateType.Jumping)
     end
     task.wait(0.2)
 end
@@ -1923,12 +1931,12 @@ SectionRedeem:Button({
     Desc = "Otomatis nuker semua kode yang ada di script",
     Callback = function()
         task.spawn(function()
-            WindUI:Notify({ Title = "🔄 Redeem All", Content = "Lagi nukar kode, tunggu bentar...", Duration = 3 })
+            WindUI:Notify({ Title = "🔄 Auto Redeem", Content = "Lagi nuker kode, tunggu bentar...", Duration = 3 })
             for _, code in ipairs(redeemCodes) do
                 FireRedeemRemote(code)
-                task.wait(2) -- Jeda 2 detik biar server sempet nge-process
+                task.wait(2)
             end
-            WindUI:Notify({ Title = "✅ Redeem All", Content = "Semua kode udah ditukar!", Duration = 5 })
+            WindUI:Notify({ Title = "✅ Auto Redeem", Content = "Semua kode udah ditukar!", Duration = 5 })
         end)
     end
 })
@@ -1940,7 +1948,7 @@ local TabPreset = Window:Tab({ Title = "🏎️ Mode Instan", Icon = "car", Bord
 local ModeCepat = TabPreset:Section({ Title = "Mode Cepat", Box = true, BoxBorder = true, Opened = true })
 
 ModeCepat:Button({ Title = "🛵 MODE SUNMORI (Aman)", Callback = function() InjectMesin(1.5, 2000, 0.9, 0.9, "Mode Sunmori Aktif") end })
-ModeCepat:Button({ Title = "🏎️ MODE BALAP LIAR (Ganas)", Callback = function() InjectMesin(3.5, 5000, 0.75, 0.75, "Mode Balap Aktif") end })
+ModeCepat:Button({ Title = "🏎️ MODE BALAP LIER (Ganas)", Callback = function() InjectMesin(3.5, 5000, 0.75, 0.75, "Mode Balap Aktif") end })
 ModeCepat:Button({ Title = "🚀 MODE DEWA (Mentok Kanan)", Callback = function() InjectMesin(8, 15000, 0.45, 0.45, "Mode Dewa Aktif") end })
 ModeCepat:Button({ Title = "🔄 RESET STANDAR PABRIK", Callback = function() WindUI:Notify({ Title = "ℹ️ Info", Content = "Respawn kendaraan dari menu game untuk reset.", Duration = 5 }) end })
 
@@ -2001,7 +2009,7 @@ WindUI:SetTheme("dark")
 TabInfo:Select()
 
 WindUI:Notify({
-    Title    = "👑 KING AKBAR V6.5 SIAP!",
-    Content  = "Auto Redeem Fix & Zero-Lag Bypass Aktif. Gas cuan!",
+    Title    = "👑 KING AKBAR V6.7 SIAP!",
+    Content  = "Instant TP Office Aktif! Gas cuan aman!",
     Duration = 5,
 })
