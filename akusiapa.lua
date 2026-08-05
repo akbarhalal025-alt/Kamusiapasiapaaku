@@ -3,10 +3,10 @@
   👑 KING AKBAR - ULTIMATE AUTO FARM SCRIPT 👑
 ================================================================================
     [+] Developer   : King Akbar
-    [+] Version     : DDS FREE EDITION (v6.2 BRUTAL BYPASS + HTTP BLOCK)
-    [+] Changelog   : - Webhook & HTTP Blocker (Blokir lapor ke Discord/Website)
-                      - Brutal Namecall Hook (Baca argumen table & block lebih ketat)
-                      - Anti-Respawn Adonis Destroyer (Pakai Heartbeat 60FPS)
+    [+] Version     : DDS FREE EDITION (v6.3 ZERO-LAG BYPASS V3)
+    [+] Changelog   : - Bypass V3 (Bebas Heartbeat, Anti FPS Drop)
+                      - Webhook & HTTP Blocker (Blokir lapor ke Discord/Website)
+                      - Adonis Destroyer Ringan (Cek tiap 2 detik, 1 level child)
                       - Matikan semua output F9 (Sembunyi dari Anti-Cheat)
                       - Office pakai Remote Hook untuk Printer (Anti-Cheat Safe)
                       - Deteksi Soal 3 Angka & Filter UI Anomali
@@ -22,7 +22,7 @@ local warn = function() end
 local error = function() end
 
 -- ============================================================================
--- // 0. ULTIMATE FULL BYPASS (All-In-One Standalone)
+-- // 0. ULTIMATE FULL BYPASS V3 (Zero-Lag / Anti FPS Drop)
 -- ============================================================================
 do
     local LocalPlayer = game:GetService("Players").LocalPlayer
@@ -53,7 +53,7 @@ do
         end
     end)
 
-    -- 3. BRUTAL NAMECALL HOOK (Block Kick, Laporan, & Koordinat)
+    -- 3. RINGAN NAMECALL HOOK (Block Kick & Remote Curiga)
     pcall(function()
         local mt = getrawmetatable(game)
         local oldNamecall = mt.__namecall
@@ -61,40 +61,19 @@ do
         
         mt.__namecall = newcclosure(function(self, ...)
             local method = getnamecallmethod()
-            local args = {...}
             
-            -- A. Block Kick / Disconnect
-            if (method == "Kick" or method == "kick" or method == "Disconnect") and self == LocalPlayer then
+            -- A. Block Kick
+            if (method == "Kick" or method == "kick") and self == LocalPlayer then
                 return wait(9e9)
             end
             
-            -- B. Block Adonis & Anti-Cheat Lapor ke Server
+            -- B. Block Adonis Lapor ke Server (Cuma cek nama remotenya biar gak lag)
             if method == "FireServer" or method == "InvokeServer" then
                 local remoteName = string.lower(tostring(self.Name))
                 local parentName = self.Parent and string.lower(tostring(self.Parent.Name)) or ""
-                local argStr = ""
-                for _, arg in pairs(args) do
-                    if type(arg) == "string" then argStr = argStr .. string.lower(arg) .. " " 
-                    elseif type(arg) == "table" then
-                        pcall(function()
-                            for k, v in pairs(arg) do argStr = argStr .. tostring(v):lower() .. " " end
-                        end)
-                    end
-                end
-                
-                local blockWords = {"kick", "ban", "detect", "adonis", "anticheat", "cheat", "exploit", "speed", "teleport", "tp", "fly", "noclip", "log", "report", "webhook", "suspicious", "flag", "macro", "autofarm", "bot", "discord"}
-                local isBlocked = false
                 
                 if remoteName:find("adonis") or parentName:find("adonis") or remoteName:find("anticheat") or remoteName:find("detector") or remoteName:find("admin") or remoteName:find("log") or remoteName:find("report") then
-                    isBlocked = true
-                end
-                
-                for _, word in pairs(blockWords) do
-                    if argStr:find(word) then isBlocked = true break end
-                end
-                
-                if isBlocked then 
-                    return nil 
+                    return nil -- Potong sinyal
                 end
             end
             return oldNamecall(self, ...)
@@ -102,15 +81,19 @@ do
         if setreadonly then setreadonly(mt, true) end
     end)
 
-    -- 4. WALKSPEED & JUMPPOWER SPOOFER
+    -- 4. WALKSPEED & JUMPPOWER SPOOFER (ZERO LAG)
     pcall(function()
         local mt = getrawmetatable(game)
         local oldIndex = mt.__index
         if setreadonly then setreadonly(mt, false) end
+        
         mt.__index = newcclosure(function(self, key)
-            if not checkcaller() then
-                if key == "WalkSpeed" and self:IsA("Humanoid") then return 16 end
-                if key == "JumpPower" and self:IsA("Humanoid") then return 50 end
+            -- Cuma ngecek kalau keywordnya sama persis, ini super ringan!
+            if key == "WalkSpeed" or key == "JumpPower" then
+                if typeof(self) == "Instance" and self:IsA("Humanoid") then
+                    if key == "WalkSpeed" then return 16 end
+                    if key == "JumpPower" then return 50 end
+                end
             end
             return oldIndex(self, key)
         end)
@@ -121,18 +104,17 @@ do
     pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/Pixeluted/adoniscries/main/Source.lua", true))() end)
     pcall(function() loadstring(game:HttpGet('https://raw.githubusercontent.com/SUUUUUS00000/MEGGD-Anti-kick/refs/heads/main/MEGGD%20Best%20Anti-kick.lua'))() end)
 
-    -- 6. ANTI-RESPAWN ADONIS DESTROYER (Heartbeat)
-    local RunService = game:GetService("RunService")
+    -- 6. ADONIS DESTROYER (Bebas Lag, Cek tiap 2 detik)
     local hui = gethui and gethui() or game:GetService("CoreGui")
     local pg = LocalPlayer:WaitForChild("PlayerGui")
     local cg = game:GetService("CoreGui")
-    local sp = game:GetService("ReplicatedStorage")
 
     local function killCheat(parent)
         if not parent then return end
-        for _, v in pairs(parent:GetDescendants()) do
+        -- Cuma nyari 1 level ke bawah, nggak nyari sampai ke akar-akarnya biar nggak lag
+        for _, v in pairs(parent:GetChildren()) do
             local name = string.lower(v.Name)
-            if name:find("adonis") or name:find("ae_") or name:find("admin") or name:find("anticheat") or name:find("detector") or name:find("exploit") or name:find("watcher") then
+            if name:find("adonis") or name:find("ae_") or name:find("admin") or name:find("anticheat") or name:find("detector") then
                 pcall(function()
                     if v:IsA("LocalScript") or v:IsA("ModuleScript") or v:IsA("Script") then v.Disabled = true end
                     v:Destroy()
@@ -141,17 +123,19 @@ do
         end
     end
 
-    -- Jalan 60x per detik (Secepat kilat)
-    RunService.Heartbeat:Connect(function()
-        pcall(killCheat, pg)
-        pcall(killCheat, cg)
-        pcall(killCheat, hui)
+    -- Looping tiap 2 detik (Sangat ringan)
+    task.spawn(function()
+        while task.wait(2) do
+            pcall(killCheat, pg)
+            pcall(killCheat, cg)
+            pcall(killCheat, hui)
+        end
     end)
 
     -- Cegah Loader nge-clone ulang
     local function monitor(parent)
         if not parent then return end
-        parent.DescendantAdded:Connect(function(child)
+        parent.ChildAdded:Connect(function(child)
             local name = string.lower(child.Name)
             if name:find("adonis") or name:find("ae_") or name:find("admin") or name:find("anticheat") or name:find("detector") then
                 pcall(function()
@@ -165,7 +149,6 @@ do
     pcall(monitor, pg)
     pcall(monitor, cg)
     pcall(monitor, hui)
-    pcall(monitor, sp)
 end
 
 -- ============================================================================
@@ -2126,7 +2109,7 @@ WindUI:SetTheme("dark")
 TabInfo:Select()
 
 WindUI:Notify({
-    Title    = "👑 KING AKBAR V6.2 SIAP!",
-    Content  = "Brutal Bypass & HTTP Block Aktif. Gas cuan!",
+    Title    = "👑 KING AKBAR V6.3 SIAP!",
+    Content  = "Zero-Lag Bypass V3 Aktif. FPS Aman, Gas cuan!",
     Duration = 5,
 })
