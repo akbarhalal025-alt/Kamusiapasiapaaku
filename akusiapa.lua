@@ -3,8 +3,10 @@
   👑 KING AKBAR - ULTIMATE AUTO FARM SCRIPT 👑
 ================================================================================
     [+] Developer   : King Akbar
-    [+] Version     : DDS FREE EDITION (v6.3 ZERO-LAG BYPASS V3)
-    [+] Changelog   : - Bypass V3 (Bebas Heartbeat, Anti FPS Drop)
+    [+] Version     : DDS FREE EDITION (v6.5 REDEEM FIX + ZERO-LAG BYPASS)
+    [+] Changelog   : - Perbaiki Remote Auto Redeem (Pakai InvokeServer yg bener)
+                      - Perapihin kata-kata UI jadi "Redeem All"
+                      - Bypass V3 (Bebas Heartbeat, Anti FPS Drop)
                       - Webhook & HTTP Blocker (Blokir lapor ke Discord/Website)
                       - Adonis Destroyer Ringan (Cek tiap 2 detik, 1 level child)
                       - Matikan semua output F9 (Sembunyi dari Anti-Cheat)
@@ -111,7 +113,6 @@ do
 
     local function killCheat(parent)
         if not parent then return end
-        -- Cuma nyari 1 level ke bawah, nggak nyari sampai ke akar-akarnya biar nggak lag
         for _, v in pairs(parent:GetChildren()) do
             local name = string.lower(v.Name)
             if name:find("adonis") or name:find("ae_") or name:find("admin") or name:find("anticheat") or name:find("detector") then
@@ -123,7 +124,6 @@ do
         end
     end
 
-    -- Looping tiap 2 detik (Sangat ringan)
     task.spawn(function()
         while task.wait(2) do
             pcall(killCheat, pg)
@@ -132,7 +132,6 @@ do
         end
     end)
 
-    -- Cegah Loader nge-clone ulang
     local function monitor(parent)
         if not parent then return end
         parent.ChildAdded:Connect(function(child)
@@ -265,7 +264,6 @@ LocalPlayer.Idled:Connect(function()
     end
 end)
 
--- BYPASS NETWORK PAUSE (AUTO JALAN)
 task.spawn(function()
     while true do
         pcall(function()
@@ -288,8 +286,6 @@ end)
 local function rWait(minSec, maxSec)
     task.wait(math.random((minSec or 0.5) * 1000, (maxSec or 1.5) * 1000) / 1000)
 end
-
-local function safePrint(msg) end -- Dimatikan biar silent
 
 -- ============================================================================
 -- // 5. GetPlayerMoney (untuk monitoring & barista)
@@ -819,7 +815,6 @@ local CachedTargetLabel  = nil
 local CachedTargetParent = nil
 local CachedTargetText   = nil
 
--- ================== CARI KURSI ==================
 local function findNearestChair(radius)
     local origin = CharRef.Root and CharRef.Root.Position
     if not origin then return nil end
@@ -862,7 +857,6 @@ local function findAnotherChair()
     return best
 end
 
--- ================== BERJALAN KE TITIK ==================
 local function jalanKe(pos)
     local root = CharRef.Root
     local hum = CharRef.Humanoid
@@ -895,7 +889,6 @@ local function jalanKe(pos)
     end
 end
 
--- ================== DUDUK & BANGUN ==================
 local function keluarKursi()
     local hum = CharRef.Humanoid
     if not hum then return end
@@ -925,7 +918,6 @@ local function dudukKeKursi()
     return false
 end
 
--- ================== MATH STUFF ==================
 local function normalizeText(str)
     if not str then return "" end
     str = string.gsub(str, "^%s+", "")
@@ -1010,7 +1002,6 @@ local function hitungSoal(text)
     return nil
 end
 
--- ================== IDLE DETECTOR + CHAIR SWITCH ==================
 local lastActivityTime = tick()
 local isSwitching = false
 local IDLE_SWITCH_TIME = 60
@@ -1038,7 +1029,6 @@ task.spawn(function()
     end
 end)
 
--- ================== MATH THREAD ==================
 task.spawn(function()
     task.wait(2)
     while true do
@@ -1101,7 +1091,6 @@ task.spawn(function()
     end
 end)
 
--- ================== PRINTER THREAD (REMOTE HOOK) ==================
 local JobEvents = Services.ReplicatedStorage:WaitForChild("JobEvents")
 local AssignPrintJob = JobEvents:WaitForChild("AssignPrintJob")
 local ClearPrintJob = JobEvents:WaitForChild("ClearPrintJob")
@@ -1176,7 +1165,6 @@ task.spawn(function()
     end
 end)
 
--- ================== ANTI-IDLE EVENT ==================
 task.spawn(function()
     while true do
         task.wait(10)
@@ -1188,7 +1176,6 @@ task.spawn(function()
     end
 end)
 
--- ================== MONITORING GUI ==================
 local CoreGui = (gethui and gethui()) or game:GetService("CoreGui")
 local Players = game:GetService("Players")
 local LocalPlayer2 = Players.LocalPlayer
@@ -1345,7 +1332,6 @@ local function matikanMonitoring()
     if TrackerGui and TrackerGui.Parent then TrackerGui:Destroy(); TrackerGui = nil end
 end
 
--- ================== START & STOP FUNCS ==================
 local function StartOfficeScript()
     if State.IsOfficeActive then return end
     State.IsOfficeActive = true
@@ -1796,7 +1782,7 @@ local function InjectMesin(HP_Mult, RPM_Add, Ratio_Mult, FD_Mult, NamaMode)
 end
 
 -- ============================================================================
--- // 16. UI — 7 TAB (Webhook dihapus)
+-- // 16. UI — 7 TAB
 -- ============================================================================
 local wSz = IsMobile and UDim2.fromOffset(420, 320) or UDim2.fromOffset(580, 460)
 local mnSz = IsMobile and Vector2.new(600, 300) or Vector2.new(600, 350)
@@ -1879,191 +1865,97 @@ local ServerInfo = TabInfo:Paragraph({
 -- ============================
 local TabFarm = Window:Tab({ Title = "Auto Farm", Icon = "coffee", Border = true })
 
-local SectionBarista = TabFarm:Section({
-    Title = "Auto Barista",
-    Box = true,
-    BoxBorder = true,
-    Opened = true,
-})
+local SectionBarista = TabFarm:Section({ Title = "Auto Barista", Box = true, BoxBorder = true, Opened = true })
+SectionBarista:Toggle({ Title = "Jalanin Auto Barista", Icon = "play", Value = false, Callback = function(on) if on then StartBaristaScript() else StopBaristaScript() end end })
 
-SectionBarista:Toggle({
-    Title    = "Jalanin Auto Barista",
-    Icon     = "play",
-    Value    = false,
-    Callback = function(on) if on then StartBaristaScript() else StopBaristaScript() end end,
-})
+local SectionOffice = TabFarm:Section({ Title = "Auto Office", Box = true, BoxBorder = true, Opened = true })
+SectionOffice:Toggle({ Title = "Jalanin Auto Office", Icon = "briefcase", Value = false, Callback = function(on) if on then StartOfficeScript() else StopOfficeScript() end end })
 
-local SectionOffice = TabFarm:Section({
-    Title = "Auto Office",
-    Box = true,
-    BoxBorder = true,
-    Opened = true,
-})
-
-SectionOffice:Toggle({
-    Title    = "Jalanin Auto Office",
-    Icon     = "briefcase",
-    Value    = false,
-    Callback = function(on) if on then StartOfficeScript() else StopOfficeScript() end end,
-})
-
-local SectionCourier = TabFarm:Section({
-    Title = "Auto Courier",
-    Box = true,
-    BoxBorder = true,
-    Opened = true,
-})
-
-SectionCourier:Toggle({
-    Title    = "Jalanin Auto Courier",
-    Icon     = "package",
-    Value    = false,
-    Callback = function(on) if on then StartCourierScript() else StopCourierScript() end end,
-})
+local SectionCourier = TabFarm:Section({ Title = "Auto Courier", Box = true, BoxBorder = true, Opened = true })
+SectionCourier:Toggle({ Title = "Jalanin Auto Courier", Icon = "package", Value = false, Callback = function(on) if on then StartCourierScript() else StopCourierScript() end end })
 
 -- ============================
 -- TAB 3: KEAMANAN
 -- ============================
 local TabSec = Window:Tab({ Title = "Keamanan", Icon = "shield", Border = true })
+local Perlindungan = TabSec:Section({ Title = "Perlindungan", Box = true, BoxBorder = true, Opened = true })
 
-local Perlindungan = TabSec:Section({
-    Title = "Perlindungan",
-    Box = true,
-    BoxBorder = true,
-    Opened = true,
-})
-
-Perlindungan:Toggle({
-    Title    = "Kabur Kalau Ada Admin",
-    Desc     = "Otomatis keluar kalau staff masuk server",
-    Icon     = "user-minus",
-    Value    = true,
-    Callback = function(on) State.AntiAdmin = on end,
-})
-
-Perlindungan:Toggle({
-    Title    = "Biar Nggak Kena AFK Kick",
-    Desc     = "Jaga koneksi tetap aktif selama ngebot",
-    Icon     = "clock",
-    Value    = true,
-    Callback = function(on) State.AntiAFK = on end,
-})
+Perlindungan:Toggle({ Title = "Kabur Kalau Ada Admin", Desc = "Otomatis keluar kalau staff masuk server", Icon = "user-minus", Value = true, Callback = function(on) State.AntiAdmin = on end })
+Perlindungan:Toggle({ Title = "Biar Nggak Kena AFK Kick", Desc = "Jaga koneksi tetap aktif selama ngebot", Icon = "clock", Value = true, Callback = function(on) State.AntiAFK = on end })
 
 -- ============================
 -- TAB 4: PERFORMA
 -- ============================
 local TabPerf = Window:Tab({ Title = "Performa", Icon = "zap", Border = true })
-
-local HematDaya = TabPerf:Section({
-    Title = "Hemat Daya",
-    Box = true,
-    BoxBorder = true,
-    Opened = true,
-})
-
-HematDaya:Toggle({
-    Title    = "Matiin Grafik (Aman AFK Semalaman)",
-    Desc     = "Layar hitam, baterai hemat, bot tetap jalan",
-    Value    = false,
-    Callback = function(on) ToggleBlackScreen(on) end,
-})
+local HematDaya = TabPerf:Section({ Title = "Hemat Daya", Box = true, BoxBorder = true, Opened = true })
+HematDaya:Toggle({ Title = "Matiin Grafik (Aman AFK Semalaman)", Desc = "Layar hitam, baterai hemat, bot tetap jalan", Value = false, Callback = function(on) ToggleBlackScreen(on) end })
 
 -- ============================
 -- TAB 5: PENGATURAN
 -- ============================
 local TabCfg = Window:Tab({ Title = "Pengaturan", Icon = "settings", Border = true })
 
-local Konfigurasi = TabCfg:Section({
-    Title = "Konfigurasi",
-    Box = true,
-    BoxBorder = true,
-    Opened = true,
-})
+local Konfigurasi = TabCfg:Section({ Title = "Konfigurasi", Box = true, BoxBorder = true, Opened = true })
+Konfigurasi:Slider({ Title = "Jeda Antar Aksi (Detik)", Desc = "Makin kecil makin ngebut, tapi makin beresiko", Step = 1, Value = { Min = 1, Max = 10, Default = 5 }, Callback = function(v) State.ActionDelay = v end })
 
-Konfigurasi:Slider({
-    Title    = "Jeda Antar Aksi (Detik)",
-    Desc     = "Makin kecil makin ngebut, tapi makin beresiko",
-    Step     = 1,
-    Value    = { Min = 1, Max = 10, Default = 5 },
-    Callback = function(v) State.ActionDelay = v end,
+-- AUTO REDEEM SECTION
+local SectionRedeem = TabCfg:Section({ Title = "Auto Redeem", Box = true, BoxBorder = true, Opened = true })
+
+local redeemCodes = {
+    "DRAGDRIVESIMULATORJULY26",
+    "DDSTHX150KROADTO175KLIKES",
+    "DDSDRIVERTAXIONLINEUPDATE",
+    "DDSSLAMETRIYADIUPDATE",
+    "DELAYXIXIORDERANDOUBLE"
+}
+
+local function FireRedeemRemote(code)
+    pcall(function()
+        local remote = Services.ReplicatedStorage:WaitForChild("RedeemCodeEvents"):WaitForChild("Redeem")
+        if remote then
+            remote:InvokeServer(code)
+        end
+    end)
+end
+
+SectionRedeem:Button({
+    Title = "🎁 Redeem All",
+    Desc = "Otomatis nuker semua kode yang ada di script",
+    Callback = function()
+        task.spawn(function()
+            WindUI:Notify({ Title = "🔄 Redeem All", Content = "Lagi nukar kode, tunggu bentar...", Duration = 3 })
+            for _, code in ipairs(redeemCodes) do
+                FireRedeemRemote(code)
+                task.wait(2) -- Jeda 2 detik biar server sempet nge-process
+            end
+            WindUI:Notify({ Title = "✅ Redeem All", Content = "Semua kode udah ditukar!", Duration = 5 })
+        end)
+    end
 })
 
 -- ============================
 -- TAB 6: MODE INSTAN
 -- ============================
 local TabPreset = Window:Tab({ Title = "🏎️ Mode Instan", Icon = "car", Border = true })
+local ModeCepat = TabPreset:Section({ Title = "Mode Cepat", Box = true, BoxBorder = true, Opened = true })
 
-local ModeCepat = TabPreset:Section({
-    Title = "Mode Cepat",
-    Box = true,
-    BoxBorder = true,
-    Opened = true,
-})
-
-ModeCepat:Button({
-    Title = "🛵 MODE SUNMORI (Aman)",
-    Callback = function() InjectMesin(1.5, 2000, 0.9, 0.9, "Mode Sunmori Aktif") end
-})
-
-ModeCepat:Button({
-    Title = "🏎️ MODE BALAP LIAR (Ganas)",
-    Callback = function() InjectMesin(3.5, 5000, 0.75, 0.75, "Mode Balap Aktif") end
-})
-
-ModeCepat:Button({
-    Title = "🚀 MODE DEWA (Mentok Kanan)",
-    Callback = function() InjectMesin(8, 15000, 0.45, 0.45, "Mode Dewa Aktif") end
-})
-
-ModeCepat:Button({
-    Title = "🔄 RESET STANDAR PABRIK",
-    Callback = function()
-        WindUI:Notify({ Title = "ℹ️ Info", Content = "Respawn kendaraan dari menu game untuk reset.", Duration = 5 })
-    end
-})
+ModeCepat:Button({ Title = "🛵 MODE SUNMORI (Aman)", Callback = function() InjectMesin(1.5, 2000, 0.9, 0.9, "Mode Sunmori Aktif") end })
+ModeCepat:Button({ Title = "🏎️ MODE BALAP LIAR (Ganas)", Callback = function() InjectMesin(3.5, 5000, 0.75, 0.75, "Mode Balap Aktif") end })
+ModeCepat:Button({ Title = "🚀 MODE DEWA (Mentok Kanan)", Callback = function() InjectMesin(8, 15000, 0.45, 0.45, "Mode Dewa Aktif") end })
+ModeCepat:Button({ Title = "🔄 RESET STANDAR PABRIK", Callback = function() WindUI:Notify({ Title = "ℹ️ Info", Content = "Respawn kendaraan dari menu game untuk reset.", Duration = 5 }) end })
 
 -- ============================
 -- TAB 7: CUSTOM SETTING
 -- ============================
 local TabCustom = Window:Tab({ Title = "⚙️ Custom Setting", Icon = "sliders", Border = true })
-
-local TuneSendiri = TabCustom:Section({
-    Title = "Tune Sendiri",
-    Box = true,
-    BoxBorder = true,
-    Opened = true,
-})
+local TuneSendiri = TabCustom:Section({ Title = "Tune Sendiri", Box = true, BoxBorder = true, Opened = true })
 
 local customHP, customRPM, customRatio, customFD = 2, 5000, 0.8, 0.8
-
-TuneSendiri:Input({
-    Title = "💪 Pengali Tenaga (HP)",
-    Placeholder = "Contoh: 3",
-    Callback = function(Text) local val = tonumber(Text) if val then customHP = val end end
-})
-
-TuneSendiri:Input({
-    Title = "🔥 Tambahan RPM",
-    Placeholder = "Contoh: 8000",
-    Callback = function(Text) local val = tonumber(Text) if val then customRPM = val end end
-})
-
-TuneSendiri:Input({
-    Title = "⚙️ Pengali Rasio Gigi",
-    Placeholder = "Contoh: 0.6",
-    Callback = function(Text) local val = tonumber(Text) if val then customRatio = val end end
-})
-
-TuneSendiri:Input({
-    Title = "⛓️ Pengali Final Drive",
-    Placeholder = "Contoh: 0.6",
-    Callback = function(Text) local val = tonumber(Text) if val then customFD = val end end
-})
-
-TuneSendiri:Button({
-    Title = "⚡ INJECT CUSTOM TUNE SEKARANG",
-    Callback = function() InjectMesin(customHP, customRPM, customRatio, customFD, "Custom Tune Aktif") end
-})
+TuneSendiri:Input({ Title = "💪 Pengali Tenaga (HP)", Placeholder = "Contoh: 3", Callback = function(Text) local val = tonumber(Text) if val then customHP = val end end })
+TuneSendiri:Input({ Title = "🔥 Tambahan RPM", Placeholder = "Contoh: 8000", Callback = function(Text) local val = tonumber(Text) if val then customRPM = val end end })
+TuneSendiri:Input({ Title = "⚙️ Pengali Rasio Gigi", Placeholder = "Contoh: 0.6", Callback = function(Text) local val = tonumber(Text) if val then customRatio = val end end })
+TuneSendiri:Input({ Title = "⛓️ Pengali Final Drive", Placeholder = "Contoh: 0.6", Callback = function(Text) local val = tonumber(Text) if val then customFD = val end end })
+TuneSendiri:Button({ Title = "⚡ INJECT CUSTOM TUNE SEKARANG", Callback = function() InjectMesin(customHP, customRPM, customRatio, customFD, "Custom Tune Aktif") end })
 
 -- ============================
 -- OPEN BUTTON & FPS TAG
@@ -2109,7 +2001,7 @@ WindUI:SetTheme("dark")
 TabInfo:Select()
 
 WindUI:Notify({
-    Title    = "👑 KING AKBAR V6.3 SIAP!",
-    Content  = "Zero-Lag Bypass V3 Aktif. FPS Aman, Gas cuan!",
+    Title    = "👑 KING AKBAR V6.5 SIAP!",
+    Content  = "Auto Redeem Fix & Zero-Lag Bypass Aktif. Gas cuan!",
     Duration = 5,
 })
