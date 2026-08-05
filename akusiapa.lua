@@ -3,10 +3,8 @@
   👑 KING AKBAR - ULTIMATE AUTO FARM SCRIPT 👑
 ================================================================================
     [+] Developer   : King Akbar
-    [+] Version     : DDS FREE EDITION (v7.8.4 DELAY AMBIL JOB OFFICE)
-    [+] Changelog   : - Kasih jeda 5-8 detik setelah ambil job sebelum TP (Fix Bug)
-                      - Auto Office otomatis ambil job sebelum TP ke kursi
-                      - Fix Fake Name nggak ganti (OVERRIDE BillboardGui & TextLabel)
+    [+] Version     : DDS FREE EDITION (v7.8.1 FAKE NAME BRUTAL FIX)
+    [+] Changelog   : - Fix Fake Name nggak ganti (OVERRIDE BillboardGui & TextLabel)
                       - Tambah Fitur Fake Name (Default: King Akbar)
                       - Jeda jawab soal dirandom 1.5 - 3.5 detik (Anti Kicked)
                       - Fix PC nggak ngejawab soal (Bypass btn.Active check)
@@ -1438,25 +1436,8 @@ local function StartOfficeScript()
     getgenv().UangAwalDikunci = nil
     getgenv().WaktuMulai = tick()
 
-    -- 🎯 AUTO TAKE JOB OFFICE WORKER
-    WindUI:Notify({ Title = "💼 Office", Content = "Lagi ambil job Office Worker...", Duration = 3 })
-    pcall(function()
-        local args = {
-            [1] = "Office Worker",
-            [2] = 11378976,
-            [3] = 0,
-            [4] = 0,
-            [5] = "Detector"
-        }
-        game:GetService("ReplicatedStorage"):WaitForChild("JobEvents"):WaitForChild("TeamChangeRequest"):FireServer(unpack(args))
-    end)
-    
-    -- ⏳ JEDA AMAN: 5 sampai 8 detik biar server bener-bener nyatet jobnya sebelum TP
-    WindUI:Notify({ Title = "⏳ Tunggu", Content = "Kasih jeda 5-8 detik biar job kecatat...", Duration = 6 })
-    task.wait(math.random(50, 80) / 10)
-
     if not CharRef.Humanoid or not CharRef.Humanoid.SeatPart then
-        WindUI:Notify({ Title = "🔍 Office", Content = "Job aman, gas cari kursi & TP...", Duration = 3 })
+        WindUI:Notify({ Title = "🔍 Office", Content = "Mencari kursi & TP...", Duration = 3 })
         local targetChair = nil
         pcall(function()
             for _, comp in pairs(workspace.Computers:GetChildren()) do
@@ -2157,7 +2138,7 @@ WindUI:SetTheme("dark")
 TabInfo:Select()
 
 WindUI:Notify({
-    Title    = "👑 KING AKBAR V7.8.4 SIAP!",
-    Content  = "Delay Ambil Job Aman!",
+    Title    = "👑 KING AKBAR V7.8.1 SIAP!",
+    Content  = "Fix Brutal Fake Name!",
     Duration = 5,
 })
