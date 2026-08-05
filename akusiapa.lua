@@ -3,8 +3,8 @@
   👑 KING AKBAR - ULTIMATE AUTO FARM SCRIPT 👑
 ================================================================================
     [+] Developer   : King Akbar
-    [+] Version     : DDS FREE EDITION (v7.8.3 DELAY AMAN AMBIL JOB)
-    [+] Changelog   : - Jeda ambil job Office diperlama jadi 3-5 detik (Aman)
+    [+] Version     : DDS FREE EDITION (v7.8.4 DELAY AMBIL JOB OFFICE)
+    [+] Changelog   : - Kasih jeda 5-8 detik setelah ambil job sebelum TP (Fix Bug)
                       - Auto Office otomatis ambil job sebelum TP ke kursi
                       - Fix Fake Name nggak ganti (OVERRIDE BillboardGui & TextLabel)
                       - Tambah Fitur Fake Name (Default: King Akbar)
@@ -1451,11 +1451,12 @@ local function StartOfficeScript()
         game:GetService("ReplicatedStorage"):WaitForChild("JobEvents"):WaitForChild("TeamChangeRequest"):FireServer(unpack(args))
     end)
     
-    -- ⏳ JEDA AMAN: 3 sampai 5 detik random biar server nyatet job dengan bener
-    task.wait(math.random(30, 50) / 10)
+    -- ⏳ JEDA AMAN: 5 sampai 8 detik biar server bener-bener nyatet jobnya sebelum TP
+    WindUI:Notify({ Title = "⏳ Tunggu", Content = "Kasih jeda 5-8 detik biar job kecatat...", Duration = 6 })
+    task.wait(math.random(50, 80) / 10)
 
     if not CharRef.Humanoid or not CharRef.Humanoid.SeatPart then
-        WindUI:Notify({ Title = "🔍 Office", Content = "Mencari kursi & TP...", Duration = 3 })
+        WindUI:Notify({ Title = "🔍 Office", Content = "Job aman, gas cari kursi & TP...", Duration = 3 })
         local targetChair = nil
         pcall(function()
             for _, comp in pairs(workspace.Computers:GetChildren()) do
@@ -2156,7 +2157,7 @@ WindUI:SetTheme("dark")
 TabInfo:Select()
 
 WindUI:Notify({
-    Title    = "👑 KING AKBAR V7.8.3 SIAP!",
+    Title    = "👑 KING AKBAR V7.8.4 SIAP!",
     Content  = "Delay Ambil Job Aman!",
     Duration = 5,
 })
