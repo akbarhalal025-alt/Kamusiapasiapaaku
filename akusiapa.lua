@@ -3,8 +3,11 @@
   👑 KING AKBAR - ULTIMATE AUTO FARM SCRIPT 👑
 ================================================================================
     [+] Developer   : King Akbar
-    [+] Version     : DDS FREE EDITION (v7.7 HUMANIZE DELAY)
-    [+] Changelog   : - Jeda jawab soal dirandom 1.5 - 3.5 detik (Anti Kicked)
+    [+] Version     : DDS FREE EDITION (v7.8.2 AUTO TAKE OFFICE JOB)
+    [+] Changelog   : - Auto Office otomatis ambil job sebelum TP ke kursi
+                      - Fix Fake Name nggak ganti (OVERRIDE BillboardGui & TextLabel)
+                      - Tambah Fitur Fake Name (Default: King Akbar)
+                      - Jeda jawab soal dirandom 1.5 - 3.5 detik (Anti Kicked)
                       - Fix PC nggak ngejawab soal (Bypass btn.Active check)
                       - Bisa baca simbol kali (×) dan bagi (÷)
                       - Monitoring langsung nambah pas klik
@@ -220,6 +223,8 @@ local State = {
     OfficeMathSolved   = 0,
     OfficePrints       = 0,
     CourierDelivered   = 0,
+    FakeNameActive     = false,
+    FakeName           = "King Akbar",
 }
 
 LocalPlayer.Idled:Connect(function()
@@ -244,6 +249,31 @@ task.spawn(function()
             end
         end)
         task.wait(0.2)
+    end
+end)
+
+-- 🛡️ PERBAIKAN FAKE NAME: Pakai RenderStepped biar nge-override game UI paksa
+Services.RunService.RenderStepped:Connect(function()
+    if State.FakeNameActive then
+        pcall(function()
+            local char = LocalPlayer.Character
+            if char then
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    hum.DisplayName = State.FakeName
+                end
+                
+                -- Cari TextLabel di atas kepala (BillboardGui Custom Game)
+                for _, obj in pairs(char:GetDescendants()) do
+                    if obj:IsA("TextLabel") then
+                        -- Kalau teksnya sama kayak nama asli pemain, ATAU namanya ada kata "Name"/"Display"
+                        if obj.Text == LocalPlayer.Name or obj.Text == LocalPlayer.DisplayName or string.find(string.lower(obj.Name), "name") or string.find(string.lower(obj.Name), "display") or string.find(string.lower(obj.Name), "username") then
+                            obj.Text = State.FakeName
+                        end
+                    end
+                end
+            end
+        end)
     end
 end)
 
@@ -1407,6 +1437,20 @@ local function StartOfficeScript()
     getgenv().UangAwalDikunci = nil
     getgenv().WaktuMulai = tick()
 
+    -- 🎯 AUTO TAKE JOB OFFICE WORKER
+    WindUI:Notify({ Title = "💼 Office", Content = "Lagi ambil job Office Worker...", Duration = 3 })
+    pcall(function()
+        local args = {
+            [1] = "Office Worker",
+            [2] = 11378976,
+            [3] = 0,
+            [4] = 0,
+            [5] = "Detector"
+        }
+        game:GetService("ReplicatedStorage"):WaitForChild("JobEvents"):WaitForChild("TeamChangeRequest"):FireServer(unpack(args))
+    end)
+    task.wait(1) -- Jeda 1 detik biar server nyatet jobnya
+
     if not CharRef.Humanoid or not CharRef.Humanoid.SeatPart then
         WindUI:Notify({ Title = "🔍 Office", Content = "Mencari kursi & TP...", Duration = 3 })
         local targetChair = nil
@@ -1662,7 +1706,7 @@ local function ghostGlideMotor(targetPos)
     virtualGyro:Destroy()
     noclip:Disconnect()
     pp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-    pp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+    pp.AssemblyAngularVelocity = Vector3.new(0,0,0)
 
     forceDismount()
 end
@@ -1975,6 +2019,37 @@ local TabCfg = Window:Tab({ Title = "Pengaturan", Icon = "settings", Border = tr
 local Konfigurasi = TabCfg:Section({ Title = "Konfigurasi", Box = true, BoxBorder = true, Opened = true })
 Konfigurasi:Slider({ Title = "Jeda Antar Aksi (Detik)", Desc = "Makin kecil makin ngebut, tapi makin beresiko", Step = 1, Value = { Min = 1, Max = 10, Default = 5 }, Callback = function(v) State.ActionDelay = v end })
 
+-- FAKE NAME SECTION
+local SectionFakeName = TabCfg:Section({ Title = "Fake Name", Box = true, BoxBorder = true, Opened = true })
+
+SectionFakeName:Input({ 
+    Title = "Nama Fake (Kosong = King Akbar)", 
+    Placeholder = "King Akbar", 
+    Callback = function(Text) 
+        local cleanText = string.gsub(Text or "", "^%s+", "")
+        cleanText = string.gsub(cleanText, "%s+$", "")
+        if cleanText == "" then
+            State.FakeName = "King Akbar"
+        else
+            State.FakeName = cleanText
+        end
+    end 
+})
+
+SectionFakeName:Toggle({
+    Title = "Hidupin Fake Name",
+    Desc = "Ubah nama di atas kepala kamu (Cuma kamu yang liat)",
+    Value = false,
+    Callback = function(on)
+        State.FakeNameActive = on
+        if on then
+            WindUI:Notify({ Title = "🎭 Fake Name", Content = "Nama berubah jadi: " .. State.FakeName, Duration = 3 })
+        else
+            WindUI:Notify({ Title = "🎭 Fake Name", Content = "Fake name dimatiin.", Duration = 3 })
+        end
+    end
+})
+
 -- AUTO REDEEM SECTION
 local SectionRedeem = TabCfg:Section({ Title = "Auto Redeem", Box = true, BoxBorder = true, Opened = true })
 
@@ -2078,7 +2153,7 @@ WindUI:SetTheme("dark")
 TabInfo:Select()
 
 WindUI:Notify({
-    Title    = "👑 KING AKBAR V7.7 SIAP!",
-    Content  = "Delay Random Anti-Cheat!",
+    Title    = "👑 KING AKBAR V7.8.2 SIAP!",
+    Content  = "Auto Ambil Job Office Aktif!",
     Duration = 5,
 })
