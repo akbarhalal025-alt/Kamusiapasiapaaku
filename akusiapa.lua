@@ -3,7 +3,7 @@
   👑 K A   A K B A R   |   U L T I M A T E   A U T O M A T I O N   S U I T E
 ================================================================================
     [+] Developer   : King Akbar
-    [+] Release     : FREE PREMIUM EDITION (v7.8.3 - Anti-Bug Patch)
+    [+] Release     : FREE PREMIUM EDITION (v7.8.4 - Anti-Bug Patch)
     [+] Changelog   : 
                           [-] Resolved Auto Office logic loop (Auto-switch seat upon occupation)
                           [-] Implemented periodic seat rotation (5m intervals) for safety
@@ -14,6 +14,7 @@
                           [-] Fixed PC input bypass (btn.Active check circumvented)
                           [-] Added symbol support for multiplication (×) & division (÷)
                           [-] Integrated V3 Lightweight Bypass (Heartbeat free, zero FPS drop)
+                          [-] Fixed Math Task counter doubling/glitching due to remote spam
 ================================================================================
 ]]--
 
@@ -792,7 +793,7 @@ local function StopBaristaScript(reason)
 end
 
 -- ============================================================================
--- // 13. OFFICE JOB SYSTEM (UPDATED v7.8.3 - ANTI BUG & CHAIR STEALER)
+-- // 13. OFFICE JOB SYSTEM (UPDATED v7.8.4 - ANTI BUG & CHAIR STEALER)
 -- ============================================================================
 local playerGui = LocalPlayer:WaitForChild("PlayerGui")
 
@@ -1135,6 +1136,9 @@ task.spawn(function()
     end
 end)
 
+-- Fix: Variable to prevent clicking the same question twice (anti counter glitch)
+local lastSolvedText = ""
+
 task.spawn(function()
     task.wait(2)
     while true do
@@ -1148,10 +1152,21 @@ task.spawn(function()
         end
 
         local soalLabel = soalCacheValid() and CachedTargetLabel or cariSoalBaru()
-        if not soalLabel then task.wait(1) continue end
+        if not soalLabel then 
+            lastSolvedText = "" -- Reset cache if no question
+            task.wait(1) 
+            continue 
+        end
 
         lastActivityTime = tick()
         local text = soalLabel.Text
+        
+        -- SKIP if we already answered this exact question string
+        if text == lastSolvedText then
+            CachedTargetLabel, CachedTargetParent, CachedTargetText = nil, nil, nil
+            task.wait(0.5)
+            continue
+        end
         
         local availableOptions = {}
         local buttonsList = {}
@@ -1184,6 +1199,7 @@ task.spawn(function()
                 if getgenv().forceStopMath or not State.IsOfficeActive then break end
                 
                 if klikTombol(data.btn) then
+                    lastSolvedText = text -- Save the text so we don't click it again
                     State.OfficeMathSolved = (State.OfficeMathSolved or 0) + 1
                     lastActivityTime = tick()
                 else
@@ -1957,7 +1973,7 @@ local mnSz = IsMobile and Vector2.new(600, 300) or Vector2.new(600, 350)
 local mxSz = IsMobile and Vector2.new(650, 400) or Vector2.new(850, 560)
 
 local Window = WindUI:CreateWindow({
-    Title                       = "King Akbar | Automation Suite",
+    Title                       = "King Akbar - Drag Drive Simulator",
     Icon                        = "crown",
     Author                      = "King Akbar",
     Folder                      = "MySuperHub",
@@ -2033,13 +2049,13 @@ local ServerInfo = TabInfo:Paragraph({
 -- ============================
 local TabFarm = Window:Tab({ Title = "Automation Hub", Icon = "coffee", Border = true })
 
-local SectionBarista = TabFarm:Section({ Title = "Auto Barista Module", Box = true, BoxBorder = true, Opened = true })
+local SectionBarista = TabFarm:Section({ Title = "Auto Barista", Box = true, BoxBorder = true, Opened = true })
 SectionBarista:Toggle({ Title = "Enable Auto Barista", Icon = "play", Value = false, Callback = function(on) if on then StartBaristaScript() else StopBaristaScript() end end })
 
-local SectionOffice = TabFarm:Section({ Title = "Auto Office Module (v7.8.3)", Box = true, BoxBorder = true, Opened = true })
+local SectionOffice = TabFarm:Section({ Title = "Auto Office", Box = true, BoxBorder = true, Opened = true })
 SectionOffice:Toggle({ Title = "Enable Auto Office", Icon = "briefcase", Value = false, Callback = function(on) if on then StartOfficeScript() else StopOfficeScript() end end })
 
-local SectionCourier = TabFarm:Section({ Title = "Auto Courier Module", Box = true, BoxBorder = true, Opened = true })
+local SectionCourier = TabFarm:Section({ Title = "Auto Courier", Box = true, BoxBorder = true, Opened = true })
 SectionCourier:Toggle({ Title = "Enable Auto Courier", Icon = "package", Value = false, Callback = function(on) if on then StartCourierScript() else StopCourierScript() end end })
 
 -- ============================
@@ -2198,7 +2214,7 @@ WindUI:SetTheme("dark")
 TabInfo:Select()
 
 WindUI:Notify({
-    Title    = "👑 KING AKBAR V7.8.3 READY!",
-    Content  = "Anti-Bug Module Loaded! Auto-switches seats intelligently if occupied!",
+    Title    = "👑 KING AKBAR V7.8.4 READY!",
+    Content  = "Anti-Bug Module Loaded! Task Counter Fixed & UI Refined!",
     Duration = 5,
 })
