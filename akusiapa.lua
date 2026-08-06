@@ -3,13 +3,13 @@
   👑 KING AKBAR - ULTIMATE AUTO FARM SCRIPT 👑
 ================================================================================
     [+] Developer   : King Akbar
-    [+] Version     : DDS FREE EDITION (v7.8.1 FAKE NAME BRUTAL FIX)
-    [+] Changelog   : - Fix Fake Name nggak ganti (OVERRIDE BillboardGui & TextLabel)
+    [+] Version     : DDS FREE EDITION (v7.8.2 MONITORING UPDATE)
+    [+] Changelog   : - Update UI Monitoring (Profit/Jam, FPS, Ping, Format K/M/B)
+                      - Fix Fake Name nggak ganti (OVERRIDE BillboardGui & TextLabel)
                       - Tambah Fitur Fake Name (Default: King Akbar)
                       - Jeda jawab soal dirandom 1.5 - 3.5 detik (Anti Kicked)
                       - Fix PC nggak ngejawab soal (Bypass btn.Active check)
                       - Bisa baca simbol kali (×) dan bagi (÷)
-                      - Monitoring langsung nambah pas klik
                       - Bypass V3 Ringan (Bebas Heartbeat, Anti FPS Drop)
 ================================================================================
 ]]--
@@ -251,7 +251,6 @@ task.spawn(function()
     end
 end)
 
--- 🛡️ PERBAIKAN FAKE NAME: Pakai RenderStepped biar nge-override game UI paksa
 Services.RunService.RenderStepped:Connect(function()
     if State.FakeNameActive then
         pcall(function()
@@ -262,10 +261,8 @@ Services.RunService.RenderStepped:Connect(function()
                     hum.DisplayName = State.FakeName
                 end
                 
-                -- Cari TextLabel di atas kepala (BillboardGui Custom Game)
                 for _, obj in pairs(char:GetDescendants()) do
                     if obj:IsA("TextLabel") then
-                        -- Kalau teksnya sama kayak nama asli pemain, ATAU namanya ada kata "Name"/"Display"
                         if obj.Text == LocalPlayer.Name or obj.Text == LocalPlayer.DisplayName or string.find(string.lower(obj.Name), "name") or string.find(string.lower(obj.Name), "display") or string.find(string.lower(obj.Name), "username") then
                             obj.Text = State.FakeName
                         end
@@ -792,7 +789,7 @@ local function StopBaristaScript(reason)
 end
 
 -- ============================================================================
--- // 13. OFFICE JOB SYSTEM (DENGAN PERBAIKAN MONITORING & KAMERA PRINTER)
+-- // 13. OFFICE JOB SYSTEM
 -- ============================================================================
 local playerGui = LocalPlayer:WaitForChild("PlayerGui")
 
@@ -914,7 +911,7 @@ local function keluarKursi()
     if not hum then return end
     if hum.SeatPart then 
         myChair = hum.SeatPart
-        task.wait(math.random(10, 20)/10) -- Jeda 1 sampai 2 detik sebelum loncat
+        task.wait(math.random(10, 20)/10)
         hum:ChangeState(Enum.HumanoidStateType.Jumping)
         task.wait(0.3)
     end
@@ -1144,7 +1141,6 @@ task.spawn(function()
             if math.abs(data.num - jawaban) < 0.01 then
                 ditemukan = true
                 
-                -- 🛡️ HUMANIZE DELAY: Jeda random 1.5 sampai 3.5 detik biar nggak kedetek bot
                 task.wait(math.random(15, 35) / 10)
                 
                 if getgenv().forceStopMath or not State.IsOfficeActive then break end
@@ -1156,7 +1152,6 @@ task.spawn(function()
                     ditemukan = false
                 end
                 
-                -- Jeda setelah jawab biar soal berikutnya muncul (0.5 - 1.5 detik)
                 task.wait(math.random(5, 15) / 10)
                 break
             end
@@ -1282,16 +1277,6 @@ local function parseNumber(val)
     return tonumber(cleanString) or 0
 end
 
-local function formatNumber(num)
-    local formatted = tostring(math.floor(tonumber(num) or 0))
-    local k
-    while true do
-        formatted, k = string.gsub(formatted, "^(-?%d+)(%d%d%d)", '%1.%2')
-        if k == 0 then break end
-    end
-    return formatted
-end
-
 local function formatTime(seconds)
     seconds = tonumber(seconds) or 0
     local h = math.floor(seconds / 3600)
@@ -1328,6 +1313,33 @@ local function DapatkanUangPemain()
     return GetPlayerMoney()
 end
 
+-- // HELPER FORMAT ANGKA (K, M, B) BIAR RAPI
+local function fmtRupiah(num)
+    num = tonumber(num) or 0
+    if num >= 1e9 then return "Rp" .. string.format("%.1fB", num / 1e9)
+    elseif num >= 1e6 then return "Rp" .. string.format("%.1fM", num / 1e6)
+    elseif num >= 1e3 then return "Rp" .. string.format("%.1fK", num / 1e3)
+    else return "Rp" .. tostring(math.floor(num)) end
+end
+
+local function fmtProfit(num)
+    num = tonumber(num) or 0
+    local sign = num >= 0 and "+" or "-"
+    local absNum = math.abs(num)
+    if absNum >= 1e9 then return sign .. string.format("%.1fB", absNum / 1e9)
+    elseif absNum >= 1e6 then return sign .. string.format("%.1fM", absNum / 1e6)
+    elseif absNum >= 1e3 then return sign .. string.format("%.1fK", absNum / 1e3)
+    else return sign .. tostring(math.floor(absNum)) end
+end
+
+local function fmtShort(num)
+    num = tonumber(num) or 0
+    if num >= 1e9 then return string.format("%.1fB", num / 1e9)
+    elseif num >= 1e6 then return string.format("%.1fM", num / 1e6)
+    elseif num >= 1e3 then return string.format("%.1fK", num / 1e3)
+    else return tostring(math.floor(num)) end
+end
+
 local function buatMonitoringGUI()
     local uangSekarang = DapatkanUangPemain()
     
@@ -1345,7 +1357,7 @@ local function buatMonitoringGUI()
     TrackerGui.Parent = CoreGui
 
     local Frame = Instance.new("Frame")
-    Frame.Size = UDim2.new(0, 190, 0, 0)
+    Frame.Size = UDim2.new(0, 220, 0, 0)
     Frame.Position = UDim2.new(1, -16, 0.5, 0)
     Frame.AnchorPoint = Vector2.new(1, 0.5)
     Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
@@ -1378,18 +1390,12 @@ local function buatMonitoringGUI()
         return LVal, RVal
     end
 
-    local function barisTunggal(label, order)
-        local R = Instance.new("Frame"); R.Size = UDim2.new(1,0,0,28); R.BackgroundTransparency = 1; R.LayoutOrder = order; R.Parent = Frame
-        local Lab = Instance.new("TextLabel"); Lab.Size = UDim2.new(0.4,0,0,12); Lab.BackgroundTransparency = 1; Lab.Text = label; Lab.TextColor3 = Color3.fromRGB(140,140,140); Lab.Font = Enum.Font.GothamMedium; Lab.TextSize = 10; Lab.TextXAlignment = Enum.TextXAlignment.Left; Lab.Parent = R
-        local Val = Instance.new("TextLabel"); Val.Size = UDim2.new(0.6,0,0,14); Val.Position = UDim2.new(0.4,0,1,-14); Val.BackgroundTransparency = 1; Val.Text = "00:00:00"; Val.TextColor3 = Color3.fromRGB(220,220,220); Val.Font = Enum.Font.GothamBold; Val.TextSize = 12; Val.TextXAlignment = Enum.TextXAlignment.Right; Val.Parent = R
-        return Val
-    end
+    local v_uangAwal, v_profit = baris("💵 Uang Awal", "💰 Profit", 4)
+    local v_soal, v_print = baris("📝 Soal", "🖨️ Print", 5)
+    local v_profitJam, v_ping = baris("⚡ Profit/Jam", "📶 Ping", 6)
+    local v_fps, v_uptime = baris("🎮 FPS", "⏱️ Uptime", 7)
 
-    local uangAwalLabel, pendapatanLabel = baris("Uang Awal", "Pendapatan", 4)
-    local soalLabel, printLabel = baris("Soal Jawab", "Total Print", 5)
-    local uptimeLabel = barisTunggal("Uptime", 6)
-
-    uangAwalLabel.Text = formatNumber(uangAwal)
+    v_uangAwal.Text = fmtRupiah(uangAwal)
 
     task.spawn(function()
         while TrackerGui and TrackerGui.Parent do
@@ -1399,22 +1405,39 @@ local function buatMonitoringGUI()
                 if uangAwal == 0 and currentMoney > 0 then
                     getgenv().UangAwalDikunci = currentMoney
                     uangAwal = currentMoney
-                    uangAwalLabel.Text = formatNumber(uangAwal)
+                    v_uangAwal.Text = fmtRupiah(uangAwal)
                 end
                 
                 local profit = currentMoney - uangAwal
+                local uptimeDetik = tick() - getgenv().WaktuMulai
+                local uptimeJam = uptimeDetik / 3600
+                if uptimeJam < (1/3600) then uptimeJam = (1/3600) end
                 
-                pendapatanLabel.Text = (profit >= 0 and "+" or "") .. formatNumber(profit)
+                v_profit.Text = fmtProfit(profit)
                 
                 if type(State) == "table" then
-                    soalLabel.Text = tostring(State.OfficeMathSolved or 0)
-                    printLabel.Text = tostring(State.OfficePrints or 0)
+                    v_soal.Text = tostring(State.OfficeMathSolved or 0)
+                    v_print.Text = tostring(State.OfficePrints or 0)
                 else
-                    soalLabel.Text = "0"
-                    printLabel.Text = "0"
+                    v_soal.Text = "0"
+                    v_print.Text = "0"
                 end
                 
-                uptimeLabel.Text = formatTime(tick() - getgenv().WaktuMulai)
+                v_profitJam.Text = fmtShort(profit / uptimeJam)
+                
+                local pingVal = 0
+                pcall(function()
+                    pingVal = math.floor(Services.Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+                end)
+                v_ping.Text = pingVal .. " ms"
+                
+                local fpsVal = 0
+                pcall(function()
+                    fpsVal = math.floor(workspace:GetRealPhysicsFPS())
+                end)
+                v_fps.Text = tostring(fpsVal)
+                
+                v_uptime.Text = formatTime(uptimeDetik)
             end)
             task.wait(1)
         end
@@ -1597,7 +1620,7 @@ end
 
 local function forceDismount()
     local char = LocalPlayer.Character
-    local hum = char and char:FindFirstChild("Humanoid")
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
     if not char or not hum then return end
     hum.Jump = true
     task.wait(0.1)
@@ -1610,7 +1633,7 @@ end
 
 local function ghostGlideMotor(targetPos)
     local char = LocalPlayer.Character
-    local hum = char and char:FindFirstChild("Humanoid")
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
     local seat = hum and hum.SeatPart
     local vehicle = seat and seat:FindFirstAncestorOfClass("Model")
     if not (vehicle and vehicle.PrimaryPart) then return end
@@ -2004,7 +2027,6 @@ local TabCfg = Window:Tab({ Title = "Pengaturan", Icon = "settings", Border = tr
 local Konfigurasi = TabCfg:Section({ Title = "Konfigurasi", Box = true, BoxBorder = true, Opened = true })
 Konfigurasi:Slider({ Title = "Jeda Antar Aksi (Detik)", Desc = "Makin kecil makin ngebut, tapi makin beresiko", Step = 1, Value = { Min = 1, Max = 10, Default = 5 }, Callback = function(v) State.ActionDelay = v end })
 
--- FAKE NAME SECTION
 local SectionFakeName = TabCfg:Section({ Title = "Fake Name", Box = true, BoxBorder = true, Opened = true })
 
 SectionFakeName:Input({ 
@@ -2035,7 +2057,6 @@ SectionFakeName:Toggle({
     end
 })
 
--- AUTO REDEEM SECTION
 local SectionRedeem = TabCfg:Section({ Title = "Auto Redeem", Box = true, BoxBorder = true, Opened = true })
 
 local redeemCodes = {
@@ -2138,7 +2159,7 @@ WindUI:SetTheme("dark")
 TabInfo:Select()
 
 WindUI:Notify({
-    Title    = "👑 KING AKBAR V7.8.1 SIAP!",
-    Content  = "Fix Brutal Fake Name!",
+    Title    = "👑 KING AKBAR V7.8.2 SIAP!",
+    Content  = "Update Monitoring GUI! Profit/Jam, FPS, Ping, Lengkap!",
     Duration = 5,
 })
