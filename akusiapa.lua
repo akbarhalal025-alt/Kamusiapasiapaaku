@@ -3,10 +3,11 @@
   👑 KING AKBAR - ULTIMATE AUTO FARM SCRIPT 👑
 ================================================================================
     [+] Developer   : King Akbar
-    [+] Version     : DDS FREE EDITION (v7.9.1 MOBILE FIX)
-    [+] Changelog   : - FIX MOBILE OFFICE: Tombol jawaban diklik presisi di posisi aslinya
+    [+] Version     : DDS FREE EDITION (v7.9.2 ULTIMATE MATH BYPASS)
+    [+] Changelog   : - BYPASS TOTAL MATEMATIKA (Silent Fire UUID)
+                      - Bot langsung nembak jawaban ke Server (No UI Click)
+                      - FIX MOBILE: Nggak ada lagi masalah tombol nggak keklik
                       - Bot tetap jawab soal via Firesignal (Gaji Aman)
-                      - FIX BUG MATH: Bot nggak akan kepcoh sama teks UI XP lagi
 ================================================================================
 ]]--
 
@@ -785,7 +786,7 @@ local function StopBaristaScript(reason)
 end
 
 -- ============================================================================
--- // 13. OFFICE JOB SYSTEM
+-- // 13. OFFICE JOB SYSTEM (WITH ULTIMATE MATH BYPASS)
 -- ============================================================================
 local playerGui = LocalPlayer:WaitForChild("PlayerGui")
 
@@ -1020,42 +1021,83 @@ local function getButtonText(btn)
     return numStr or rawText
 end
 
--- FIX MOBILE: KLIK TOMBOL DENGAN PRECISE ABSOLUTE POSITION
-local function klikTombol(btn)
-    if not btn or not btn.Visible then return false end
+-- ============================================================================
+-- // BYPASS TOTAL MATEMATIKA (SILENT FIRE UUID)
+-- ============================================================================
+local JobEvents = Services.ReplicatedStorage:WaitForChild("JobEvents")
+local CorrectAnswerRemote = JobEvents:WaitForChild("CorrectAnswer")
+
+local function extractUUIDs(obj)
+    if not obj then return nil, nil end
+    local uuidPattern = "%x%x%x%x%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%x%x%x%x%x%x%x%x"
+    local foundUUIDs = {}
     
-    -- 1. Coba pakai firesignal
-    if type(firesignal) == "function" then
-        local ok1 = pcall(function() firesignal(btn.MouseButton1Click) end)
-        if ok1 then task.wait(0.05) return true end
-        local ok2 = pcall(function() firesignal(btn.Activated) end)
-        if ok2 then task.wait(0.05) return true end
+    local function checkVal(val)
+        if type(val) == "string" then
+            for id in string.gmatch(val, uuidPattern) do
+                table.insert(foundUUIDs, id)
+            end
+        end
+    end
+
+    checkVal(obj.Name)
+    for _, v in pairs(obj:GetAttributes()) do checkVal(v) end
+    if obj:IsA("TextLabel") or obj:IsA("TextButton") then checkVal(obj.Text) end
+
+    for _, child in pairs(obj:GetDescendants()) do
+        checkVal(child.Name)
+        for _, v in pairs(child:GetAttributes()) do checkVal(v) end
+        if child:IsA("TextLabel") or child:IsA("TextButton") then checkVal(child.Text) end
+        if child:IsA("ValueBase") then checkVal(child.Value) end
     end
     
-    -- 2. Coba pakai getconnections
-    if type(getconnections) == "function" then
-        local ok3 = pcall(function() 
-            for _, c in pairs(getconnections(btn.MouseButton1Click)) do c:Fire() end 
+    if #foundUUIDs == 0 and obj.Parent then
+        checkVal(obj.Parent.Name)
+        for _, v in pairs(obj.Parent:GetAttributes()) do checkVal(v) end
+    end
+
+    return foundUUIDs[1], foundUUIDs[2]
+end
+
+local function SubmitJawabanMath(soalLabel, btn)
+    local soalUUID1, soalUUID2 = extractUUIDs(soalLabel)
+    local btnUUID1, btnUUID2 = extractUUIDs(btn)
+    
+    local allUUIDs = {}
+    if soalUUID1 then table.insert(allUUIDs, soalUUID1) end
+    if soalUUID2 then table.insert(allUUIDs, soalUUID2) end
+    if btnUUID1 then table.insert(allUUIDs, btnUUID1) end
+    if btnUUID2 then table.insert(allUUIDs, btnUUID2) end
+    
+    if #allUUIDs >= 2 then
+        pcall(function()
+            CorrectAnswerRemote:FireServer(allUUIDs[1], allUUIDs[2])
         end)
-        if ok3 then task.wait(0.05) return true end
+        task.wait(0.05)
+        return true
     end
     
-    -- 3. FIX MOBILE: Klik di posisi tombol ASLINYA, bukan tengah layar!
-    local ok5 = pcall(function()
-        local pos = btn.AbsolutePosition
-        local size = btn.AbsoluteSize
-        local actualX = pos.X + (size.X / 2)
-        local actualY = pos.Y + (size.Y / 2)
-        
-        -- Geser sedikit biar nggak kelihatan seperti bot (tambah sedikit random)
-        actualX = actualX + math.random(-3, 3)
-        actualY = actualY + math.random(-3, 3)
-        
-        Services.VIM:SendMouseButtonEvent(actualX, actualY, 0, true, game, 1)
-        task.wait(0.08)
-        Services.VIM:SendMouseButtonEvent(actualX, actualY, 0, false, game, 1)
-    end)
-    return ok5
+    if btn and type(getconnections) == "function" then
+        local ok = pcall(function() 
+            for _, c in pairs(getconnections(btn.MouseButton1Click)) do c:Fire() end 
+            for _, c in pairs(getconnections(btn.Activated)) do c:Fire() end 
+        end)
+        if ok then task.wait(0.05) return true end
+    end
+    
+    if btn then
+        pcall(function()
+            local pos = btn.AbsolutePosition
+            local size = btn.AbsoluteSize
+            local actualX = pos.X + (size.X / 2) + math.random(-3, 3)
+            local actualY = pos.Y + (size.Y / 2) + math.random(-3, 3)
+            Services.VIM:SendMouseButtonEvent(actualX, actualY, 0, true, game, 1)
+            task.wait(0.08)
+            Services.VIM:SendMouseButtonEvent(actualX, actualY, 0, false, game, 1)
+        end)
+        return true
+    end
+    return false
 end
 
 local function hitungSoal(text)
@@ -1154,7 +1196,7 @@ task.spawn(function()
                 
                 if getgenv().forceStopMath or not State.IsOfficeActive then break end
                 
-                if klikTombol(data.btn) then
+                if SubmitJawabanMath(soalLabel, data.btn) then
                     State.OfficeMathSolved = (State.OfficeMathSolved or 0) + 1
                     lastActivityTime = tick()
                 end
@@ -1168,7 +1210,6 @@ task.spawn(function()
     end
 end)
 
-local JobEvents = Services.ReplicatedStorage:WaitForChild("JobEvents")
 local AssignPrintJob = JobEvents:WaitForChild("AssignPrintJob")
 local ClearPrintJob = JobEvents:WaitForChild("ClearPrintJob")
 local ComputersFolder = workspace:WaitForChild("Computers")
@@ -2165,7 +2206,7 @@ WindUI:SetTheme("dark")
 TabInfo:Select()
 
 WindUI:Notify({
-    Title    = "👑 KING AKBAR V7.9.1 SIAP!",
-    Content  = "Bug Mobile Fix! Gas Kerja Bos!",
+    Title    = "👑 KING AKBAR V7.9.2 SIAP!",
+    Content  = "Bypass Math Ultah! Gas Kerja Bos!",
     Duration = 5,
 })
