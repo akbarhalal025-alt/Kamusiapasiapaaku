@@ -3,11 +3,15 @@
   👑 KING AKBAR - ULTIMATE AUTO FARM SCRIPT 👑
 ================================================================================
     [+] Developer   : King Akbar
-    [+] Version     : DDS FREE EDITION (v7.9.2 ULTIMATE MATH BYPASS)
+    [+] Version     : DDS GLOBAL EDITION (v7.9.5 ANTI-LAG + FAKE NAME FIX)
     [+] Changelog   : - BYPASS TOTAL MATEMATIKA (Silent Fire UUID)
+                      - Anti-Admin recoded (Deteksi Rank, Nama, & Chat Tag)
                       - Bot langsung nembak jawaban ke Server (No UI Click)
                       - FIX MOBILE: Nggak ada lagi masalah tombol nggak keklik
-                      - Bot tetap jawab soal via Firesignal (Gaji Aman)
+                      - [NEW] ANTI-LAG (Particle Purge + Quality Lock)
+                      - [FIX] FAKE NAME recoded (No FPS drop, auto-restore)
+                      - FIX AFK STUCK (Anti GUI Freeze & Remote Drop)
+                      - FULL ENGLISH UI + Sections Collapsed by Default
 ================================================================================
 ]]--
 
@@ -206,7 +210,7 @@ local State = {
     IsOfficeActive     = false,
     IsCourierActive    = false,
     AiThread           = nil,
-    StatusText         = "Santai dulu...",
+    StatusText         = "Idling...",
     OrderCount         = 0,
     ActionDelay        = 5,
     AntiAFK            = true,
@@ -248,24 +252,76 @@ task.spawn(function()
     end
 end)
 
-Services.RunService.RenderStepped:Connect(function()
+-- ============================================================================
+-- // 3.5 FAKE NAME SYSTEM (FIXED: No FPS Drop, No UI Break, Auto Restore)
+-- ============================================================================
+local OriginalDisplayName = LocalPlayer.DisplayName
+local SpoofCache = {}
+
+local function SpoofScan(char)
+    for _, obj in pairs(char:GetDescendants()) do
+        if obj:IsA("TextLabel") and obj.Visible then
+            local t = obj.Text
+            if t == LocalPlayer.Name or t == OriginalDisplayName or t == ("@" .. LocalPlayer.Name) then
+                if SpoofCache[obj] == nil then SpoofCache[obj] = t end
+                obj.Text = State.FakeName
+            end
+        end
+    end
+end
+
+local function SpoofRestore()
+    for obj, original in pairs(SpoofCache) do
+        pcall(function()
+            if obj.Parent then obj.Text = original end
+        end)
+    end
+    SpoofCache = {}
+end
+
+local function SpoofApplyNow()
+    pcall(function()
+        local char = LocalPlayer.Character
+        if not char then return end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then hum.DisplayName = State.FakeName end
+        SpoofScan(char)
+    end)
+end
+
+local function SpoofDisableNow()
+    pcall(function()
+        local char = LocalPlayer.Character
+        if char then
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum then hum.DisplayName = OriginalDisplayName end
+        end
+    end)
+    SpoofRestore()
+end
+
+LocalPlayer.CharacterAdded:Connect(function(char)
+    task.wait(1)
     if State.FakeNameActive then
+        SpoofCache = {}
+        pcall(function()
+            local hum = char:WaitForChild("Humanoid", 5)
+            if hum then hum.DisplayName = State.FakeName end
+        end)
+    end
+end)
+
+task.spawn(function()
+    while task.wait(0.5) do
+        if not State.FakeNameActive then continue end
         pcall(function()
             local char = LocalPlayer.Character
-            if char then
-                local hum = char:FindFirstChildOfClass("Humanoid")
-                if hum then
-                    hum.DisplayName = State.FakeName
-                end
-                
-                for _, obj in pairs(char:GetDescendants()) do
-                    if obj:IsA("TextLabel") then
-                        if obj.Text == LocalPlayer.Name or obj.Text == LocalPlayer.DisplayName or string.find(string.lower(obj.Name), "name") or string.find(string.lower(obj.Name), "display") or string.find(string.lower(obj.Name), "username") then
-                            obj.Text = State.FakeName
-                        end
-                    end
-                end
+            if not char then return end
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum and hum.DisplayName ~= State.FakeName then
+                hum.DisplayName = State.FakeName
             end
+            SpoofScan(char)
         end)
     end
 end)
@@ -300,24 +356,76 @@ local function GetPlayerMoney()
 end
 
 -- ============================================================================
--- // 6. ADMIN SENSOR
+-- // 6. ADMIN SENSOR (BULLETPROOF EDITION)
 -- ============================================================================
-local GAME_GROUP_ID  = 11378976
-local MIN_STAFF_RANK = 200
+local GAME_GROUP_ID  = 11378976 
+local MIN_STAFF_RANK = 2 
+
+local BlacklistedNames = {
+    "slametriyadi", 
+    "admin", 
+    "moderator",
+    "developer"
+}
 
 local function CheckForAdmin(player)
     if not State.AntiAdmin or player == LocalPlayer then return end
-    pcall(function()
-        if player:GetRankInGroup(GAME_GROUP_ID) >= MIN_STAFF_RANK then
-            State.LastStopReason = "Admin detected - auto kicked"
-            rWait(0.5, 1)
-            LocalPlayer:Kick("Woi admin nongol bro, kabur dulu gas biar aman.")
+    
+    local isStaff = false
+
+    local pName = string.lower(player.Name)
+    local dName = string.lower(player.DisplayName)
+    for _, badName in ipairs(BlacklistedNames) do
+        if pName:find(badName) or dName:find(badName) then
+            isStaff = true
+            break
         end
-    end)
+    end
+
+    if not isStaff then
+        pcall(function()
+            local rank = player:GetRankInGroup(GAME_GROUP_ID)
+            if rank >= MIN_STAFF_RANK then
+                isStaff = true
+            end
+        end)
+    end
+
+    if not isStaff then
+        pcall(function()
+            local chatTag = player:GetAttributeInHierarchy("ChatTags") or player:GetAttribute("IsAdmin")
+            if chatTag then isStaff = true end
+        end)
+    end
+
+    if isStaff then
+        State.LastStopReason = "Admin detected: " .. player.Name
+        rWait(0.2, 0.5)
+        LocalPlayer:Kick("🚨 " .. player.Name .. " (Admin) joined! Leaving for safety.")
+    end
 end
 
 for _, p in ipairs(Services.Players:GetPlayers()) do CheckForAdmin(p) end
 Services.Players.PlayerAdded:Connect(CheckForAdmin)
+
+local TextChatService = game:GetService("TextChatService")
+pcall(function()
+    TextChatService.MessageReceived:Connect(function(message)
+        if not State.AntiAdmin then return end
+        local text = string.lower(message.Text or "")
+        local sender = message.TextSource
+        if sender then
+            local player = Services.Players:GetPlayerByUserId(sender.UserId)
+            if player and player ~= LocalPlayer then
+                if text:find("%[admin%]") or text:find("%[mod%]") or text:find("%[owner%]") or text:find("%[staff%]") then
+                    State.LastStopReason = "Admin chat detected: " .. player.Name
+                    rWait(0.2, 0.5)
+                    LocalPlayer:Kick("🚨 Admin chatting detected! Leaving server!")
+                end
+            end
+        end
+    end)
+end)
 
 -- ============================================================================
 -- // 7. SPLASH SCREEN
@@ -363,7 +471,7 @@ do
         ColorSequenceKeypoint.new(1,   Color3.fromHex("#555555")),
     }); tg.Rotation = 45
 
-    local stat = mkLabel("Mempersiapkan mesin tempur...", 200, 12)
+    local stat = mkLabel("Preparing combat engine...", 200, 12)
     stat.Font = Enum.Font.Gotham; stat.TextColor3 = Color3.fromHex("#555555")
     stat.TextXAlignment = Enum.TextXAlignment.Left; stat.Position = UDim2.fromOffset(50, 200)
 
@@ -395,8 +503,8 @@ do
         tw(stat,  { TextTransparency = 0 }, 0.3)
 
         for _, s in ipairs({
-            { "Mempersiapkan RNG Bot...", 0.30 },
-            { "Nyalain Alarm Darurat...", 0.60 },
+            { "Preparing RNG Bot...", 0.30 },
+            { "Activating Emergency Alarm...", 0.60 },
             { "Welcome, King Akbar!",     1.00 },
         }) do
             stat.Text = s[1]
@@ -464,7 +572,7 @@ local Paths = {
 }
 
 -- ============================================================================
--- // 9. ANTI-LAG & LAYAR HITAM
+-- // 9. PERFORMANCE SYSTEMS (BLACK SCREEN + ANTI-LAG)
 -- ============================================================================
 local BlackGui
 local function ToggleBlackScreen(on)
@@ -477,13 +585,68 @@ local function ToggleBlackScreen(on)
             local f = Instance.new("Frame", BlackGui)
             f.Size = UDim2.fromScale(1,1); f.BackgroundColor3 = Color3.new(0,0,0)
             local t = Instance.new("TextLabel", f)
-            t.Text = "🌑 MODE HEMAT BATERAI AKTIF 🌑\nKing Akbar Lagi Cari Cuan..."
+            t.Text = "🌑 POWER SAVING MODE ACTIVE 🌑\nKing Akbar is farming..."
             t.Size = UDim2.fromScale(1,1); t.TextColor3 = Color3.new(1,1,1)
             t.BackgroundTransparency = 1; t.Font = Enum.Font.GothamBold; t.TextSize = 20
         end
         BlackGui.Enabled = true
     else
         if BlackGui then BlackGui.Enabled = false end
+    end
+end
+
+-- [NEW] ANTI-LAG SYSTEM (Particle Purge + Quality Lock)
+local AntiLagActive = false
+local AntiLagConn = nil
+
+local LAG_CLASSES = {
+    "ParticleEmitter", "Smoke", "Fire", "Explosion", "Beam", "Trail", "Sparkles"
+}
+
+local function isLaggy(inst)
+    for _, c in ipairs(LAG_CLASSES) do
+        if inst:IsA(c) then return true end
+    end
+    return false
+end
+
+local function ToggleAntiLag(on)
+    AntiLagActive = on
+    if on then
+        -- Kunci kualitas grafis ke minimum
+        pcall(function()
+            settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+        end)
+        pcall(function()
+            game:GetService("Lighting").GlobalShadows = false
+        end)
+
+        -- Bersihkan partikel yang udah ada
+        task.spawn(function()
+            for _, v in pairs(Services.Workspace:GetDescendants()) do
+                if isLaggy(v) then pcall(function() v:Destroy() end) end
+            end
+        end)
+
+        -- Cegah partikel baru muncul
+        if not AntiLagConn then
+            AntiLagConn = Services.Workspace.DescendantAdded:Connect(function(v)
+                if AntiLagActive and isLaggy(v) then
+                    pcall(function() v:Destroy() end)
+                end
+            end)
+        end
+    else
+        if AntiLagConn then
+            AntiLagConn:Disconnect()
+            AntiLagConn = nil
+        end
+        pcall(function()
+            settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
+        end)
+        pcall(function()
+            game:GetService("Lighting").GlobalShadows = true
+        end)
     end
 end
 
@@ -654,11 +817,11 @@ end
 -- // 12. BARISTA FARMING LOOP
 -- ============================================================================
 local function TakeJob()
-    State.StatusText = "🏃 Lagi jalan ambil shift..."
+    State.StatusText = "🏃 Walking to start shift..."
     WalkToPoint(Constants.START_SHIFT); rWait(0.4, 0.8)
     local sp = FindPrompt("start shift", 30) or FindPrompt("shift", 30)
     if sp and sp.ActionText:lower():find("start") then
-        State.StatusText = "💼 Shift aman, gas kerja!"
+        State.StatusText = "💼 Shift started, let's work!"
         DoTap(sp); rWait(0.8, 1.5)
     end
 end
@@ -678,29 +841,29 @@ local function BaristaFarmLoop()
         end
 
         if not HasJob() then
-            State.StatusText = "⚠️ Shift habis, cari kerja lagi..."
+            State.StatusText = "⚠️ Shift ended, restarting..."
             local dm = (CharRef.Root.Position - Paths.START_TO_MACHINE[#Paths.START_TO_MACHINE]).Magnitude
             local dc = (CharRef.Root.Position - Paths.MACHINE_TO_CASHIER[#Paths.MACHINE_TO_CASHIER]).Magnitude
             FollowPath(dm < dc and Paths.MACHINE_TO_START or Paths.CASHIER_TO_START)
             TakeJob()
-            State.StatusText = "🚶 Balik ke spot kerja..."
+            State.StatusText = "🚶 Returning to workstation..."
             FollowPath(Paths.START_TO_MACHINE); isAtCashier = false; continue
         end
 
         while not HasPendingOrder() and not IsMachineBroken() and State.IsBaristaActive do
-            State.StatusText = "Sabar bro, nunggu pelanggan dulu..."; task.wait(1)
+            State.StatusText = "Waiting for customers..."; task.wait(1)
         end
         if not State.IsBaristaActive then continue end
         if not HasJob()         then continue end
 
         if IsMachineBroken() then
-            State.StatusText = "Waduh mesin rusak nih, gas benerin..."
+            State.StatusText = "Machine broken, fixing..."
             if isAtCashier then FollowPath(Paths.CASHIER_TO_MACHINE); isAtCashier = false end
-            State.StatusText = "Lagi jalan ke tempat benerin mesin..."
+            State.StatusText = "Walking to repair station..."
             FollowPath(Paths.MACHINE_TO_FIX); rWait(0.4, 0.8)
             local fix = FindPrompt("fix",20) or FindPrompt("repair",20) or FindPrompt("clean",20) or FindPrompt("maintain",20)
             if fix then
-                State.StatusText = "Lagi benerin mesin nih..."; DoHold(fix)
+                State.StatusText = "Repairing machine..."; DoHold(fix)
             else
                 for _, v in pairs(Services.Workspace:GetDescendants()) do
                     if v:IsA("ProximityPrompt") and v.Enabled then
@@ -709,14 +872,14 @@ local function BaristaFarmLoop()
                     end
                 end
             end
-            rWait(0.4, 0.8); State.StatusText = "🚶 Balik kerja lagi..."
+            rWait(0.4, 0.8); State.StatusText = "🚶 Returning to work..."
             State.MachineFixCount = (State.MachineFixCount or 0) + 1
             FollowPath(Paths.FIX_TO_MACHINE); continue
         end
 
         if HasPendingOrder() then
             if isAtCashier then
-                State.StatusText = "🚶 Otw ke mesin kopi..."; FollowPath(Paths.CASHIER_TO_MACHINE); isAtCashier = false
+                State.StatusText = "🚶 Heading to coffee machine..."; FollowPath(Paths.CASHIER_TO_MACHINE); isAtCashier = false
             else
                 WalkToPoint(Paths.START_TO_MACHINE[#Paths.START_TO_MACHINE])
             end
@@ -724,7 +887,7 @@ local function BaristaFarmLoop()
             local mp = Paths.START_TO_MACHINE[#Paths.START_TO_MACHINE]
             local bp = FindPrompt("brewing",30,mp) or FindPrompt("brew",30,mp) or FindPrompt("make",30,mp)
             if bp then
-                State.StatusText = "Lagi nyeduh kopi nih..."; DoTap(bp); rWait(0.8, 1.2)
+                State.StatusText = "Brewing coffee..."; DoTap(bp); rWait(0.8, 1.2)
                 while State.IsBaristaActive do
                     local g = LocalPlayer.PlayerGui:FindFirstChild("BaristaGUI")
                     local m = g and g:FindFirstChild("MinigameFrame", true)
@@ -733,19 +896,19 @@ local function BaristaFarmLoop()
             end
             rWait(0.8, 1.5)
 
-            State.StatusText = "🥤 Ngambil kopinya..."
+            State.StatusText = "🥤 Grabbing coffee..."
             local dp = FindPrompt("take",25,mp) or FindPrompt("grab",25,mp)
             if dp then DoTap(dp) end; rWait(0.3, 0.7)
 
             local tool = LocalPlayer.Backpack:FindFirstChildOfClass("Tool") or CharRef.Character:FindFirstChildOfClass("Tool")
             if tool then CharRef.Humanoid:EquipTool(tool) end
 
-            State.StatusText = "🚶 Nganter kopi ke pelanggan..."
+            State.StatusText = "🚶 Delivering coffee..."
             FollowPath(Paths.MACHINE_TO_CASHIER); isAtCashier = true
 
             local attempt = 0
             while CharRef.Character:FindFirstChildOfClass("Tool") and State.IsBaristaActive and attempt < 5 do
-                State.StatusText = "Lagi ngasih kopi ke pelanggan..."
+                State.StatusText = "Serving coffee..."
                 local sp2 = FindPrompt("serve",25) or FindPrompt("deliver",25)
                 if sp2 then DoHold(sp2) else break end
                 attempt += 1; rWait(0.4, 0.7)
@@ -753,9 +916,9 @@ local function BaristaFarmLoop()
 
             if not CharRef.Character:FindFirstChildOfClass("Tool") then
                 State.OrderCount += 1
-                State.StatusText  = "✅ Kopi kejual! Total: " .. State.OrderCount
+                State.StatusText  = "✅ Coffee sold! Total: " .. State.OrderCount
             else
-                State.StatusText = "❌ Gagal ngasih kopi, coba lagi..."
+                State.StatusText = "❌ Failed to serve, retrying..."
             end
 
             local delay = State.ActionDelay + math.random(-5, 10) / 10
@@ -778,7 +941,7 @@ end
 local function StopBaristaScript(reason)
     local stopReason = reason or "User manually stopped Barista"
     State.IsBaristaActive = false
-    State.StatusText = "Santai dulu..."
+    State.StatusText = "Idling..."
     State.LastStopReason = stopReason
     if CharRef.Humanoid and CharRef.Root then 
         CharRef.Humanoid:MoveTo(CharRef.Root.Position) 
@@ -786,7 +949,7 @@ local function StopBaristaScript(reason)
 end
 
 -- ============================================================================
--- // 13. OFFICE JOB SYSTEM (WITH ULTIMATE MATH BYPASS)
+-- // 13. OFFICE JOB SYSTEM (WITH ULTIMATE MATH BYPASS + AFK FIX)
 -- ============================================================================
 local playerGui = LocalPlayer:WaitForChild("PlayerGui")
 
@@ -976,8 +1139,28 @@ local function normalizeText(str)
     return str
 end
 
+-- [FIX PATCH 2: OPTIMASI CARI SOAL DENGAN CACHE GUI]
+local MathGUICache = nil
+
 local function cariSoalBaru()
     CachedTargetLabel, CachedTargetParent, CachedTargetText = nil, nil, nil
+    
+    if MathGUICache and MathGUICache.Parent then
+        for _, v in pairs(MathGUICache:GetDescendants()) do
+            if v:IsA("TextLabel") and v.Visible and v.Text ~= "" then
+                if string.find(v.Text, "=") or string.find(v.Text, "%?") then
+                    local isMath = string.match(v.Text, "%d+%s*[%+%-%*/xX×÷]%s*%d+")
+                    if isMath then
+                        CachedTargetLabel  = v
+                        CachedTargetParent = v.Parent
+                        CachedTargetText   = v.Text
+                        return v
+                    end
+                end
+            end
+        end
+    end
+
     for _, v in pairs(playerGui:GetDescendants()) do
         if v:IsA("TextLabel") and v.Visible and v.Text ~= "" then
             local lowerText = string.lower(v.Text)
@@ -985,6 +1168,7 @@ local function cariSoalBaru()
                 if string.find(v.Text, "=") or string.find(v.Text, "%?") then
                     local isMath = string.match(v.Text, "%d+%s*[%+%-%*/xX×÷]%s*%d+")
                     if isMath then
+                        MathGUICache = v:FindFirstAncestorOfClass("ScreenGui") or v.Parent
                         CachedTargetLabel  = v
                         CachedTargetParent = v.Parent
                         CachedTargetText   = v.Text
@@ -1022,10 +1206,19 @@ local function getButtonText(btn)
 end
 
 -- ============================================================================
--- // BYPASS TOTAL MATEMATIKA (SILENT FIRE UUID)
+-- // BYPASS TOTAL MATEMATIKA (SILENT FIRE UUID) + [FIX PATCH 3: ANTI DROP]
 -- ============================================================================
 local JobEvents = Services.ReplicatedStorage:WaitForChild("JobEvents")
 local CorrectAnswerRemote = JobEvents:WaitForChild("CorrectAnswer")
+
+local function getSafeRemote()
+    if not CorrectAnswerRemote or not CorrectAnswerRemote.Parent then
+        pcall(function()
+            CorrectAnswerRemote = Services.ReplicatedStorage:WaitForChild("JobEvents", 2):WaitForChild("CorrectAnswer", 2)
+        end)
+    end
+    return CorrectAnswerRemote
+end
 
 local function extractUUIDs(obj)
     if not obj then return nil, nil end
@@ -1071,7 +1264,7 @@ local function SubmitJawabanMath(soalLabel, btn)
     
     if #allUUIDs >= 2 then
         pcall(function()
-            CorrectAnswerRemote:FireServer(allUUIDs[1], allUUIDs[2])
+            getSafeRemote():FireServer(allUUIDs[1], allUUIDs[2])
         end)
         task.wait(0.05)
         return true
@@ -1147,6 +1340,9 @@ task.spawn(function()
     end
 end)
 
+-- [FIX PATCH 1: ANTI STUCK LOOP]
+local lastMathText = "" 
+
 task.spawn(function()
     task.wait(2)
     while true do
@@ -1160,10 +1356,20 @@ task.spawn(function()
         end
 
         local soalLabel = soalCacheValid() and CachedTargetLabel or cariSoalBaru()
-        if not soalLabel then task.wait(1) continue end
+        if not soalLabel then 
+            lastMathText = ""
+            task.wait(1) 
+            continue 
+        end
 
-        lastActivityTime = tick()
         local text = soalLabel.Text
+        
+        if text == lastMathText then
+            -- Diamkan, biarkan timer AFK 60 detik jalan
+        else
+            lastMathText = text
+            lastActivityTime = tick() 
+        end
         
         local availableOptions = {}
         local buttonsList = {}
@@ -1437,12 +1643,12 @@ local function buatMonitoringGUI()
         return LVal, RVal
     end
 
-    local v_uangAwal, v_profit = baris("💵 Uang Awal", "💰 Profit", 4)
-    local v_soal, v_print = baris("📝 Soal", "🖨️ Print", 5)
-    local v_profitJam, v_ping = baris("⚡ Profit/Jam", "📶 Ping", 6)
+    local v_initial, v_profit = baris("💵 Initial", "💰 Profit", 4)
+    local v_solved, v_prints = baris("📝 Solved", "🖨️ Prints", 5)
+    local v_profitH, v_ping = baris("⚡ Profit/H", "📶 Ping", 6)
     local v_fps, v_uptime = baris("🎮 FPS", "⏱️ Uptime", 7)
 
-    v_uangAwal.Text = fmtRupiah(uangAwal)
+    v_initial.Text = fmtRupiah(uangAwal)
 
     task.spawn(function()
         while TrackerGui and TrackerGui.Parent do
@@ -1452,7 +1658,7 @@ local function buatMonitoringGUI()
                 if uangAwal == 0 and currentMoney > 0 then
                     getgenv().UangAwalDikunci = currentMoney
                     uangAwal = currentMoney
-                    v_uangAwal.Text = fmtRupiah(uangAwal)
+                    v_initial.Text = fmtRupiah(uangAwal)
                 end
                 
                 local profit = currentMoney - uangAwal
@@ -1463,14 +1669,14 @@ local function buatMonitoringGUI()
                 v_profit.Text = fmtProfit(profit)
                 
                 if type(State) == "table" then
-                    v_soal.Text = tostring(State.OfficeMathSolved or 0)
-                    v_print.Text = tostring(State.OfficePrints or 0)
+                    v_solved.Text = tostring(State.OfficeMathSolved or 0)
+                    v_prints.Text = tostring(State.OfficePrints or 0)
                 else
-                    v_soal.Text = "0"
-                    v_print.Text = "0"
+                    v_solved.Text = "0"
+                    v_prints.Text = "0"
                 end
                 
-                v_profitJam.Text = fmtShort(profit / uptimeJam)
+                v_profitH.Text = fmtShort(profit / uptimeJam)
                 
                 local pingVal = 0
                 pcall(function()
@@ -1507,7 +1713,7 @@ local function StartOfficeScript()
     getgenv().WaktuMulai = tick()
 
     if not CharRef.Humanoid or not CharRef.Humanoid.SeatPart then
-        WindUI:Notify({ Title = "🔍 Office", Content = "Mencari kursi & TP...", Duration = 3 })
+        WindUI:Notify({ Title = "🔍 Office", Content = "Finding chair & TP...", Duration = 3 })
         local targetChair = nil
         pcall(function()
             for _, comp in pairs(workspace.Computers:GetChildren()) do
@@ -1532,7 +1738,7 @@ local function StartOfficeScript()
                 end
                 dudukKeKursi(true)
             else
-                WindUI:Notify({ Title = "⚠️ Office", Content = "Kursi nggak ketemu, duduk manual dulu bos!", Duration = 5 })
+                WindUI:Notify({ Title = "⚠️ Office", Content = "Chair not found, please sit manually!", Duration = 5 })
             end
         end
     else
@@ -1541,7 +1747,7 @@ local function StartOfficeScript()
 
     lastActivityTime = tick()
     buatMonitoringGUI()
-    WindUI:Notify({ Title = "✅ Office", Content = "Auto Office jalan! Uang Awal discan otomatis.", Duration = 4 })
+    WindUI:Notify({ Title = "✅ Office", Content = "Auto Office started! Initial money scanned.", Duration = 4 })
 end
 
 local function StopOfficeScript()
@@ -1559,7 +1765,7 @@ local function StopOfficeScript()
     getgenv().UangAwalDikunci = nil
 
     matikanMonitoring()
-    WindUI:Notify({ Title = "🛑 Office", Content = "Auto Office dimatiin.", Duration = 3 })
+    WindUI:Notify({ Title = "🛑 Office", Content = "Auto Office stopped.", Duration = 3 })
 end
 
 -- ============================================================================
@@ -1947,18 +2153,18 @@ local function InjectMesin(HP_Mult, RPM_Add, Ratio_Mult, FD_Mult, NamaMode)
             end
             
             if foundTune then
-                WindUI:Notify({ Title = "✅ " .. NamaMode, Content = "Aman! Turun lalu naik motor lagi ya bosku!", Duration = 5 })
+                WindUI:Notify({ Title = "✅ " .. NamaMode, Content = "Safe! Respawn vehicle to apply.", Duration = 5 })
             else
-                WindUI:Notify({ Title = "❌ Gagal Inject", Content = "Bukan A-Chassis standar.", Duration = 4 })
+                WindUI:Notify({ Title = "❌ Injection Failed", Content = "Not a standard A-Chassis.", Duration = 4 })
             end
         end
     else
-        WindUI:Notify({ Title = "⚠️ Woi Bosku!", Content = "Naik ke motornya dulu!", Duration = 3 })
+        WindUI:Notify({ Title = "⚠️ Warning!", Content = "Please enter a vehicle first!", Duration = 3 })
     end
 end
 
 -- ============================================================================
--- // 16. UI — 7 TAB
+-- // 16. UI — 7 TAB (GLOBAL ENGLISH EDITION + COLLAPSED SECTIONS)
 -- ============================================================================
 local wSz = IsMobile and UDim2.fromOffset(420, 320) or UDim2.fromOffset(580, 460)
 local mnSz = IsMobile and Vector2.new(600, 300) or Vector2.new(600, 350)
@@ -2041,43 +2247,52 @@ local ServerInfo = TabInfo:Paragraph({
 -- ============================
 local TabFarm = Window:Tab({ Title = "Auto Farm", Icon = "coffee", Border = true })
 
-local SectionBarista = TabFarm:Section({ Title = "Auto Barista", Box = true, BoxBorder = true, Opened = true })
-SectionBarista:Toggle({ Title = "Jalanin Auto Barista", Icon = "play", Value = false, Callback = function(on) if on then StartBaristaScript() else StopBaristaScript() end end })
+local SectionBarista = TabFarm:Section({ Title = "Auto Barista", Box = true, BoxBorder = true, Opened = false })
+SectionBarista:Toggle({ Title = "Enable Auto Barista", Icon = "play", Value = false, Callback = function(on) if on then StartBaristaScript() else StopBaristaScript() end end })
 
-local SectionOffice = TabFarm:Section({ Title = "Auto Office", Box = true, BoxBorder = true, Opened = true })
-SectionOffice:Toggle({ Title = "Jalanin Auto Office", Icon = "briefcase", Value = false, Callback = function(on) if on then StartOfficeScript() else StopOfficeScript() end end })
+local SectionOffice = TabFarm:Section({ Title = "Auto Office", Box = true, BoxBorder = true, Opened = false })
+SectionOffice:Toggle({ Title = "Enable Auto Office", Icon = "briefcase", Value = false, Callback = function(on) if on then StartOfficeScript() else StopOfficeScript() end end })
 
-local SectionCourier = TabFarm:Section({ Title = "Auto Courier", Box = true, BoxBorder = true, Opened = true })
-SectionCourier:Toggle({ Title = "Jalanin Auto Courier", Icon = "package", Value = false, Callback = function(on) if on then StartCourierScript() else StopCourierScript() end end })
-
--- ============================
--- TAB 3: KEAMANAN
--- ============================
-local TabSec = Window:Tab({ Title = "Keamanan", Icon = "shield", Border = true })
-local Perlindungan = TabSec:Section({ Title = "Perlindungan", Box = true, BoxBorder = true, Opened = true })
-
-Perlindungan:Toggle({ Title = "Kabur Kalau Ada Admin", Desc = "Otomatis keluar kalau staff masuk server", Icon = "user-minus", Value = true, Callback = function(on) State.AntiAdmin = on end })
-Perlindungan:Toggle({ Title = "Biar Nggak Kena AFK Kick", Desc = "Jaga koneksi tetap aktif selama ngebot", Icon = "clock", Value = true, Callback = function(on) State.AntiAFK = on end })
+local SectionCourier = TabFarm:Section({ Title = "Auto Courier", Box = true, BoxBorder = true, Opened = false })
+SectionCourier:Toggle({ Title = "Enable Auto Courier", Icon = "package", Value = false, Callback = function(on) if on then StartCourierScript() else StopCourierScript() end end })
 
 -- ============================
--- TAB 4: PERFORMA
+-- TAB 3: SECURITY
 -- ============================
-local TabPerf = Window:Tab({ Title = "Performa", Icon = "zap", Border = true })
-local HematDaya = TabPerf:Section({ Title = "Hemat Daya", Box = true, BoxBorder = true, Opened = true })
-HematDaya:Toggle({ Title = "Matiin Grafik (Aman AFK Semalaman)", Desc = "Layar hitam, baterai hemat, bot tetap jalan", Value = false, Callback = function(on) ToggleBlackScreen(on) end })
+local TabSec = Window:Tab({ Title = "Security", Icon = "shield", Border = true })
+local Perlindungan = TabSec:Section({ Title = "Protection", Box = true, BoxBorder = true, Opened = false })
+
+Perlindungan:Toggle({ Title = "Anti-Admin (Auto Leave)", Desc = "Automatically leaves if a staff member joins", Icon = "user-minus", Value = true, Callback = function(on) State.AntiAdmin = on end })
+Perlindungan:Toggle({ Title = "Anti-AFK", Desc = "Keeps connection active while botting", Icon = "clock", Value = true, Callback = function(on) State.AntiAFK = on end })
 
 -- ============================
--- TAB 5: PENGATURAN
+-- TAB 4: PERFORMANCE (POWER SAVING + ANTI LAG)
 -- ============================
-local TabCfg = Window:Tab({ Title = "Pengaturan", Icon = "settings", Border = true })
+local TabPerf = Window:Tab({ Title = "Performance", Icon = "zap", Border = true })
 
-local Konfigurasi = TabCfg:Section({ Title = "Konfigurasi", Box = true, BoxBorder = true, Opened = true })
-Konfigurasi:Slider({ Title = "Jeda Antar Aksi (Detik)", Desc = "Makin kecil makin ngebut, tapi makin beresiko", Step = 1, Value = { Min = 1, Max = 10, Default = 5 }, Callback = function(v) State.ActionDelay = v end })
+local HematDaya = TabPerf:Section({ Title = "Power Saving", Box = true, BoxBorder = true, Opened = false })
+HematDaya:Toggle({ Title = "Disable Rendering (AFK Mode)", Desc = "Black screen, saves battery, bot keeps running", Value = false, Callback = function(on) ToggleBlackScreen(on) end })
 
-local SectionFakeName = TabCfg:Section({ Title = "Fake Name", Box = true, BoxBorder = true, Opened = true })
+local SectionAntiLag = TabPerf:Section({ Title = "Anti Lag", Box = true, BoxBorder = true, Opened = false })
+SectionAntiLag:Toggle({
+    Title = "Enable Anti Lag",
+    Desc = "Purges particles & locks graphics to minimum for max FPS",
+    Value = false,
+    Callback = function(on) ToggleAntiLag(on) end
+})
+
+-- ============================
+-- TAB 5: SETTINGS
+-- ============================
+local TabCfg = Window:Tab({ Title = "Settings", Icon = "settings", Border = true })
+
+local Konfigurasi = TabCfg:Section({ Title = "Configuration", Box = true, BoxBorder = true, Opened = false })
+Konfigurasi:Slider({ Title = "Action Delay (Seconds)", Desc = "Lower is faster, but riskier", Step = 1, Value = { Min = 1, Max = 10, Default = 5 }, Callback = function(v) State.ActionDelay = v end })
+
+local SectionFakeName = TabCfg:Section({ Title = "Spoof Name", Box = true, BoxBorder = true, Opened = false })
 
 SectionFakeName:Input({ 
-    Title = "Nama Fake (Kosong = King Akbar)", 
+    Title = "Spoof Name (Empty = King Akbar)", 
     Placeholder = "King Akbar", 
     Callback = function(Text) 
         local cleanText = string.gsub(Text or "", "^%s+", "")
@@ -2087,24 +2302,27 @@ SectionFakeName:Input({
         else
             State.FakeName = cleanText
         end
+        if State.FakeNameActive then SpoofApplyNow() end
     end 
 })
 
 SectionFakeName:Toggle({
-    Title = "Hidupin Fake Name",
-    Desc = "Ubah nama di atas kepala kamu (Cuma kamu yang liat)",
+    Title = "Enable Spoof Name",
+    Desc = "Changes your display name (Client-sided, auto-restore)",
     Value = false,
     Callback = function(on)
         State.FakeNameActive = on
         if on then
-            WindUI:Notify({ Title = "🎭 Fake Name", Content = "Nama berubah jadi: " .. State.FakeName, Duration = 3 })
+            SpoofApplyNow()
+            WindUI:Notify({ Title = "🎭 Spoof Name", Content = "Name changed to: " .. State.FakeName, Duration = 3 })
         else
-            WindUI:Notify({ Title = "🎭 Fake Name", Content = "Fake name dimatiin.", Duration = 3 })
+            SpoofDisableNow()
+            WindUI:Notify({ Title = "🎭 Spoof Name", Content = "Spoof disabled. Original name restored.", Duration = 3 })
         end
     end
 })
 
-local SectionRedeem = TabCfg:Section({ Title = "Auto Redeem", Box = true, BoxBorder = true, Opened = true })
+local SectionRedeem = TabCfg:Section({ Title = "Auto Redeem", Box = true, BoxBorder = true, Opened = false })
 
 local redeemCodes = {
     "DRAGDRIVESIMULATORJULY26",
@@ -2124,43 +2342,43 @@ local function FireRedeemRemote(code)
 end
 
 SectionRedeem:Button({
-    Title = "🎁 Redeem All",
-    Desc = "Otomatis nuker semua kode yang ada di script",
+    Title = "🎁 Redeem All Codes",
+    Desc = "Automatically redeems all available codes",
     Callback = function()
         task.spawn(function()
-            WindUI:Notify({ Title = "🔄 Auto Redeem", Content = "Lagi nuker kode, tunggu bentar...", Duration = 3 })
+            WindUI:Notify({ Title = "🔄 Auto Redeem", Content = "Redeeming codes, please wait...", Duration = 3 })
             for _, code in ipairs(redeemCodes) do
                 FireRedeemRemote(code)
                 task.wait(2)
             end
-            WindUI:Notify({ Title = "✅ Auto Redeem", Content = "Semua kode udah ditukar!", Duration = 5 })
+            WindUI:Notify({ Title = "✅ Auto Redeem", Content = "All codes redeemed successfully!", Duration = 5 })
         end)
     end
 })
 
 -- ============================
--- TAB 6: MODE INSTAN
+-- TAB 6: INSTANT MODES
 -- ============================
-local TabPreset = Window:Tab({ Title = "🏎️ Mode Instan", Icon = "car", Border = true })
-local ModeCepat = TabPreset:Section({ Title = "Mode Cepat", Box = true, BoxBorder = true, Opened = true })
+local TabPreset = Window:Tab({ Title = "Instant Modes", Icon = "car", Border = true })
+local ModeCepat = TabPreset:Section({ Title = "Presets", Box = true, BoxBorder = true, Opened = false })
 
-ModeCepat:Button({ Title = "🛵 MODE SUNMORI (Aman)", Callback = function() InjectMesin(1.5, 2000, 0.9, 0.9, "Mode Sunmori Aktif") end })
-ModeCepat:Button({ Title = "🏎️ MODE BALAP LIER (Ganas)", Callback = function() InjectMesin(3.5, 5000, 0.75, 0.75, "Mode Balap Aktif") end })
-ModeCepat:Button({ Title = "🚀 MODE DEWA (Mentok Kanan)", Callback = function() InjectMesin(8, 15000, 0.45, 0.45, "Mode Dewa Aktif") end })
-ModeCepat:Button({ Title = "🔄 RESET STANDAR PABRIK", Callback = function() WindUI:Notify({ Title = "ℹ️ Info", Content = "Respawn kendaraan dari menu game untuk reset.", Duration = 5 }) end })
+ModeCepat:Button({ Title = "🛵 SUNDAY RIDE (Safe)", Callback = function() InjectMesin(1.5, 2000, 0.9, 0.9, "Sunday Ride Active") end })
+ModeCepat:Button({ Title = "🏎️ RACING MODE (Aggressive)", Callback = function() InjectMesin(3.5, 5000, 0.75, 0.75, "Racing Mode Active") end })
+ModeCepat:Button({ Title = "🚀 GOD MODE (Max Speed)", Callback = function() InjectMesin(8, 15000, 0.45, 0.45, "God Mode Active") end })
+ModeCepat:Button({ Title = "🔄 RESET TO DEFAULT", Callback = function() WindUI:Notify({ Title = "ℹ️ Info", Content = "Respawn vehicle from game menu to reset.", Duration = 5 }) end })
 
 -- ============================
--- TAB 7: CUSTOM SETTING
+-- TAB 7: CUSTOM TUNE
 -- ============================
-local TabCustom = Window:Tab({ Title = "⚙️ Custom Setting", Icon = "sliders", Border = true })
-local TuneSendiri = TabCustom:Section({ Title = "Tune Sendiri", Box = true, BoxBorder = true, Opened = true })
+local TabCustom = Window:Tab({ Title = "Custom Tune", Icon = "sliders", Border = true })
+local TuneSendiri = TabCustom:Section({ Title = "Manual Tuning", Box = true, BoxBorder = true, Opened = false })
 
 local customHP, customRPM, customRatio, customFD = 2, 5000, 0.8, 0.8
-TuneSendiri:Input({ Title = "💪 Pengali Tenaga (HP)", Placeholder = "Contoh: 3", Callback = function(Text) local val = tonumber(Text) if val then customHP = val end end })
-TuneSendiri:Input({ Title = "🔥 Tambahan RPM", Placeholder = "Contoh: 8000", Callback = function(Text) local val = tonumber(Text) if val then customRPM = val end end })
-TuneSendiri:Input({ Title = "⚙️ Pengali Rasio Gigi", Placeholder = "Contoh: 0.6", Callback = function(Text) local val = tonumber(Text) if val then customRatio = val end end })
-TuneSendiri:Input({ Title = "⛓️ Pengali Final Drive", Placeholder = "Contoh: 0.6", Callback = function(Text) local val = tonumber(Text) if val then customFD = val end end })
-TuneSendiri:Button({ Title = "⚡ INJECT CUSTOM TUNE SEKARANG", Callback = function() InjectMesin(customHP, customRPM, customRatio, customFD, "Custom Tune Aktif") end })
+TuneSendiri:Input({ Title = "💪 Horsepower Multiplier", Placeholder = "Example: 3", Callback = function(Text) local val = tonumber(Text) if val then customHP = val end end })
+TuneSendiri:Input({ Title = "🔥 RPM Adder", Placeholder = "Example: 8000", Callback = function(Text) local val = tonumber(Text) if val then customRPM = val end end })
+TuneSendiri:Input({ Title = "⚙️ Gear Ratio Multiplier", Placeholder = "Example: 0.6", Callback = function(Text) local val = tonumber(Text) if val then customRatio = val end end })
+TuneSendiri:Input({ Title = "⛓️ Final Drive Multiplier", Placeholder = "Example: 0.6", Callback = function(Text) local val = tonumber(Text) if val then customFD = val end end })
+TuneSendiri:Button({ Title = "⚡ INJECT CUSTOM TUNE", Callback = function() InjectMesin(customHP, customRPM, customRatio, customFD, "Custom Tune Active") end })
 
 -- ============================
 -- OPEN BUTTON & FPS TAG
@@ -2206,7 +2424,7 @@ WindUI:SetTheme("dark")
 TabInfo:Select()
 
 WindUI:Notify({
-    Title    = "👑 KING AKBAR V7.9.2 SIAP!",
-    Content  = "Bypass Math Ultah! Gas Kerja Bos!",
+    Title    = "👑 KING AKBAR V7.9.5 READY!",
+    Content  = "Anti-Lag added & Fake Name fixed! Enjoy the boost!",
     Duration = 5,
 })
