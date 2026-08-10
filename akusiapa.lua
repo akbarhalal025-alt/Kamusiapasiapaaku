@@ -3,9 +3,8 @@
   👑 KING AKBAR - ULTIMATE AUTO FARM SCRIPT 👑
 ================================================================================
     [+] Developer   : King Akbar
-    [+] Version     : DDS FREE EDITION (v7.9.0 CLEAN & SILENT)
-    [+] Changelog   : - Hapus semua visual debug (Kotak Kuning & Efek Klik)
-                      - Tampilan bersih maksimal
+    [+] Version     : DDS FREE EDITION (v7.9.1 MOBILE FIX)
+    [+] Changelog   : - FIX MOBILE OFFICE: Tombol jawaban diklik presisi di posisi aslinya
                       - Bot tetap jawab soal via Firesignal (Gaji Aman)
                       - FIX BUG MATH: Bot nggak akan kepcoh sama teks UI XP lagi
 ================================================================================
@@ -976,16 +975,12 @@ local function normalizeText(str)
     return str
 end
 
--- FIX BUG MATH: Hanya baca teks yang mengandung tanda = atau ? dan bukan UI XP/Level
 local function cariSoalBaru()
     CachedTargetLabel, CachedTargetParent, CachedTargetText = nil, nil, nil
     for _, v in pairs(playerGui:GetDescendants()) do
         if v:IsA("TextLabel") and v.Visible and v.Text ~= "" then
             local lowerText = string.lower(v.Text)
-            
-            -- FILTER BUG: Abaikan teks yang ada kata XP, SILVER, atau LEVEL
             if not (string.find(lowerText, "xp") or string.find(lowerText, "silver") or string.find(lowerText, "level")) then
-                -- Soal matematika ASLI pasti ada tanda = atau tanda ?
                 if string.find(v.Text, "=") or string.find(v.Text, "%?") then
                     local isMath = string.match(v.Text, "%d+%s*[%+%-%*/xX×÷]%s*%d+")
                     if isMath then
@@ -1025,10 +1020,11 @@ local function getButtonText(btn)
     return numStr or rawText
 end
 
+-- FIX MOBILE: KLIK TOMBOL DENGAN PRECISE ABSOLUTE POSITION
 local function klikTombol(btn)
     if not btn or not btn.Visible then return false end
     
-    -- Gunakan firesignal untuk memastikan jawaban tetap masuk walau posisi visual ngaco
+    -- 1. Coba pakai firesignal
     if type(firesignal) == "function" then
         local ok1 = pcall(function() firesignal(btn.MouseButton1Click) end)
         if ok1 then task.wait(0.05) return true end
@@ -1036,24 +1032,28 @@ local function klikTombol(btn)
         if ok2 then task.wait(0.05) return true end
     end
     
+    -- 2. Coba pakai getconnections
     if type(getconnections) == "function" then
         local ok3 = pcall(function() 
             for _, c in pairs(getconnections(btn.MouseButton1Click)) do c:Fire() end 
         end)
         if ok3 then task.wait(0.05) return true end
-        local ok4 = pcall(function() 
-            for _, c in pairs(getconnections(btn.Activated)) do c:Fire() end 
-        end)
-        if ok4 then task.wait(0.05) return true end
     end
     
-    -- Fallback VIM kalau firesignal nggak ada (klik di tengah layar)
+    -- 3. FIX MOBILE: Klik di posisi tombol ASLINYA, bukan tengah layar!
     local ok5 = pcall(function()
-        local cam = workspace.CurrentCamera
-        local actualPos = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)
-        Services.VIM:SendMouseButtonEvent(actualPos.X, actualPos.Y, 0, true, game, 1)
+        local pos = btn.AbsolutePosition
+        local size = btn.AbsoluteSize
+        local actualX = pos.X + (size.X / 2)
+        local actualY = pos.Y + (size.Y / 2)
+        
+        -- Geser sedikit biar nggak kelihatan seperti bot (tambah sedikit random)
+        actualX = actualX + math.random(-3, 3)
+        actualY = actualY + math.random(-3, 3)
+        
+        Services.VIM:SendMouseButtonEvent(actualX, actualY, 0, true, game, 1)
         task.wait(0.08)
-        Services.VIM:SendMouseButtonEvent(actualPos.X, actualPos.Y, 0, false, game, 1)
+        Services.VIM:SendMouseButtonEvent(actualX, actualY, 0, false, game, 1)
     end)
     return ok5
 end
@@ -2165,7 +2165,7 @@ WindUI:SetTheme("dark")
 TabInfo:Select()
 
 WindUI:Notify({
-    Title    = "👑 KING AKBAR V7.9.0 SIAP!",
-    Content  = "Tampilan Bersih! Bug Math Udah Diperbaiki, Gas!",
+    Title    = "👑 KING AKBAR V7.9.1 SIAP!",
+    Content  = "Bug Mobile Fix! Gas Kerja Bos!",
     Duration = 5,
 })
