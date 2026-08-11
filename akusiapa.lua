@@ -3,14 +3,13 @@
   👑 KING AKBAR - ULTIMATE AUTO FARM SCRIPT 👑
 ================================================================================
     [+] Developer   : King Akbar
-    [+] Version     : DDS GLOBAL EDITION (v7.9.5 ANTI-LAG + FAKE NAME FIX)
-    [+] Changelog   : - BYPASS TOTAL MATEMATIKA (Silent Fire UUID)
-                      - Anti-Admin recoded (Deteksi Rank, Nama, & Chat Tag)
-                      - Bot langsung nembak jawaban ke Server (No UI Click)
-                      - FIX MOBILE: Nggak ada lagi masalah tombol nggak keklik
-                      - [NEW] ANTI-LAG (Particle Purge + Quality Lock)
-                      - [FIX] FAKE NAME recoded (No FPS drop, auto-restore)
-                      - FIX AFK STUCK (Anti GUI Freeze & Remote Drop)
+    [+] Version     : DDS GLOBAL EDITION (v8.2.0 FINAL - klikTombol Edition)
+    [+] Changelog   : - [FIX] Math solver pakai klikTombol (firesignal + getconnections)
+                      - [FIX] NO VIM TOTAL di jawab soal
+                      - [FIX] Anti-Stuck 6s + Stand/Sit auto recovery
+                      - NO-VIM Barista Minigame (SafeClick)
+                      - Camera Normal saat ngeprint
+                      - Fast Chair Routing
                       - FULL ENGLISH UI + Sections Collapsed by Default
 ================================================================================
 ]]--
@@ -23,7 +22,7 @@ local warn = function() end
 local error = function() end
 
 -- ============================================================================
--- // 0. ULTIMATE FULL BYPASS V3 (Zero-Lag / Anti FPS Drop)
+-- // 0. ULTIMATE FULL BYPASS V3 (Zero-Lag / Anti FPS Drop + WRONGTEAM BLOCK)
 -- ============================================================================
 do
     local LocalPlayer = game:GetService("Players").LocalPlayer
@@ -67,7 +66,10 @@ do
                 local remoteName = string.lower(tostring(self.Name))
                 local parentName = self.Parent and string.lower(tostring(self.Parent.Name)) or ""
                 
-                if remoteName:find("adonis") or parentName:find("adonis") or remoteName:find("anticheat") or remoteName:find("detector") or remoteName:find("admin") or remoteName:find("log") or remoteName:find("report") then
+                if remoteName:find("adonis") or parentName:find("adonis") or 
+                   remoteName:find("anticheat") or remoteName:find("detector") or 
+                   remoteName:find("admin") or remoteName:find("log") or 
+                   remoteName:find("report") or remoteName:find("wrongteam") then
                     return nil
                 end
             end
@@ -173,7 +175,6 @@ local Services = {
     UserInput           = game:GetService("UserInputService"),
     Stats              = game:GetService("Stats"),
     Workspace          = game:GetService("Workspace"),
-    VIM                = game:GetService("VirtualInputManager"),
     VirtualUser        = game:GetService("VirtualUser"),
     HttpService        = game:GetService("HttpService"),
     GuiService         = game:GetService("GuiService"),
@@ -201,6 +202,29 @@ LocalPlayer.CharacterAdded:Connect(function(newChar)
     CharRef.Humanoid  = newChar:WaitForChild("Humanoid")
     CharRef.Root      = newChar:WaitForChild("HumanoidRootPart")
 end)
+
+-- ============================================================================
+-- // SAFE INPUT SYSTEM (NO VIM - khusus Barista minigame & AFK)
+-- ============================================================================
+local function SafeClick(x, y, holdTime)
+    holdTime = holdTime or 0.05
+    pcall(function()
+        if mousemover and mouse1press and mouse1release then
+            mousemover(x, y)
+            mouse1press(x, y)
+            task.wait(holdTime)
+            mouse1release(x, y)
+        elseif mousemover and mouse1click then
+            mousemover(x, y)
+            task.wait(0.01)
+            mouse1click()
+        else
+            Services.VirtualUser:Button1Down(Vector2.new(x, y))
+            task.wait(holdTime)
+            Services.VirtualUser:Button1Up(Vector2.new(x, y))
+        end
+    end)
+end
 
 -- ============================================================================
 -- // 3. STATE MANAGER
@@ -253,7 +277,7 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- // 3.5 FAKE NAME SYSTEM (FIXED: No FPS Drop, No UI Break, Auto Restore)
+-- // 3.5 FAKE NAME SYSTEM
 -- ============================================================================
 local OriginalDisplayName = LocalPlayer.DisplayName
 local SpoofCache = {}
@@ -356,7 +380,7 @@ local function GetPlayerMoney()
 end
 
 -- ============================================================================
--- // 6. ADMIN SENSOR (BULLETPROOF EDITION)
+-- // 6. ADMIN SENSOR
 -- ============================================================================
 local GAME_GROUP_ID  = 11378976 
 local MIN_STAFF_RANK = 2 
@@ -595,7 +619,6 @@ local function ToggleBlackScreen(on)
     end
 end
 
--- [NEW] ANTI-LAG SYSTEM (Particle Purge + Quality Lock)
 local AntiLagActive = false
 local AntiLagConn = nil
 
@@ -613,7 +636,6 @@ end
 local function ToggleAntiLag(on)
     AntiLagActive = on
     if on then
-        -- Kunci kualitas grafis ke minimum
         pcall(function()
             settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
         end)
@@ -621,14 +643,12 @@ local function ToggleAntiLag(on)
             game:GetService("Lighting").GlobalShadows = false
         end)
 
-        -- Bersihkan partikel yang udah ada
         task.spawn(function()
             for _, v in pairs(Services.Workspace:GetDescendants()) do
                 if isLaggy(v) then pcall(function() v:Destroy() end) end
             end
         end)
 
-        -- Cegah partikel baru muncul
         if not AntiLagConn then
             AntiLagConn = Services.Workspace.DescendantAdded:Connect(function(v)
                 if AntiLagActive and isLaggy(v) then
@@ -754,7 +774,7 @@ local function FindByColor(parent, col, tol)
 end
 
 -- ============================================================================
--- // 11. AI MINIGAME (BARISTA)
+-- // 11. AI MINIGAME (BARISTA) - NO VIM BYPASS
 -- ============================================================================
 local function StartMinigameAI()
     if State.AiThread then task.cancel(State.AiThread) end
@@ -797,17 +817,17 @@ local function StartMinigameAI()
                 local diff = (pill.AbsolutePosition.Y + pill.AbsoluteSize.Y/2)
                            - (bar.AbsolutePosition.Y  + bar.AbsoluteSize.Y/2)
                 if diff > 6 then
-                    Services.VIM:SendMouseButtonEvent(cx,cy,0,true,game,1); task.wait(math.random(55,90)/1000)
-                    Services.VIM:SendMouseButtonEvent(cx,cy,0,false,game,1); task.wait(math.random(30,60)/1000)
+                    SafeClick(cx, cy, math.random(55,90)/1000)
+                    task.wait(math.random(30,60)/1000)
                 elseif diff < -6 then
                     task.wait(0.016)
                 else
-                    Services.VIM:SendMouseButtonEvent(cx,cy,0,true,game,1); task.wait(math.random(50,80)/1000)
-                    Services.VIM:SendMouseButtonEvent(cx,cy,0,false,game,1); task.wait(math.random(80,130)/1000)
+                    SafeClick(cx, cy, math.random(50,80)/1000)
+                    task.wait(math.random(80,130)/1000)
                 end
             else
-                Services.VIM:SendMouseButtonEvent(cx,cy,0,true,game,1); task.wait(math.random(55,90)/1000)
-                Services.VIM:SendMouseButtonEvent(cx,cy,0,false,game,1); task.wait(math.random(60,100)/1000)
+                SafeClick(cx, cy, math.random(55,90)/1000)
+                task.wait(math.random(60,100)/1000)
             end
         end
     end)
@@ -949,7 +969,7 @@ local function StopBaristaScript(reason)
 end
 
 -- ============================================================================
--- // 13. OFFICE JOB SYSTEM (WITH ULTIMATE MATH BYPASS + AFK FIX)
+-- // 13. OFFICE JOB SYSTEM (v8.2.0 FINAL - klikTombol Edition)
 -- ============================================================================
 local playerGui = LocalPlayer:WaitForChild("PlayerGui")
 
@@ -970,69 +990,6 @@ local myChair            = nil
 local CachedTargetLabel  = nil
 local CachedTargetParent = nil
 local CachedTargetText   = nil
-
-local function isSameChair(obj)
-    if not myChair or not obj then return false end
-    if obj == myChair then return true end
-    if obj:IsAncestorOf(myChair) or myChair:IsAncestorOf(obj) then return true end
-    return false
-end
-
-local function findNearestChair(radius)
-    local origin = CharRef.Root and CharRef.Root.Position
-    if not origin then return nil end
-    radius = radius or 50
-    local best, bestD = nil, radius
-    for _, v in pairs(workspace:GetDescendants()) do
-        if v:IsA("ProximityPrompt") and v.Enabled and hasText(v.ActionText, "sit") then
-            local part = v.Parent
-            if part and part:IsA("BasePart") then
-                local d = (part.Position - origin).Magnitude
-                if d < bestD then best, bestD = part, d end
-            end
-        end
-        if v:IsA("Seat") and v:IsA("BasePart") then
-            local d = (v.Position - origin).Magnitude
-            if d < bestD then best, bestD = v, d end
-        end
-        if v.Name == "Chair" and v:IsA("Model") then
-            local handle = v:FindFirstChild("Handle")
-            if handle then
-                local d = (handle.Position - origin).Magnitude
-                if d < bestD then best, bestD = v, d end
-            end
-        end
-    end
-    return best
-end
-
-local function findAnotherChair()
-    local origin = CharRef.Root and CharRef.Root.Position
-    if not origin then return nil end
-    local radius = 150
-    local best, bestD = nil, radius
-    for _, v in pairs(workspace:GetDescendants()) do
-        if v:IsA("ProximityPrompt") and v.Enabled and hasText(v.ActionText, "sit") then
-            local part = v.Parent
-            if part and part:IsA("BasePart") and not isSameChair(part) then
-                local d = (part.Position - origin).Magnitude
-                if d < bestD then best, bestD = part, d end
-            end
-        end
-        if v:IsA("Seat") and v:IsA("BasePart") and not isSameChair(v) then
-            local d = (v.Position - origin).Magnitude
-            if d < bestD then best, bestD = v, d end
-        end
-        if v.Name == "Chair" and v:IsA("Model") and not isSameChair(v) then
-            local handle = v:FindFirstChild("Handle")
-            if handle then
-                local d = (handle.Position - origin).Magnitude
-                if d < bestD then best, bestD = v, d end
-            end
-        end
-    end
-    return best
-end
 
 local function jalanKe(pos)
     local root = CharRef.Root
@@ -1077,21 +1034,89 @@ local function keluarKursi()
     end
 end
 
+local function getSeatFromChair(chair)
+    if not chair then return nil end
+    if chair:IsA("Seat") or chair:IsA("VehicleSeat") then return chair end
+    return chair:FindFirstChildWhichIsA("Seat") or chair:FindFirstChildWhichIsA("VehicleSeat")
+end
+
+local function isChairOccupied(chair)
+    if not chair then return true end
+    local seat = getSeatFromChair(chair)
+    if seat then
+        if seat.Occupant and seat.Occupant ~= CharRef.Humanoid then
+            return true
+        end
+    end
+    
+    local origin = chair:IsA("BasePart") and chair.Position or (chair.PrimaryPart and chair.PrimaryPart.Position) or (seat and seat.Position)
+    if origin then
+        for _, player in ipairs(Services.Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                local hum = player.Character:FindFirstChildOfClass("Humanoid")
+                if hum and hum.SeatPart then
+                    local dist = (hum.SeatPart.Position - origin).Magnitude
+                    if dist < 4 then return true end
+                end
+            end
+        end
+    end
+    return false
+end
+
+local function findEmptyChair(radius, excludeChair)
+    local origin = CharRef.Root and CharRef.Root.Position
+    if not origin then return nil end
+    radius = radius or 150
+    local best, bestD = nil, radius
+    
+    local chairs = {}
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v:IsA("Seat") or v:IsA("VehicleSeat") then
+            table.insert(chairs, v)
+        elseif v.Name == "Chair" and v:IsA("Model") then
+            table.insert(chairs, v)
+        elseif v:IsA("ProximityPrompt") and v.Enabled and hasText(v.ActionText, "sit") then
+            if v.Parent then table.insert(chairs, v.Parent) end
+        end
+    end
+    
+    for _, chair in ipairs(chairs) do
+        if chair ~= excludeChair and not isChairOccupied(chair) then
+            local chairPos = chair:IsA("BasePart") and chair.Position or (chair.PrimaryPart and chair.PrimaryPart.Position) or (getSeatFromChair(chair) and getSeatFromChair(chair).Position)
+            if chairPos then
+                local d = (chairPos - origin).Magnitude
+                if d < bestD then
+                    best, bestD = chair, d
+                end
+            end
+        end
+    end
+    return best
+end
+
 local function dudukKeKursi(instantTP)
-    if not myChair then return false end
     local hum = CharRef.Humanoid
     if not hum then return false end
     
     if hum.SeatPart then return true end
     
+    if myChair and isChairOccupied(myChair) then
+        myChair = findEmptyChair(150)
+    end
+    
+    if not myChair then return false end
+    
     if not instantTP then
         keluarKursi()
     end
     
-    local seat = myChair:IsA("Seat") and myChair or myChair:FindFirstChildWhichIsA("Seat") or myChair:FindFirstChildWhichIsA("VehicleSeat")
+    local seat = getSeatFromChair(myChair)
     local handle = myChair:FindFirstChild("Handle")
-    local targetCFrame = seat and seat.CFrame or (handle and handle.CFrame) or myChair.CFrame
+    local targetCFrame = seat and seat.CFrame or (handle and handle.CFrame) or (myChair:IsA("BasePart") and myChair.CFrame) or (myChair.PrimaryPart and myChair.PrimaryPart.CFrame)
     
+    if not targetCFrame then return false end
+
     if instantTP then
         if CharRef.Root then
             CharRef.Root.CFrame = targetCFrame
@@ -1130,17 +1155,52 @@ local function dudukKeKursi(instantTP)
     return false
 end
 
-local function normalizeText(str)
-    if not str then return "" end
-    str = string.gsub(str, "^%s+", "")
-    str = string.gsub(str, "%s+$", "")
-    str = string.gsub(str, "\n", "")
-    str = string.gsub(str, "\r", "")
-    return str
+-- ============================================================================
+-- // AUTO JAWAB SOAL MATEMATIKA (OFFICE) — TANPA VIM (klikTombol EDITION)
+-- ============================================================================
+
+local MathGUICache = nil
+
+local function getButtonText(btn)
+    if not btn then return "" end
+    local rawText = ""
+    if btn:IsA("TextButton") then rawText = btn.Text or "" end
+    if rawText == "" then
+        for _, child in pairs(btn:GetDescendants()) do
+            if child:IsA("TextLabel") and child.Visible and child.Text ~= "" then
+                rawText = child.Text
+                break
+            end
+        end
+    end
+    local numStr = string.match(rawText, "%-?%d+")
+    return numStr or rawText
 end
 
--- [FIX PATCH 2: OPTIMASI CARI SOAL DENGAN CACHE GUI]
-local MathGUICache = nil
+-- [NO VIM] Hanya firesignal + getconnections
+local function klikTombol(btn)
+    if not btn or not btn.Visible then return false end
+
+    if type(firesignal) == "function" then
+        local ok1 = pcall(function() firesignal(btn.MouseButton1Click) end)
+        if ok1 then task.wait(0.05) return true end
+        local ok2 = pcall(function() firesignal(btn.Activated) end)
+        if ok2 then task.wait(0.05) return true end
+    end
+
+    if type(getconnections) == "function" then
+        local ok3 = pcall(function()
+            for _, c in pairs(getconnections(btn.MouseButton1Click)) do c:Fire() end
+        end)
+        if ok3 then task.wait(0.05) return true end
+        local ok4 = pcall(function()
+            for _, c in pairs(getconnections(btn.Activated)) do c:Fire() end
+        end)
+        if ok4 then task.wait(0.05) return true end
+    end
+
+    return false
+end
 
 local function cariSoalBaru()
     CachedTargetLabel, CachedTargetParent, CachedTargetText = nil, nil, nil
@@ -1187,112 +1247,6 @@ local function soalCacheValid()
     return true
 end
 
-local function getButtonText(btn)
-    if not btn then return "" end
-    local rawText = ""
-    if btn:IsA("TextButton") then rawText = btn.Text or "" end
-    
-    if rawText == "" then
-        for _, child in pairs(btn:GetDescendants()) do
-            if child:IsA("TextLabel") and child.Visible and child.Text ~= "" then
-                rawText = child.Text
-                break
-            end
-        end
-    end
-    
-    local numStr = string.match(rawText, "%-?%d+")
-    return numStr or rawText
-end
-
--- ============================================================================
--- // BYPASS TOTAL MATEMATIKA (SILENT FIRE UUID) + [FIX PATCH 3: ANTI DROP]
--- ============================================================================
-local JobEvents = Services.ReplicatedStorage:WaitForChild("JobEvents")
-local CorrectAnswerRemote = JobEvents:WaitForChild("CorrectAnswer")
-
-local function getSafeRemote()
-    if not CorrectAnswerRemote or not CorrectAnswerRemote.Parent then
-        pcall(function()
-            CorrectAnswerRemote = Services.ReplicatedStorage:WaitForChild("JobEvents", 2):WaitForChild("CorrectAnswer", 2)
-        end)
-    end
-    return CorrectAnswerRemote
-end
-
-local function extractUUIDs(obj)
-    if not obj then return nil, nil end
-    local uuidPattern = "%x%x%x%x%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%x%x%x%x%x%x%x%x"
-    local foundUUIDs = {}
-    
-    local function checkVal(val)
-        if type(val) == "string" then
-            for id in string.gmatch(val, uuidPattern) do
-                table.insert(foundUUIDs, id)
-            end
-        end
-    end
-
-    checkVal(obj.Name)
-    for _, v in pairs(obj:GetAttributes()) do checkVal(v) end
-    if obj:IsA("TextLabel") or obj:IsA("TextButton") then checkVal(obj.Text) end
-
-    for _, child in pairs(obj:GetDescendants()) do
-        checkVal(child.Name)
-        for _, v in pairs(child:GetAttributes()) do checkVal(v) end
-        if child:IsA("TextLabel") or child:IsA("TextButton") then checkVal(child.Text) end
-        if child:IsA("ValueBase") then checkVal(child.Value) end
-    end
-    
-    if #foundUUIDs == 0 and obj.Parent then
-        checkVal(obj.Parent.Name)
-        for _, v in pairs(obj.Parent:GetAttributes()) do checkVal(v) end
-    end
-
-    return foundUUIDs[1], foundUUIDs[2]
-end
-
-local function SubmitJawabanMath(soalLabel, btn)
-    local soalUUID1, soalUUID2 = extractUUIDs(soalLabel)
-    local btnUUID1, btnUUID2 = extractUUIDs(btn)
-    
-    local allUUIDs = {}
-    if soalUUID1 then table.insert(allUUIDs, soalUUID1) end
-    if soalUUID2 then table.insert(allUUIDs, soalUUID2) end
-    if btnUUID1 then table.insert(allUUIDs, btnUUID1) end
-    if btnUUID2 then table.insert(allUUIDs, btnUUID2) end
-    
-    if #allUUIDs >= 2 then
-        pcall(function()
-            getSafeRemote():FireServer(allUUIDs[1], allUUIDs[2])
-        end)
-        task.wait(0.05)
-        return true
-    end
-    
-    if btn and type(getconnections) == "function" then
-        local ok = pcall(function() 
-            for _, c in pairs(getconnections(btn.MouseButton1Click)) do c:Fire() end 
-            for _, c in pairs(getconnections(btn.Activated)) do c:Fire() end 
-        end)
-        if ok then task.wait(0.05) return true end
-    end
-    
-    if btn then
-        pcall(function()
-            local pos = btn.AbsolutePosition
-            local size = btn.AbsoluteSize
-            local actualX = pos.X + (size.X / 2) + math.random(-3, 3)
-            local actualY = pos.Y + (size.Y / 2) + math.random(-3, 3)
-            Services.VIM:SendMouseButtonEvent(actualX, actualY, 0, true, game, 1)
-            task.wait(0.08)
-            Services.VIM:SendMouseButtonEvent(actualX, actualY, 0, false, game, 1)
-        end)
-        return true
-    end
-    return false
-end
-
 local function hitungSoal(text)
     local cleanText = string.gsub(text, "[xX×]", "*")
     cleanText = string.gsub(cleanText, "÷", "/")
@@ -1313,6 +1267,9 @@ local function hitungSoal(text)
     return nil
 end
 
+-- ============================================================================
+-- // ANTI-STUCK 6s + IDLE CHAIR SWITCH
+-- ============================================================================
 local lastActivityTime = tick()
 local isSwitching = false
 local IDLE_SWITCH_TIME = 60
@@ -1320,6 +1277,11 @@ local IDLE_SWITCH_TIME = 60
 getgenv().forceStopMath = false
 getgenv().isGoingToPrinter = false
 
+local lastSeenSoalText = ""
+local lastSoalChangeTime = tick()
+local failStreak = 0
+
+-- Idle chair switch (tiap 60 detik)
 task.spawn(function()
     while true do
         task.wait(1)
@@ -1329,7 +1291,7 @@ task.spawn(function()
             isSwitching = true
             getgenv().forceStopMath = true
             keluarKursi()
-            local newChair = findAnotherChair()
+            local newChair = findEmptyChair(150, myChair)
             if newChair then myChair = newChair end
             dudukKeKursi(false)
             CachedTargetLabel, CachedTargetParent, CachedTargetText = nil, nil, nil
@@ -1340,9 +1302,27 @@ task.spawn(function()
     end
 end)
 
--- [FIX PATCH 1: ANTI STUCK LOOP]
-local lastMathText = "" 
+-- Print watchdog
+task.spawn(function()
+    while true do
+        task.wait(5)
+        if not State.IsOfficeActive then continue end
+        if getgenv().isGoingToPrinter then
+            getgenv().printWatchdog = getgenv().printWatchdog or tick()
+            if tick() - getgenv().printWatchdog > 45 then
+                getgenv().isGoingToPrinter = false
+                getgenv().forceStopMath = false
+                getgenv().printWatchdog = nil
+                activePrinterName = nil
+                lastActivityTime = tick()
+            end
+        else
+            getgenv().printWatchdog = nil
+        end
+    end
+end)
 
+-- [MATH LOOP] pakai klikTombol + anti-stuck 6s
 task.spawn(function()
     task.wait(2)
     while true do
@@ -1350,6 +1330,9 @@ task.spawn(function()
         if not State.IsOfficeActive or getgenv().forceStopMath or getgenv().isGoingToPrinter then continue end
         local hum = CharRef.Humanoid
         if not hum or not hum.SeatPart then
+            if myChair and isChairOccupied(myChair) then
+                myChair = findEmptyChair(150)
+            end
             if myChair then dudukKeKursi(false) end
             task.wait(1.5)
             continue
@@ -1357,29 +1340,46 @@ task.spawn(function()
 
         local soalLabel = soalCacheValid() and CachedTargetLabel or cariSoalBaru()
         if not soalLabel then 
-            lastMathText = ""
+            lastSeenSoalText = ""
             task.wait(1) 
             continue 
         end
 
         local text = soalLabel.Text
         
-        if text == lastMathText then
-            -- Diamkan, biarkan timer AFK 60 detik jalan
-        else
-            lastMathText = text
-            lastActivityTime = tick() 
+        -- [ANTI-STUCK] deteksi soal yang gak berganti
+        if text ~= lastSeenSoalText then
+            lastSeenSoalText = text
+            lastSoalChangeTime = tick()
+            lastActivityTime = tick()
+            failStreak = 0
         end
         
-        local availableOptions = {}
-        local buttonsList = {}
+        -- Kalau soal stuck > 6 detik, recovery
+        if tick() - lastSoalChangeTime > 6 then
+            lastSoalChangeTime = tick()
+            failStreak = failStreak + 1
+            CachedTargetLabel, CachedTargetParent, CachedTargetText = nil, nil, nil
+            MathGUICache = nil
+            -- Kalau 2x gagal berturut-turut, stand/sit buat refresh sesi
+            if failStreak >= 2 then
+                getgenv().forceStopMath = true
+                keluarKursi()
+                dudukKeKursi(false)
+                getgenv().forceStopMath = false
+                failStreak = 0
+                lastActivityTime = tick()
+            end
+            task.wait(0.5)
+            continue
+        end
         
+        local buttonsList = {}
         for _, btn in pairs(playerGui:GetDescendants()) do
             if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible then
                 local btnText = getButtonText(btn)
                 local btnNum = tonumber(btnText)
                 if btnNum then
-                    table.insert(availableOptions, btnNum)
                     table.insert(buttonsList, {btn = btn, num = btnNum})
                 end
             end
@@ -1392,19 +1392,22 @@ task.spawn(function()
         end
         
         local ditemukan = false
-        
         for _, data in ipairs(buttonsList) do
             if getgenv().forceStopMath or not State.IsOfficeActive then break end
             if math.abs(data.num - jawaban) < 0.01 then
                 ditemukan = true
                 
-                task.wait(math.random(15, 35) / 10)
+                task.wait(math.random(15, 35) / 10) -- jeda random anti kick
                 
                 if getgenv().forceStopMath or not State.IsOfficeActive then break end
                 
-                if SubmitJawabanMath(soalLabel, data.btn) then
+                if klikTombol(data.btn) then
                     State.OfficeMathSolved = (State.OfficeMathSolved or 0) + 1
                     lastActivityTime = tick()
+                    failStreak = 0
+                else
+                    ditemukan = false
+                    failStreak = failStreak + 1
                 end
                 
                 task.wait(math.random(5, 15) / 10)
@@ -1416,6 +1419,10 @@ task.spawn(function()
     end
 end)
 
+-- ============================================================================
+-- // PRINTER LOOP (Camera Normal - Karakter Auto Ngadep Printer)
+-- ============================================================================
+local JobEvents = Services.ReplicatedStorage:WaitForChild("JobEvents")
 local AssignPrintJob = JobEvents:WaitForChild("AssignPrintJob")
 local ClearPrintJob = JobEvents:WaitForChild("ClearPrintJob")
 local ComputersFolder = workspace:WaitForChild("Computers")
@@ -1438,70 +1445,70 @@ task.spawn(function()
         if activePrinterName and not getgenv().isGoingToPrinter then
             getgenv().isGoingToPrinter = true
             getgenv().forceStopMath = true
+            getgenv().printWatchdog = tick()
             
-            task.wait(math.random(8,18)/10)
-            keluarKursi()
-            
-            local hum = CharRef.Humanoid
-            local root = CharRef.Root
-            
-            if hum then
-                hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
-            end
-            
-            local printerPart = nil
-            local targetPrompt = nil
-            
-            for i=1, 15 do
-                local printerModel = ComputersFolder:FindFirstChild(activePrinterName)
-                if printerModel and printerModel:FindFirstChild("Part") then
-                    printerPart = printerModel.Part
-                    targetPrompt = printerPart:FindFirstChildOfClass("ProximityPrompt")
-                    if targetPrompt then
-                        targetPrompt.Enabled = true
-                        break
-                    end
-                end
-                task.wait(0.5)
-            end
-            
-            if printerPart and targetPrompt then
-                jalanKe(printerPart.Position + Vector3.new(0, 0, 2.5))
+            pcall(function()
+                task.wait(math.random(5,10)/10)
+                keluarKursi()
                 
-                if CharRef.Root and printerPart then
-                    local lookTarget = Vector3.new(printerPart.Position.X, CharRef.Root.Position.Y, printerPart.Position.Z)
-                    CharRef.Root.CFrame = CFrame.lookAt(CharRef.Root.Position, lookTarget)
-                    local cam = workspace.CurrentCamera
-                    if cam then
-                        cam.CameraType = Enum.CameraType.Scriptable
-                        cam.CFrame = CFrame.lookAt(CharRef.Root.Position + Vector3.new(0, 3, 0), lookTarget)
-                        task.wait(0.1)
-                        cam.CameraType = Enum.CameraType.Custom
-                    end
+                local hum = CharRef.Humanoid
+                if hum then
+                    hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
                 end
                 
-                task.wait(math.random(4,10)/10)
-                eksekusiPromptTahan(targetPrompt)
-                State.OfficePrints = (State.OfficePrints or 0) + 1
+                local printerPart = nil
+                local targetPrompt = nil
                 
-                local timeout = 0
-                while activePrinterName and timeout < 10 do
+                for i=1, 15 do
+                    local printerModel = ComputersFolder:FindFirstChild(activePrinterName)
+                    if printerModel and printerModel:FindFirstChild("Part") then
+                        printerPart = printerModel.Part
+                        targetPrompt = printerPart:FindFirstChildOfClass("ProximityPrompt")
+                        if targetPrompt then
+                            targetPrompt.Enabled = true
+                            break
+                        end
+                    end
                     task.wait(0.5)
-                    timeout += 0.5
                 end
-            end
+                
+                if printerPart and targetPrompt then
+                    -- Jalan normal (kamera Custom mengikuti karakter)
+                    jalanKe(printerPart.Position + Vector3.new(0, 0, 2.5))
+                    
+                    -- Karakter auto ngadep printer (natural)
+                    if CharRef.Root and printerPart then
+                        local lookTarget = Vector3.new(printerPart.Position.X, CharRef.Root.Position.Y, printerPart.Position.Z)
+                        CharRef.Root.CFrame = CFrame.lookAt(CharRef.Root.Position, lookTarget)
+                        task.wait(0.2)
+                    end
+                    
+                    task.wait(math.random(4,10)/10)
+                    eksekusiPromptTahan(targetPrompt)
+                    State.OfficePrints = (State.OfficePrints or 0) + 1
+                    
+                    local timeout = 0
+                    while activePrinterName and timeout < 10 do
+                        task.wait(0.5)
+                        timeout += 0.5
+                    end
+                end
+                
+                -- [FAST CHAIR] cari kursi kosong terdekat
+                local nearestEmpty = findEmptyChair(150)
+                if nearestEmpty then
+                    myChair = nearestEmpty
+                end
+                
+                dudukKeKursi(false)
+                task.wait(0.5)
+                
+                CachedTargetLabel, CachedTargetParent, CachedTargetText = nil, nil, nil
+            end)
             
-            local cam = workspace.CurrentCamera
-            if cam and cam.CameraType == Enum.CameraType.Scriptable then
-                cam.CameraType = Enum.CameraType.Custom
-            end
-            
-            dudukKeKursi(false)
-            task.wait(math.random(8,15)/10)
-            
-            CachedTargetLabel, CachedTargetParent, CachedTargetText = nil, nil, nil
             getgenv().isGoingToPrinter = false
             getgenv().forceStopMath = false
+            getgenv().printWatchdog = nil
             lastActivityTime = tick()
         end
     end
@@ -1518,6 +1525,9 @@ task.spawn(function()
     end
 end)
 
+-- ============================================================================
+-- // MONITORING GUI
+-- ============================================================================
 local CoreGui = (gethui and gethui()) or game:GetService("CoreGui")
 local Players = game:GetService("Players")
 local LocalPlayer2 = Players.LocalPlayer
@@ -1713,39 +1723,36 @@ local function StartOfficeScript()
     getgenv().WaktuMulai = tick()
 
     if not CharRef.Humanoid or not CharRef.Humanoid.SeatPart then
-        WindUI:Notify({ Title = "🔍 Office", Content = "Finding chair & TP...", Duration = 3 })
+        WindUI:Notify({ Title = "🔍 Office", Content = "Finding empty chair & TP...", Duration = 3 })
         local targetChair = nil
+        
         pcall(function()
             for _, comp in pairs(workspace.Computers:GetChildren()) do
                 local chair = comp:FindFirstChild("Chair")
-                if chair then
+                if chair and not isChairOccupied(chair) then
                     targetChair = chair
                     break
                 end
             end
         end)
 
+        if not targetChair then
+            targetChair = findEmptyChair(150)
+        end
+
         if targetChair then
             myChair = targetChair
             dudukKeKursi(true)
         else
-            local sitPrompt = findNearestChair(60)
-            if sitPrompt then
-                if sitPrompt:IsA("ProximityPrompt") then
-                    myChair = sitPrompt.Parent
-                else
-                    myChair = sitPrompt
-                end
-                dudukKeKursi(true)
-            else
-                WindUI:Notify({ Title = "⚠️ Office", Content = "Chair not found, please sit manually!", Duration = 5 })
-            end
+            WindUI:Notify({ Title = "⚠️ Office", Content = "No empty chair found! Please sit manually.", Duration = 5 })
         end
     else
         myChair = CharRef.Humanoid.SeatPart
     end
 
     lastActivityTime = tick()
+    lastSoalChangeTime = tick()
+    failStreak = 0
     buatMonitoringGUI()
     WindUI:Notify({ Title = "✅ Office", Content = "Auto Office started! Initial money scanned.", Duration = 4 })
 end
@@ -2164,7 +2171,7 @@ local function InjectMesin(HP_Mult, RPM_Add, Ratio_Mult, FD_Mult, NamaMode)
 end
 
 -- ============================================================================
--- // 16. UI — 7 TAB (GLOBAL ENGLISH EDITION + COLLAPSED SECTIONS)
+-- // 16. UI — 7 TAB
 -- ============================================================================
 local wSz = IsMobile and UDim2.fromOffset(420, 320) or UDim2.fromOffset(580, 460)
 local mnSz = IsMobile and Vector2.new(600, 300) or Vector2.new(600, 350)
@@ -2188,9 +2195,6 @@ local Window = WindUI:CreateWindow({
     ScrollBarEnabled            = true,
 })
 
--- ============================
--- TAB 1: INFO
--- ============================
 local TabInfo = Window:Tab({ Title = "Info", Icon = "info", Border = true })
 
 local memberCount = "N/A"
@@ -2242,9 +2246,6 @@ local ServerInfo = TabInfo:Paragraph({
     }
 })
 
--- ============================
--- TAB 2: AUTO FARM
--- ============================
 local TabFarm = Window:Tab({ Title = "Auto Farm", Icon = "coffee", Border = true })
 
 local SectionBarista = TabFarm:Section({ Title = "Auto Barista", Box = true, BoxBorder = true, Opened = false })
@@ -2256,18 +2257,12 @@ SectionOffice:Toggle({ Title = "Enable Auto Office", Icon = "briefcase", Value =
 local SectionCourier = TabFarm:Section({ Title = "Auto Courier", Box = true, BoxBorder = true, Opened = false })
 SectionCourier:Toggle({ Title = "Enable Auto Courier", Icon = "package", Value = false, Callback = function(on) if on then StartCourierScript() else StopCourierScript() end end })
 
--- ============================
--- TAB 3: SECURITY
--- ============================
 local TabSec = Window:Tab({ Title = "Security", Icon = "shield", Border = true })
 local Perlindungan = TabSec:Section({ Title = "Protection", Box = true, BoxBorder = true, Opened = false })
 
 Perlindungan:Toggle({ Title = "Anti-Admin (Auto Leave)", Desc = "Automatically leaves if a staff member joins", Icon = "user-minus", Value = true, Callback = function(on) State.AntiAdmin = on end })
 Perlindungan:Toggle({ Title = "Anti-AFK", Desc = "Keeps connection active while botting", Icon = "clock", Value = true, Callback = function(on) State.AntiAFK = on end })
 
--- ============================
--- TAB 4: PERFORMANCE (POWER SAVING + ANTI LAG)
--- ============================
 local TabPerf = Window:Tab({ Title = "Performance", Icon = "zap", Border = true })
 
 local HematDaya = TabPerf:Section({ Title = "Power Saving", Box = true, BoxBorder = true, Opened = false })
@@ -2281,9 +2276,6 @@ SectionAntiLag:Toggle({
     Callback = function(on) ToggleAntiLag(on) end
 })
 
--- ============================
--- TAB 5: SETTINGS
--- ============================
 local TabCfg = Window:Tab({ Title = "Settings", Icon = "settings", Border = true })
 
 local Konfigurasi = TabCfg:Section({ Title = "Configuration", Box = true, BoxBorder = true, Opened = false })
@@ -2356,9 +2348,6 @@ SectionRedeem:Button({
     end
 })
 
--- ============================
--- TAB 6: INSTANT MODES
--- ============================
 local TabPreset = Window:Tab({ Title = "Instant Modes", Icon = "car", Border = true })
 local ModeCepat = TabPreset:Section({ Title = "Presets", Box = true, BoxBorder = true, Opened = false })
 
@@ -2367,9 +2356,6 @@ ModeCepat:Button({ Title = "🏎️ RACING MODE (Aggressive)", Callback = functi
 ModeCepat:Button({ Title = "🚀 GOD MODE (Max Speed)", Callback = function() InjectMesin(8, 15000, 0.45, 0.45, "God Mode Active") end })
 ModeCepat:Button({ Title = "🔄 RESET TO DEFAULT", Callback = function() WindUI:Notify({ Title = "ℹ️ Info", Content = "Respawn vehicle from game menu to reset.", Duration = 5 }) end })
 
--- ============================
--- TAB 7: CUSTOM TUNE
--- ============================
 local TabCustom = Window:Tab({ Title = "Custom Tune", Icon = "sliders", Border = true })
 local TuneSendiri = TabCustom:Section({ Title = "Manual Tuning", Box = true, BoxBorder = true, Opened = false })
 
@@ -2380,9 +2366,6 @@ TuneSendiri:Input({ Title = "⚙️ Gear Ratio Multiplier", Placeholder = "Examp
 TuneSendiri:Input({ Title = "⛓️ Final Drive Multiplier", Placeholder = "Example: 0.6", Callback = function(Text) local val = tonumber(Text) if val then customFD = val end end })
 TuneSendiri:Button({ Title = "⚡ INJECT CUSTOM TUNE", Callback = function() InjectMesin(customHP, customRPM, customRatio, customFD, "Custom Tune Active") end })
 
--- ============================
--- OPEN BUTTON & FPS TAG
--- ============================
 Window:EditOpenButton({
     Title           = "Open King Akbar",
     Icon            = "crown",
@@ -2416,15 +2399,12 @@ task.spawn(function()
     end
 end)
 
--- ============================
--- INIT
--- ============================
 Window:SetIconSize(47)
 WindUI:SetTheme("dark")
 TabInfo:Select()
 
 WindUI:Notify({
-    Title    = "👑 KING AKBAR V7.9.5 READY!",
-    Content  = "Anti-Lag added & Fake Name fixed! Enjoy the boost!",
+    Title    = "👑 KING AKBAR V8.2.0 FINAL READY!",
+    Content  = "klikTombol + Anti-Stuck 6s! NO VIM! Gas AFK!",
     Duration = 5,
 })
