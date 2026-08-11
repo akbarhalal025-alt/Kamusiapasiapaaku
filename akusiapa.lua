@@ -11,6 +11,9 @@
                       - Camera Normal saat ngeprint
                       - Fast Chair Routing
                       - FULL ENGLISH UI + Sections Collapsed by Default
+                      - [FIX v8.2.1] klikTombol fallback SafeClick posisi absolut
+                      - [FIX v8.2.1] hitungSoal regex lebih robust
+                      - [FIX v8.2.1] getButtonText support desimal
 ================================================================================
 ]]--
 
@@ -1156,11 +1159,15 @@ local function dudukKeKursi(instantTP)
 end
 
 -- ============================================================================
--- // AUTO JAWAB SOAL MATEMATIKA (OFFICE) — TANPA VIM (klikTombol EDITION)
+-- // AUTO JAWAB SOAL MATEMATIKA (OFFICE)
+-- // ✅ [FIX v8.2.1] getButtonText: support desimal
+-- // ✅ [FIX v8.2.1] hitungSoal: regex lebih robust
+-- // ✅ [FIX v8.2.1] klikTombol: fallback SafeClick posisi absolut
 -- ============================================================================
 
 local MathGUICache = nil
 
+-- ✅ [FIX] Support angka desimal (misal: 12.5, -3.0)
 local function getButtonText(btn)
     if not btn then return "" end
     local rawText = ""
@@ -1173,33 +1180,48 @@ local function getButtonText(btn)
             end
         end
     end
-    local numStr = string.match(rawText, "%-?%d+")
+    local numStr = rawText:match("%-?%d+%.?%d*")  -- support integer & desimal
     return numStr or rawText
 end
 
--- [NO VIM] Hanya firesignal + getconnections
+-- ✅ [FIX] Fallback SafeClick jika firesignal/getconnections gagal
 local function klikTombol(btn)
     if not btn or not btn.Visible then return false end
 
+    -- Coba firesignal
     if type(firesignal) == "function" then
-        local ok1 = pcall(function() firesignal(btn.MouseButton1Click) end)
-        if ok1 then task.wait(0.05) return true end
+        local ok = pcall(function() firesignal(btn.MouseButton1Click) end)
+        if ok then task.wait(0.05); return true end
         local ok2 = pcall(function() firesignal(btn.Activated) end)
-        if ok2 then task.wait(0.05) return true end
+        if ok2 then task.wait(0.05); return true end
     end
 
+    -- Coba getconnections
     if type(getconnections) == "function" then
         local ok3 = pcall(function()
-            for _, c in pairs(getconnections(btn.MouseButton1Click)) do c:Fire() end
+            for _, c in pairs(getconnections(btn.MouseButton1Click)) do
+                pcall(function() c:Fire() end)
+            end
         end)
-        if ok3 then task.wait(0.05) return true end
+        if ok3 then task.wait(0.05); return true end
         local ok4 = pcall(function()
-            for _, c in pairs(getconnections(btn.Activated)) do c:Fire() end
+            for _, c in pairs(getconnections(btn.Activated)) do
+                pcall(function() c:Fire() end)
+            end
         end)
-        if ok4 then task.wait(0.05) return true end
+        if ok4 then task.wait(0.05); return true end
     end
 
-    return false
+    -- ✅ [FALLBACK] Klik pakai posisi absolut tombol di layar
+    pcall(function()
+        local pos = btn.AbsolutePosition
+        local sz  = btn.AbsoluteSize
+        local cx  = pos.X + sz.X / 2
+        local cy  = pos.Y + sz.Y / 2
+        SafeClick(cx, cy, 0.08)
+    end)
+    task.wait(0.1)
+    return true
 end
 
 local function cariSoalBaru()
@@ -1247,22 +1269,24 @@ local function soalCacheValid()
     return true
 end
 
+-- ✅ [FIX] Regex lebih robust, buang spasi & simbol tidak perlu dulu
 local function hitungSoal(text)
-    local cleanText = string.gsub(text, "[xX×]", "*")
-    cleanText = string.gsub(cleanText, "÷", "/")
-    
-    local mathStr = string.match(cleanText, "(%d[%d%s%+%-%*%/]+)")
-    if not mathStr then return nil end
-    
-    mathStr = string.match(mathStr, "^(.+%d)") 
-    if not mathStr then return nil end
+    local clean = text
+        :gsub("[xX×]", "*")
+        :gsub("÷", "/")
+        :gsub("%s+", "")
+        :gsub("=.*", "")
+        :gsub("%?", "")
 
-    local func, err = loadstring("return " .. mathStr)
-    if func then
-        local success, result = pcall(func)
-        if success and type(result) == "number" then
-            return result
-        end
+    local expr = clean:match("(%-?%d+[%+%-%*/]%-?%d+)")
+    if not expr then return nil end
+
+    local func, err = loadstring("return " .. expr)
+    if not func then return nil end
+
+    local ok, result = pcall(func)
+    if ok and type(result) == "number" then
+        return result
     end
     return nil
 end
@@ -1281,7 +1305,6 @@ local lastSeenSoalText = ""
 local lastSoalChangeTime = tick()
 local failStreak = 0
 
--- Idle chair switch (tiap 60 detik)
 task.spawn(function()
     while true do
         task.wait(1)
@@ -1302,7 +1325,6 @@ task.spawn(function()
     end
 end)
 
--- Print watchdog
 task.spawn(function()
     while true do
         task.wait(5)
@@ -1322,7 +1344,6 @@ task.spawn(function()
     end
 end)
 
--- [MATH LOOP] pakai klikTombol + anti-stuck 6s
 task.spawn(function()
     task.wait(2)
     while true do
@@ -1347,7 +1368,6 @@ task.spawn(function()
 
         local text = soalLabel.Text
         
-        -- [ANTI-STUCK] deteksi soal yang gak berganti
         if text ~= lastSeenSoalText then
             lastSeenSoalText = text
             lastSoalChangeTime = tick()
@@ -1355,13 +1375,11 @@ task.spawn(function()
             failStreak = 0
         end
         
-        -- Kalau soal stuck > 6 detik, recovery
         if tick() - lastSoalChangeTime > 6 then
             lastSoalChangeTime = tick()
             failStreak = failStreak + 1
             CachedTargetLabel, CachedTargetParent, CachedTargetText = nil, nil, nil
             MathGUICache = nil
-            -- Kalau 2x gagal berturut-turut, stand/sit buat refresh sesi
             if failStreak >= 2 then
                 getgenv().forceStopMath = true
                 keluarKursi()
@@ -1397,7 +1415,7 @@ task.spawn(function()
             if math.abs(data.num - jawaban) < 0.01 then
                 ditemukan = true
                 
-                task.wait(math.random(15, 35) / 10) -- jeda random anti kick
+                task.wait(math.random(15, 35) / 10)
                 
                 if getgenv().forceStopMath or not State.IsOfficeActive then break end
                 
@@ -1420,7 +1438,7 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- // PRINTER LOOP (Camera Normal - Karakter Auto Ngadep Printer)
+-- // PRINTER LOOP
 -- ============================================================================
 local JobEvents = Services.ReplicatedStorage:WaitForChild("JobEvents")
 local AssignPrintJob = JobEvents:WaitForChild("AssignPrintJob")
@@ -1473,10 +1491,8 @@ task.spawn(function()
                 end
                 
                 if printerPart and targetPrompt then
-                    -- Jalan normal (kamera Custom mengikuti karakter)
                     jalanKe(printerPart.Position + Vector3.new(0, 0, 2.5))
                     
-                    -- Karakter auto ngadep printer (natural)
                     if CharRef.Root and printerPart then
                         local lookTarget = Vector3.new(printerPart.Position.X, CharRef.Root.Position.Y, printerPart.Position.Z)
                         CharRef.Root.CFrame = CFrame.lookAt(CharRef.Root.Position, lookTarget)
@@ -1494,7 +1510,6 @@ task.spawn(function()
                     end
                 end
                 
-                -- [FAST CHAIR] cari kursi kosong terdekat
                 local nearestEmpty = findEmptyChair(150)
                 if nearestEmpty then
                     myChair = nearestEmpty
@@ -2404,7 +2419,7 @@ WindUI:SetTheme("dark")
 TabInfo:Select()
 
 WindUI:Notify({
-    Title    = "👑 KING AKBAR V8.2.0 FINAL READY!",
-    Content  = "klikTombol + Anti-Stuck 6s! NO VIM! Gas AFK!",
+    Title    = "👑 KING AKBAR V8.2.1 FIXED READY!",
+    Content  = "klikTombol Fallback + Regex Fix + Desimal Fix! Gas AFK!",
     Duration = 5,
 })
