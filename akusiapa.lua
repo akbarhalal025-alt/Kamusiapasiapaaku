@@ -3,14 +3,15 @@
   👑 KING AKBAR - ULTIMATE AUTO FARM SCRIPT 👑
 ================================================================================
     [+] Developer   : King Akbar
-    [+] Version     : DDS GLOBAL EDITION (v8.2.0 FINAL - klikTombol Edition)
-    [+] Changelog   : - [FIX] Math solver pakai klikTombol (firesignal + getconnections)
-                      - [FIX] NO VIM TOTAL di jawab soal
+    [+] Version     : DDS GLOBAL EDITION (v8.3.1)
+    [+] Changelog   : - [FIX] Math solver firesignal only (method pertama)
+                      - [FIX] Monitoring animated numbers (Instance key fix)
                       - [FIX] Anti-Stuck 6s + Stand/Sit auto recovery
+                      - [NEW] DEX Office: findOfficeSeat + joinOfficeTeam
+                      - [NEW] PlayerChangedJob:FireServer saat stop Office
+                      - [NEW] Camera Printer fix (Scriptable lock saat hold)
                       - NO-VIM Barista Minigame (SafeClick)
-                      - Camera Normal saat ngeprint
-                      - Fast Chair Routing
-                      - FULL ENGLISH UI + Sections Collapsed by Default
+                      - Fast Chair Routing + FULL ENGLISH UI
                       - [FIX v8.2.1] klikTombol fallback SafeClick posisi absolut
                       - [FIX v8.2.1] hitungSoal regex lebih robust
                       - [FIX v8.2.1] getButtonText support desimal
@@ -260,22 +261,6 @@ LocalPlayer.Idled:Connect(function()
             Services.VirtualUser:CaptureController()
             Services.VirtualUser:ClickButton2(Vector2.new())
         end)
-    end
-end)
-
-task.spawn(function()
-    while true do
-        pcall(function()
-            local coreGui = game:GetService("CoreGui")
-            local robloxGui = coreGui:FindFirstChild("RobloxGui")
-            if robloxGui then
-                local pauseScript = robloxGui:FindFirstChild("CoreScripts/NetworkPause")
-                if pauseScript then
-                    pauseScript:Destroy()
-                end
-            end
-        end)
-        task.wait(0.2)
     end
 end)
 
@@ -974,7 +959,8 @@ end
 -- ============================================================================
 -- // 13. OFFICE JOB SYSTEM (v8.2.0 FINAL - klikTombol Edition)
 -- ============================================================================
-local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+local playerGui       = LocalPlayer:WaitForChild("PlayerGui")
+local ComputersFolder = workspace:WaitForChild("Computers")  -- ✅ Deklarasi awal
 
 local function hasText(str, keyword)
     return str and string.find(string.lower(str), string.lower(keyword)) ~= nil
@@ -990,9 +976,6 @@ local function eksekusiPromptTahan(pp)
 end
 
 local myChair            = nil
-local CachedTargetLabel  = nil
-local CachedTargetParent = nil
-local CachedTargetText   = nil
 
 local function jalanKe(pos)
     local root = CharRef.Root
@@ -1067,12 +1050,36 @@ local function isChairOccupied(chair)
     return false
 end
 
+-- ✅ [DEX] Cari kursi Office pakai path tepat: Computers → Setup → Seat
+local function findOfficeSeat(excludeSeat)
+    local origin = CharRef.Root and CharRef.Root.Position
+    if not origin then return nil end
+    local best, bestD = nil, math.huge
+
+    for _, v in pairs(ComputersFolder:GetDescendants()) do
+        if v:IsA("Model") and v.Name == "Setup" then
+            local seat = v:FindFirstChild("Seat", true)
+            if seat and seat:IsA("Seat") and seat ~= excludeSeat then
+                if not seat.Occupant or seat.Occupant == CharRef.Humanoid then
+                    local d = (seat.Position - origin).Magnitude
+                    if d < bestD then
+                        bestD = d
+                        best = seat
+                    end
+                end
+            end
+        end
+    end
+    return best
+end
+
+-- Fallback untuk non-office context (Barista dll)
 local function findEmptyChair(radius, excludeChair)
     local origin = CharRef.Root and CharRef.Root.Position
     if not origin then return nil end
     radius = radius or 150
     local best, bestD = nil, radius
-    
+
     local chairs = {}
     for _, v in pairs(workspace:GetDescendants()) do
         if v:IsA("Seat") or v:IsA("VehicleSeat") then
@@ -1083,74 +1090,76 @@ local function findEmptyChair(radius, excludeChair)
             if v.Parent then table.insert(chairs, v.Parent) end
         end
     end
-    
+
     for _, chair in ipairs(chairs) do
         if chair ~= excludeChair and not isChairOccupied(chair) then
-            local chairPos = chair:IsA("BasePart") and chair.Position or (chair.PrimaryPart and chair.PrimaryPart.Position) or (getSeatFromChair(chair) and getSeatFromChair(chair).Position)
+            local chairPos = chair:IsA("BasePart") and chair.Position
+                or (chair.PrimaryPart and chair.PrimaryPart.Position)
+                or (getSeatFromChair(chair) and getSeatFromChair(chair).Position)
             if chairPos then
                 local d = (chairPos - origin).Magnitude
-                if d < bestD then
-                    best, bestD = chair, d
-                end
+                if d < bestD then best, bestD = chair, d end
             end
         end
     end
     return best
 end
 
+-- ✅ [DEX] Join team Office Worker via TeamChangeRequest
+local function joinOfficeTeam()
+    pcall(function()
+        Services.ReplicatedStorage:WaitForChild("JobEvents")
+            :WaitForChild("TeamChangeRequest")
+            :FireServer("Office Worker", 0, 1, 0, "")
+    end)
+end
+
 local function dudukKeKursi(instantTP)
     local hum = CharRef.Humanoid
     if not hum then return false end
-    
     if hum.SeatPart then return true end
-    
-    if myChair and isChairOccupied(myChair) then
-        myChair = findEmptyChair(150)
+
+    -- Pakai findOfficeSeat (DEX path) jika office aktif, fallback findEmptyChair
+    if State.IsOfficeActive then
+        if not myChair or (myChair.Occupant and myChair.Occupant ~= hum) then
+            myChair = findOfficeSeat()
+        end
+    else
+        if myChair and isChairOccupied(myChair) then
+            myChair = findEmptyChair(150)
+        end
     end
-    
+
     if not myChair then return false end
-    
-    if not instantTP then
-        keluarKursi()
-    end
-    
+    if not instantTP then keluarKursi() end
+
     local seat = getSeatFromChair(myChair)
     local handle = myChair:FindFirstChild("Handle")
-    local targetCFrame = seat and seat.CFrame or (handle and handle.CFrame) or (myChair:IsA("BasePart") and myChair.CFrame) or (myChair.PrimaryPart and myChair.PrimaryPart.CFrame)
-    
+    local targetCFrame = seat and seat.CFrame
+        or (handle and handle.CFrame)
+        or (myChair:IsA("BasePart") and myChair.CFrame)
+        or (myChair.PrimaryPart and myChair.PrimaryPart.CFrame)
+
     if not targetCFrame then return false end
 
     if instantTP then
-        if CharRef.Root then
-            CharRef.Root.CFrame = targetCFrame
-            task.wait(0.1)
-        end
-        if seat then
-            seat:Sit(hum)
-            task.wait(1.5)
-            return true
+        if CharRef.Root then CharRef.Root.CFrame = targetCFrame; task.wait(0.1) end
+        if seat then seat:Sit(hum); task.wait(1.5); return true
         else
             for _, child in pairs(myChair:GetChildren()) do
                 if child:IsA("ProximityPrompt") and child.Enabled then
-                    eksekusiPromptTahan(child)
-                    task.wait(1.5)
-                    return true
+                    eksekusiPromptTahan(child); task.wait(1.5); return true
                 end
             end
         end
     else
         jalanKe(targetCFrame.Position + Vector3.new(0, 2, 0))
         hum:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
-        if seat then
-            seat:Sit(hum)
-            task.wait(1.5)
-            return true
+        if seat then seat:Sit(hum); task.wait(1.5); return true
         else
             for _, child in pairs(myChair:GetChildren()) do
                 if child:IsA("ProximityPrompt") and child.Enabled then
-                    eksekusiPromptTahan(child)
-                    task.wait(1.5)
-                    return true
+                    eksekusiPromptTahan(child); task.wait(1.5); return true
                 end
             end
         end
@@ -1159,137 +1168,195 @@ local function dudukKeKursi(instantTP)
 end
 
 -- ============================================================================
--- // AUTO JAWAB SOAL MATEMATIKA (OFFICE)
--- // ✅ [FIX v8.2.1] getButtonText: support desimal
--- // ✅ [FIX v8.2.1] hitungSoal: regex lebih robust
--- // ✅ [FIX v8.2.1] klikTombol: fallback SafeClick posisi absolut
+-- // AUTO JAWAB SOAL MATEMATIKA (OFFICE) — KING AKBAR V9.3 (GOD MODE)
+-- // Method: REAL-CLICK + VISUAL HIGHLIGHT + SMART WAIT
+-- // Fix v9.3: Polling nunggu UI render dulu, tombol pasti ketemu
 -- ============================================================================
 
-local MathGUICache = nil
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local TweenService = game:GetService("TweenService")
+local LocalPlayer = Players.LocalPlayer
 
--- ✅ [FIX] Support angka desimal (misal: 12.5, -3.0)
-local function getButtonText(btn)
-    if not btn then return "" end
-    local rawText = ""
-    if btn:IsA("TextButton") then rawText = btn.Text or "" end
-    if rawText == "" then
-        for _, child in pairs(btn:GetDescendants()) do
-            if child:IsA("TextLabel") and child.Visible and child.Text ~= "" then
-                rawText = child.Text
+local JobEvents = ReplicatedStorage:WaitForChild("JobEvents")
+local GenerateQuestion = JobEvents:WaitForChild("GenerateQuestion")
+local CorrectAnswer = JobEvents:WaitForChild("CorrectAnswer")
+
+print("===============================================")
+print("[AUTO-MATH] KING AKBAR v9.3 God Mode Aktif! (Smart-Wait + Visual)")
+print("===============================================")
+
+-- Evaluasi matematika ringan (Hanya Tambah & Kurang)
+local function evaluateMath(text)
+    local cleanText = string.gsub(text, "<[^>]+>", "")
+    cleanText = string.gsub(cleanText, "%s+", "")
+    local a, op, b = string.match(cleanText, "(%-?%d+%.?%d*)([%+%-])(%-?%d+%.?%d*)")
+    if not a or not op or not b then return nil end
+    a, b = tonumber(a), tonumber(b)
+    if op == "+" then return a + b
+    elseif op == "-" then return a - b end
+    return nil
+end
+
+local function getAnswerButtons()
+    local gui = LocalPlayer.PlayerGui:FindFirstChild("WorkGui")
+    local frame = gui and gui:FindFirstChild("Frame")
+    if not frame then return {} end
+    local list = {}
+    for _, child in ipairs(frame:GetChildren()) do
+        if child:IsA("GuiButton") then
+            table.insert(list, child)
+        end
+    end
+    return list
+end
+
+-- SMART WAIT: polling sampai tombol dengan angka yang benar muncul (max 2.5 dtk)
+local function findCorrectButton(jawaban, timeoutSec)
+    local deadline = tick() + (timeoutSec or 2.5)
+    while tick() < deadline do
+        for _, btn in ipairs(getAnswerButtons()) do
+            local numText = string.match(tostring(btn.Text or ""), "%-?%d+%.?%d*")
+            if tonumber(numText) == jawaban and btn:IsDescendantOf(game) then
+                return btn
+            end
+        end
+        task.wait(0.1)
+    end
+    return nil
+end
+
+-- ================= VISUAL HIGHLIGHT (KOTAK PUTIH) =================
+local function clearHighlights()
+    local gui = LocalPlayer.PlayerGui:FindFirstChild("WorkGui")
+    if not gui then return end
+    for _, obj in ipairs(gui:GetDescendants()) do
+        if obj.Name == "AutoMathHighlight" then
+            obj:Destroy()
+        end
+    end
+end
+
+local function highlightButton(btn)
+    clearHighlights()
+    local stroke = Instance.new("UIStroke")
+    stroke.Name = "AutoMathHighlight"
+    stroke.Color = Color3.fromRGB(255, 255, 255)
+    stroke.Thickness = 1
+    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    stroke.LineJoinMode = Enum.LineJoinMode.Round
+    stroke.Parent = btn
+    TweenService:Create(stroke, TweenInfo.new(0.2, Enum.EasingStyle.Back), {Thickness = 7}):Play()
+end
+
+local function unhighlightLater(btn, delaySec)
+    task.delay(delaySec, function()
+        local s = btn:FindFirstChild("AutoMathHighlight")
+        if s then
+            TweenService:Create(s, TweenInfo.new(0.2), {Thickness = 0}):Play()
+            task.delay(0.25, function() pcall(function() s:Destroy() end) end)
+        end
+    end)
+end
+-- ===================================================================
+
+local function pressButton(btn)
+    -- METODE 1: handler asli game
+    if getconnections then
+        for _, signal in ipairs({btn.MouseButton1Click, btn.Activated}) do
+            for _, conn in ipairs(getconnections(signal)) do
+                if conn.Function then
+                    if pcall(conn.Function) then
+                        return "handler-asli"
+                    end
+                end
+            end
+        end
+    end
+    -- METODE 2: klik virtual
+    local ok = pcall(function()
+        local pos = btn.AbsolutePosition
+        local size = btn.AbsoluteSize
+        local x = pos.X + size.X / 2
+        local y = pos.Y + size.Y / 2
+        VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
+        task.wait(0.06)
+        VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 1)
+    end)
+    if ok then return "virtual-click" end
+    return nil
+end
+
+GenerateQuestion.OnClientEvent:Connect(function(questionText, answerData, sessionID)
+    if State and State.IsOfficeActive == false then return end
+
+    print("[AUTO-MATH] ---------------------------------")
+    print("[AUTO-MATH] Menerima soal: " .. tostring(questionText))
+
+    local jawaban = evaluateMath(questionText)
+    if not jawaban then
+        warn("[AUTO-MATH] Gagal mengeksekusi rumus matematika!")
+        return
+    end
+    print("[AUTO-MATH] Kalkulasi selesai: " .. tostring(jawaban))
+
+    local correctAnswerID = nil
+    if type(answerData) == "table" then
+        for _, data in ipairs(answerData) do
+            local numText = string.match(tostring(data.Text or ""), "%-?%d+%.?%d*")
+            if tonumber(numText) == jawaban then
+                correctAnswerID = data.ID
                 break
             end
         end
     end
-    local numStr = rawText:match("%-?%d+%.?%d*")  -- support integer & desimal
-    return numStr or rawText
-end
 
--- ✅ [FIX] Fallback SafeClick jika firesignal/getconnections gagal
-local function klikTombol(btn)
-    if not btn or not btn.Visible then return false end
+    -- 1) SMART WAIT: cari tombol (nunggu UI render dulu, max 2.5 dtk)
+    local correctButton = findCorrectButton(jawaban, 2.5)
 
-    -- Coba firesignal
-    if type(firesignal) == "function" then
-        local ok = pcall(function() firesignal(btn.MouseButton1Click) end)
-        if ok then task.wait(0.05); return true end
-        local ok2 = pcall(function() firesignal(btn.Activated) end)
-        if ok2 then task.wait(0.05); return true end
+    -- 2) Pasang highlight putih
+    if correctButton then
+        highlightButton(correctButton)
+        print("[AUTO-MATH] Highlight putih dipasang di tombol [" .. tostring(correctButton.Text) .. "]")
     end
 
-    -- Coba getconnections
-    if type(getconnections) == "function" then
-        local ok3 = pcall(function()
-            for _, c in pairs(getconnections(btn.MouseButton1Click)) do
-                pcall(function() c:Fire() end)
-            end
-        end)
-        if ok3 then task.wait(0.05); return true end
-        local ok4 = pcall(function()
-            for _, c in pairs(getconnections(btn.Activated)) do
-                pcall(function() c:Fire() end)
-            end
-        end)
-        if ok4 then task.wait(0.05); return true end
-    end
+    -- 3) Jeda manusiawi 1.5-3 dtk (highlight sempat kelihatan)
+    task.wait(math.random(15, 30) / 10)
 
-    -- ✅ [FALLBACK] Klik pakai posisi absolut tombol di layar
-    pcall(function()
-        local pos = btn.AbsolutePosition
-        local sz  = btn.AbsoluteSize
-        local cx  = pos.X + sz.X / 2
-        local cy  = pos.Y + sz.Y / 2
-        SafeClick(cx, cy, 0.08)
-    end)
-    task.wait(0.1)
-    return true
-end
-
-local function cariSoalBaru()
-    CachedTargetLabel, CachedTargetParent, CachedTargetText = nil, nil, nil
-    
-    if MathGUICache and MathGUICache.Parent then
-        for _, v in pairs(MathGUICache:GetDescendants()) do
-            if v:IsA("TextLabel") and v.Visible and v.Text ~= "" then
-                if string.find(v.Text, "=") or string.find(v.Text, "%?") then
-                    local isMath = string.match(v.Text, "%d+%s*[%+%-%*/xX×÷]%s*%d+")
-                    if isMath then
-                        CachedTargetLabel  = v
-                        CachedTargetParent = v.Parent
-                        CachedTargetText   = v.Text
-                        return v
-                    end
-                end
-            end
+    -- 4) Validasi ulang (jaga-jaga UI ke-refresh tengah jalan)
+    if correctButton then
+        local reText = string.match(tostring(correctButton.Text or ""), "%-?%d+%.?%d*")
+        if not correctButton:IsDescendantOf(game) or tonumber(reText) ~= jawaban then
+            correctButton = findCorrectButton(jawaban, 0.5)
         end
     end
 
-    for _, v in pairs(playerGui:GetDescendants()) do
-        if v:IsA("TextLabel") and v.Visible and v.Text ~= "" then
-            local lowerText = string.lower(v.Text)
-            if not (string.find(lowerText, "xp") or string.find(lowerText, "silver") or string.find(lowerText, "level")) then
-                if string.find(v.Text, "=") or string.find(v.Text, "%?") then
-                    local isMath = string.match(v.Text, "%d+%s*[%+%-%*/xX×÷]%s*%d+")
-                    if isMath then
-                        MathGUICache = v:FindFirstAncestorOfClass("ScreenGui") or v.Parent
-                        CachedTargetLabel  = v
-                        CachedTargetParent = v.Parent
-                        CachedTargetText   = v.Text
-                        return v
-                    end
-                end
-            end
+    -- 5) Klik!
+    if correctButton then
+        local method = pressButton(correctButton)
+        if method then
+            print("[AUTO-MATH] Jawaban disubmit via " .. method .. " → tombol [" .. tostring(correctButton.Text) .. "]")
+        else
+            pcall(function()
+                CorrectAnswer:FireServer(correctAnswerID, sessionID, correctButton)
+            end)
+            print("[AUTO-MATH] Fallback FireServer + instance tombol dikirim.")
         end
+        unhighlightLater(correctButton, 0.4)
+    elseif correctAnswerID then
+        warn("[AUTO-MATH] Tombol UI tidak ditemukan, FireServer manual...")
+        CorrectAnswer:FireServer(correctAnswerID, sessionID)
+        clearHighlights()
+    else
+        warn("[AUTO-MATH] Gagal menemukan UUID/tombol untuk angka: " .. tostring(jawaban))
+        clearHighlights()
     end
-    return nil
-end
 
-local function soalCacheValid()
-    if not CachedTargetLabel or not CachedTargetLabel.Parent or not CachedTargetLabel.Visible then return false end
-    if CachedTargetLabel.Text ~= CachedTargetText then return false end
-    return true
-end
-
--- ✅ [FIX] Regex lebih robust, buang spasi & simbol tidak perlu dulu
-local function hitungSoal(text)
-    local clean = text
-        :gsub("[xX×]", "*")
-        :gsub("÷", "/")
-        :gsub("%s+", "")
-        :gsub("=.*", "")
-        :gsub("%?", "")
-
-    local expr = clean:match("(%-?%d+[%+%-%*/]%-?%d+)")
-    if not expr then return nil end
-
-    local func, err = loadstring("return " .. expr)
-    if not func then return nil end
-
-    local ok, result = pcall(func)
-    if ok and type(result) == "number" then
-        return result
+    if State then
+        State.OfficeMathSolved = (State.OfficeMathSolved or 0) + 1
     end
-    return nil
-end
+end)
 
 -- ============================================================================
 -- // ANTI-STUCK 6s + IDLE CHAIR SWITCH
@@ -1301,10 +1368,6 @@ local IDLE_SWITCH_TIME = 60
 getgenv().forceStopMath = false
 getgenv().isGoingToPrinter = false
 
-local lastSeenSoalText = ""
-local lastSoalChangeTime = tick()
-local failStreak = 0
-
 task.spawn(function()
     while true do
         task.wait(1)
@@ -1314,10 +1377,9 @@ task.spawn(function()
             isSwitching = true
             getgenv().forceStopMath = true
             keluarKursi()
-            local newChair = findEmptyChair(150, myChair)
-            if newChair then myChair = newChair end
+            local newSeat = findOfficeSeat(myChair)
+            if newSeat then myChair = newSeat end
             dudukKeKursi(false)
-            CachedTargetLabel, CachedTargetParent, CachedTargetText = nil, nil, nil
             getgenv().forceStopMath = false
             isSwitching = false
             lastActivityTime = tick()
@@ -1344,106 +1406,13 @@ task.spawn(function()
     end
 end)
 
-task.spawn(function()
-    task.wait(2)
-    while true do
-        task.wait(0.3)
-        if not State.IsOfficeActive or getgenv().forceStopMath or getgenv().isGoingToPrinter then continue end
-        local hum = CharRef.Humanoid
-        if not hum or not hum.SeatPart then
-            if myChair and isChairOccupied(myChair) then
-                myChair = findEmptyChair(150)
-            end
-            if myChair then dudukKeKursi(false) end
-            task.wait(1.5)
-            continue
-        end
-
-        local soalLabel = soalCacheValid() and CachedTargetLabel or cariSoalBaru()
-        if not soalLabel then 
-            lastSeenSoalText = ""
-            task.wait(1) 
-            continue 
-        end
-
-        local text = soalLabel.Text
-        
-        if text ~= lastSeenSoalText then
-            lastSeenSoalText = text
-            lastSoalChangeTime = tick()
-            lastActivityTime = tick()
-            failStreak = 0
-        end
-        
-        if tick() - lastSoalChangeTime > 6 then
-            lastSoalChangeTime = tick()
-            failStreak = failStreak + 1
-            CachedTargetLabel, CachedTargetParent, CachedTargetText = nil, nil, nil
-            MathGUICache = nil
-            if failStreak >= 2 then
-                getgenv().forceStopMath = true
-                keluarKursi()
-                dudukKeKursi(false)
-                getgenv().forceStopMath = false
-                failStreak = 0
-                lastActivityTime = tick()
-            end
-            task.wait(0.5)
-            continue
-        end
-        
-        local buttonsList = {}
-        for _, btn in pairs(playerGui:GetDescendants()) do
-            if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible then
-                local btnText = getButtonText(btn)
-                local btnNum = tonumber(btnText)
-                if btnNum then
-                    table.insert(buttonsList, {btn = btn, num = btnNum})
-                end
-            end
-        end
-        
-        local jawaban = hitungSoal(text)
-        if not jawaban then
-            CachedTargetLabel, CachedTargetParent, CachedTargetText = nil, nil, nil
-            continue
-        end
-        
-        local ditemukan = false
-        for _, data in ipairs(buttonsList) do
-            if getgenv().forceStopMath or not State.IsOfficeActive then break end
-            if math.abs(data.num - jawaban) < 0.01 then
-                ditemukan = true
-                
-                task.wait(math.random(15, 35) / 10)
-                
-                if getgenv().forceStopMath or not State.IsOfficeActive then break end
-                
-                if klikTombol(data.btn) then
-                    State.OfficeMathSolved = (State.OfficeMathSolved or 0) + 1
-                    lastActivityTime = tick()
-                    failStreak = 0
-                else
-                    ditemukan = false
-                    failStreak = failStreak + 1
-                end
-                
-                task.wait(math.random(5, 15) / 10)
-                break
-            end
-        end
-        
-        CachedTargetLabel, CachedTargetParent, CachedTargetText = nil, nil, nil
-    end
-end)
-
 -- ============================================================================
 -- // PRINTER LOOP
 -- ============================================================================
-local JobEvents = Services.ReplicatedStorage:WaitForChild("JobEvents")
+local JobEvents      = Services.ReplicatedStorage:WaitForChild("JobEvents")
 local AssignPrintJob = JobEvents:WaitForChild("AssignPrintJob")
-local ClearPrintJob = JobEvents:WaitForChild("ClearPrintJob")
-local ComputersFolder = workspace:WaitForChild("Computers")
+local ClearPrintJob  = JobEvents:WaitForChild("ClearPrintJob")
+-- ComputersFolder sudah dideklarasi di atas
 
 local activePrinterName = nil
 
@@ -1492,33 +1461,46 @@ task.spawn(function()
                 
                 if printerPart and targetPrompt then
                     jalanKe(printerPart.Position + Vector3.new(0, 0, 2.5))
-                    
-                    if CharRef.Root and printerPart then
+
+                    -- Hadapkan karakter ke printer
+                    if CharRef.Root then
                         local lookTarget = Vector3.new(printerPart.Position.X, CharRef.Root.Position.Y, printerPart.Position.Z)
                         CharRef.Root.CFrame = CFrame.lookAt(CharRef.Root.Position, lookTarget)
-                        task.wait(0.2)
                     end
-                    
+
+                    -- ✅ [CAMERA FIX] Lock kamera Scriptable ngadep printer selama hold
+                    local cam = workspace.CurrentCamera
+                    local prevCamType = cam.CameraType
+                    pcall(function()
+                        cam.CameraType = Enum.CameraType.Scriptable
+                        local eyePos = CharRef.Root.Position + Vector3.new(0, 1.5, 0)
+                        cam.CFrame = CFrame.lookAt(eyePos, printerPart.Position)
+                    end)
+
                     task.wait(math.random(4,10)/10)
                     eksekusiPromptTahan(targetPrompt)
                     State.OfficePrints = (State.OfficePrints or 0) + 1
-                    
+
+                    -- Restore kamera setelah hold selesai
+                    pcall(function()
+                        cam.CameraType = prevCamType
+                    end)
+
                     local timeout = 0
                     while activePrinterName and timeout < 10 do
                         task.wait(0.5)
                         timeout += 0.5
                     end
                 end
-                
-                local nearestEmpty = findEmptyChair(150)
-                if nearestEmpty then
-                    myChair = nearestEmpty
+
+                -- ✅ [DEX] Kembali ke kursi Office pakai findOfficeSeat
+                local nearestSeat = findOfficeSeat(nil)
+                if nearestSeat then
+                    myChair = nearestSeat
                 end
                 
                 dudukKeKursi(false)
                 task.wait(0.5)
-                
-                CachedTargetLabel, CachedTargetParent, CachedTargetText = nil, nil, nil
             end)
             
             getgenv().isGoingToPrinter = false
@@ -1618,106 +1600,210 @@ local function fmtShort(num)
     else return tostring(math.floor(num)) end
 end
 
+-- ============================================================================
+-- // MONITORING GUI — ANIMATED NUMBERS
+-- ============================================================================
+
+-- Animasi angka: key pakai Instance reference langsung (bukan tostring yang balik "Label" sama untuk semua)
+local DisplayedValues = {}
+
+local function animateValue(label, targetNum, formatter, colorPos, colorNeg, colorNeutral)
+    local key = label  -- ✅ Instance reference = unik per label, bukan "Label" string yang sama
+    if DisplayedValues[key] == nil then
+        DisplayedValues[key] = targetNum
+    end
+    local cur = DisplayedValues[key]
+    if math.abs(cur - targetNum) < 0.5 then
+        DisplayedValues[key] = targetNum
+        if formatter then label.Text = formatter(targetNum) end
+        if colorNeutral then label.TextColor3 = colorNeutral end
+        return
+    end
+    local next = cur + (targetNum - cur) * 0.18
+    DisplayedValues[key] = next
+    if formatter then label.Text = formatter(next) end
+    if colorPos and colorNeg then
+        label.TextColor3 = (next >= 0) and colorPos or colorNeg
+    elseif colorNeutral then
+        label.TextColor3 = colorNeutral
+    end
+end
+
 local function buatMonitoringGUI()
     local uangSekarang = DapatkanUangPemain()
-    
+
     if not getgenv().UangAwalDikunci or getgenv().UangAwalDikunci == 0 then
         getgenv().UangAwalDikunci = uangSekarang
     end
-    
     getgenv().WaktuMulai = getgenv().WaktuMulai or tick()
-    
+
     local uangAwal = getgenv().UangAwalDikunci
+    DisplayedValues = {}  -- reset animasi saat mulai
 
     if TrackerGui and TrackerGui.Parent then TrackerGui:Destroy() end
     TrackerGui = Instance.new("ScreenGui")
     TrackerGui.Name = "KingAkbarTracker"
+    TrackerGui.ResetOnSpawn = false
+    TrackerGui.DisplayOrder = 1   -- ✅ taruh di layer belakang
     TrackerGui.Parent = CoreGui
 
+    -- Frame utama
     local Frame = Instance.new("Frame")
-    Frame.Size = UDim2.new(0, 220, 0, 0)
-    Frame.Position = UDim2.new(1, -16, 0.5, 0)
+    Frame.Size        = UDim2.new(0, 228, 0, 0)
+    Frame.Position    = UDim2.new(1, -16, 0.5, 0)
     Frame.AnchorPoint = Vector2.new(1, 0.5)
-    Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-    Frame.BackgroundTransparency = 0.25
+    Frame.BackgroundColor3    = Color3.fromRGB(18, 18, 22)
+    Frame.BackgroundTransparency = 0.18
     Frame.BorderSizePixel = 0
-    Frame.Active = true
+    Frame.Active   = true
     Frame.Draggable = true
     Frame.AutomaticSize = Enum.AutomaticSize.Y
-    Frame.Parent = TrackerGui
+    Frame.Parent   = TrackerGui
+    Instance.new("UICorner", Frame).CornerRadius = UDim.new(0, 10)
+    local Stroke = Instance.new("UIStroke", Frame)
+    Stroke.Color = Color3.fromRGB(60, 60, 68); Stroke.Thickness = 1
+    local Padding = Instance.new("UIPadding", Frame)
+    Padding.PaddingTop    = UDim.new(0,10); Padding.PaddingBottom = UDim.new(0,10)
+    Padding.PaddingLeft   = UDim.new(0,12); Padding.PaddingRight  = UDim.new(0,12)
+    local List = Instance.new("UIListLayout", Frame)
+    List.Padding = UDim.new(0, 7); List.SortOrder = Enum.SortOrder.LayoutOrder
 
-    local Corner = Instance.new("UICorner"); Corner.CornerRadius = UDim.new(0,8); Corner.Parent = Frame
-    local Stroke = Instance.new("UIStroke"); Stroke.Color = Color3.fromRGB(70,70,75); Stroke.Thickness = 1; Stroke.Parent = Frame
-    local Padding = Instance.new("UIPadding"); Padding.PaddingTop = UDim.new(0,10); Padding.PaddingBottom = UDim.new(0,10); Padding.PaddingLeft = UDim.new(0,10); Padding.PaddingRight = UDim.new(0,10); Padding.Parent = Frame
-    local List = Instance.new("UIListLayout"); List.Padding = UDim.new(0,6); List.SortOrder = Enum.SortOrder.LayoutOrder; List.Parent = Frame
+    -- Header
+    local H = Instance.new("Frame", Frame)
+    H.Size = UDim2.new(1,0,0,36); H.BackgroundTransparency = 1; H.LayoutOrder = 1
+    local Img = Instance.new("ImageLabel", H)
+    Img.Size = UDim2.new(0,32,0,32); Img.Position = UDim2.new(0,0,0.5,-16)
+    Img.BackgroundTransparency = 1; Img.Image = "rbxassetid://84070081307966"
+    Img.ScaleType = Enum.ScaleType.Fit; Img.ZIndex = 2
+    Instance.new("UICorner", Img).CornerRadius = UDim.new(0,7)
+    local TitleLbl = Instance.new("TextLabel", H)
+    TitleLbl.Size = UDim2.new(1,-40,0,14); TitleLbl.Position = UDim2.new(0,40,0,4)
+    TitleLbl.BackgroundTransparency = 1; TitleLbl.Text = "KING AKBAR"
+    TitleLbl.TextColor3 = Color3.fromRGB(210,210,215); TitleLbl.Font = Enum.Font.GothamBold
+    TitleLbl.TextSize = 13; TitleLbl.TextXAlignment = Enum.TextXAlignment.Left
+    local SubLbl = Instance.new("TextLabel", H)
+    SubLbl.Size = UDim2.new(1,-40,0,11); SubLbl.Position = UDim2.new(0,40,0,20)
+    SubLbl.BackgroundTransparency = 1; SubLbl.Text = "Auto Office Free"
+    SubLbl.TextColor3 = Color3.fromRGB(90,90,100); SubLbl.Font = Enum.Font.Gotham
+    SubLbl.TextSize = 9; SubLbl.TextXAlignment = Enum.TextXAlignment.Left
 
-    local H = Instance.new("Frame"); H.Size = UDim2.new(1,0,0,36); H.BackgroundTransparency = 1; H.LayoutOrder = 1; H.Parent = Frame
-    local Img = Instance.new("ImageLabel"); Img.Size = UDim2.new(0,36,0,36); Img.Position = UDim2.new(0,0,0.5,-18); Img.BackgroundTransparency = 1; Img.Image = "rbxassetid://84070081307966"; Img.ScaleType = Enum.ScaleType.Fit; Img.ZIndex = 2; Img.Parent = H
-    local ImgCorner = Instance.new("UICorner"); ImgCorner.CornerRadius = UDim.new(0,8); ImgCorner.Parent = Img
-    local Title = Instance.new("TextLabel"); Title.Size = UDim2.new(1,-42,0,24); Title.Position = UDim2.new(0,42,0.5,-12); Title.BackgroundTransparency = 1; Title.Text = "KING AKBAR"; Title.TextColor3 = Color3.fromRGB(180,180,180); Title.Font = Enum.Font.GothamBold; Title.TextSize = 14; Title.TextXAlignment = Enum.TextXAlignment.Left; Title.Parent = H
-    local Div = Instance.new("Frame"); Div.Size = UDim2.new(1,0,0,1); Div.BackgroundColor3 = Color3.fromRGB(70,70,75); Div.BorderSizePixel = 0; Div.LayoutOrder = 2; Div.Parent = Frame
+    -- Divider
+    local Div = Instance.new("Frame", Frame)
+    Div.Size = UDim2.new(1,0,0,1); Div.BackgroundColor3 = Color3.fromRGB(55,55,62)
+    Div.BorderSizePixel = 0; Div.LayoutOrder = 2
 
-    local function baris(labelKiri, labelKanan, order)
-        local R = Instance.new("Frame"); R.Size = UDim2.new(1,0,0,28); R.BackgroundTransparency = 1; R.LayoutOrder = order; R.Parent = Frame
-        local L = Instance.new("Frame"); L.Size = UDim2.new(0.5,-3,1,0); L.BackgroundTransparency = 1; L.Parent = R
-        local LLab = Instance.new("TextLabel"); LLab.Size = UDim2.new(1,0,0,12); LLab.BackgroundTransparency = 1; LLab.Text = labelKiri; LLab.TextColor3 = Color3.fromRGB(140,140,140); LLab.Font = Enum.Font.GothamMedium; LLab.TextSize = 10; LLab.TextXAlignment = Enum.TextXAlignment.Left; LLab.Parent = L
-        local LVal = Instance.new("TextLabel"); LVal.Size = UDim2.new(1,0,0,14); LVal.Position = UDim2.new(0,0,1,-14); LVal.BackgroundTransparency = 1; LVal.Text = "0"; LVal.TextColor3 = Color3.fromRGB(220,220,220); LVal.Font = Enum.Font.GothamBold; LVal.TextSize = 12; LVal.TextXAlignment = Enum.TextXAlignment.Left; LVal.Parent = L
-        local Ri = Instance.new("Frame"); Ri.Size = UDim2.new(0.5,-3,1,0); Ri.Position = UDim2.new(0.5,3,0,0); Ri.BackgroundTransparency = 1; Ri.Parent = R
-        local RLab = Instance.new("TextLabel"); RLab.Size = UDim2.new(1,0,0,12); RLab.BackgroundTransparency = 1; RLab.Text = labelKanan; RLab.TextColor3 = Color3.fromRGB(140,140,140); RLab.Font = Enum.Font.GothamMedium; RLab.TextSize = 10; RLab.TextXAlignment = Enum.TextXAlignment.Left; RLab.Parent = Ri
-        local RVal = Instance.new("TextLabel"); RVal.Size = UDim2.new(1,0,0,14); RVal.Position = UDim2.new(0,0,1,-14); RVal.BackgroundTransparency = 1; RVal.Text = "0"; RVal.TextColor3 = Color3.fromRGB(220,220,220); RVal.Font = Enum.Font.GothamBold; RVal.TextSize = 12; RVal.TextXAlignment = Enum.TextXAlignment.Left; RVal.Parent = Ri
-        return LVal, RVal
+    -- Helper buat baris dua kolom
+    local function baris(iconL, labelL, iconR, labelR, order)
+        local R = Instance.new("Frame", Frame)
+        R.Size = UDim2.new(1,0,0,34); R.BackgroundTransparency = 1; R.LayoutOrder = order
+
+        local function kolom(parent, xOffset, icon, caption)
+            local bg = Instance.new("Frame", parent)
+            bg.Size = UDim2.new(0.5,-4,1,0); bg.Position = UDim2.new(xOffset,0,0,0)
+            bg.BackgroundColor3 = Color3.fromRGB(30,30,36); bg.BackgroundTransparency = 0.4
+            bg.BorderSizePixel = 0
+            Instance.new("UICorner", bg).CornerRadius = UDim.new(0,6)
+            local capLbl = Instance.new("TextLabel", bg)
+            capLbl.Size = UDim2.new(1,-6,0,11); capLbl.Position = UDim2.new(0,6,0,4)
+            capLbl.BackgroundTransparency = 1; capLbl.Text = icon .. " " .. caption
+            capLbl.TextColor3 = Color3.fromRGB(110,110,120); capLbl.Font = Enum.Font.GothamMedium
+            capLbl.TextSize = 9; capLbl.TextXAlignment = Enum.TextXAlignment.Left
+            local valLbl = Instance.new("TextLabel", bg)
+            valLbl.Size = UDim2.new(1,-6,0,14); valLbl.Position = UDim2.new(0,6,1,-18)
+            valLbl.BackgroundTransparency = 1; valLbl.Text = "—"
+            valLbl.TextColor3 = Color3.fromRGB(225,225,230); valLbl.Font = Enum.Font.GothamBold
+            valLbl.TextSize = 12; valLbl.TextXAlignment = Enum.TextXAlignment.Left
+            return valLbl
+        end
+
+        local lv = kolom(R, 0,    iconL, labelL)
+        local rv = kolom(R, 0.5,  iconR, labelR)
+        return lv, rv
     end
 
-    local v_initial, v_profit = baris("💵 Initial", "💰 Profit", 4)
-    local v_solved, v_prints = baris("📝 Solved", "🖨️ Prints", 5)
-    local v_profitH, v_ping = baris("⚡ Profit/H", "📶 Ping", 6)
-    local v_fps, v_uptime = baris("🎮 FPS", "⏱️ Uptime", 7)
+    -- Baris data
+    local v_initial, v_profit  = baris("💵","Initial",  "💰","Profit",   3)
+    local v_solved,  v_prints  = baris("📝","Solved",   "🖨️","Prints",   4)
+    local v_profitH, v_ping    = baris("⚡","Profit/H", "📶","Ping",     5)
+    local v_fps,     v_uptime  = baris("🎮","FPS",      "⏱️","Uptime",   6)
+
+    -- Warna khusus
+    local CLR_WHITE  = Color3.fromRGB(225,225,230)
+    local CLR_GREEN  = Color3.fromRGB(80, 210, 120)
+    local CLR_RED    = Color3.fromRGB(230, 80,  80)
+    local CLR_YELLOW = Color3.fromRGB(230,190, 60)
 
     v_initial.Text = fmtRupiah(uangAwal)
 
+    -- ✅ Loop update + animasi angka
     task.spawn(function()
+        local prevProfit  = 0
+        local prevSolved  = 0
+        local prevPrints  = 0
+        local prevProfitH = 0
+        local prevPing    = 0
+        local prevFps     = 0
+
         while TrackerGui and TrackerGui.Parent do
-            local success, err = pcall(function()
+            pcall(function()
                 local currentMoney = DapatkanUangPemain()
-                
+
                 if uangAwal == 0 and currentMoney > 0 then
                     getgenv().UangAwalDikunci = currentMoney
                     uangAwal = currentMoney
                     v_initial.Text = fmtRupiah(uangAwal)
                 end
-                
-                local profit = currentMoney - uangAwal
+
+                local profit      = currentMoney - uangAwal
                 local uptimeDetik = tick() - getgenv().WaktuMulai
-                local uptimeJam = uptimeDetik / 3600
-                if uptimeJam < (1/3600) then uptimeJam = (1/3600) end
-                
-                v_profit.Text = fmtProfit(profit)
-                
-                if type(State) == "table" then
-                    v_solved.Text = tostring(State.OfficeMathSolved or 0)
-                    v_prints.Text = tostring(State.OfficePrints or 0)
-                else
-                    v_solved.Text = "0"
-                    v_prints.Text = "0"
+                local uptimeJam   = math.max(uptimeDetik / 3600, 1/3600)
+                local profitH     = profit / uptimeJam
+                local solved      = type(State) == "table" and (State.OfficeMathSolved or 0) or 0
+                local prints      = type(State) == "table" and (State.OfficePrints or 0) or 0
+                local pingVal     = 0
+                local fpsVal      = 0
+                pcall(function() pingVal = math.floor(Services.Stats.Network.ServerStatsItem["Data Ping"]:GetValue()) end)
+                pcall(function() fpsVal  = math.floor(workspace:GetRealPhysicsFPS()) end)
+
+                -- Animasi profit (smooth counter, warna hijau/merah)
+                animateValue(v_profit, profit, fmtProfit, CLR_GREEN, CLR_RED, nil)
+
+                -- Animasi solved (hanya counter naik)
+                if solved ~= prevSolved then
+                    prevSolved = solved
+                    -- Flash kuning sebentar lalu balik putih
+                    v_solved.TextColor3 = CLR_YELLOW
+                    Services.TweenSvc:Create(v_solved, TweenInfo.new(0.6, Enum.EasingStyle.Quad), { TextColor3 = CLR_WHITE }):Play()
                 end
-                
-                v_profitH.Text = fmtShort(profit / uptimeJam)
-                
-                local pingVal = 0
-                pcall(function()
-                    pingVal = math.floor(Services.Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
-                end)
-                v_ping.Text = pingVal .. " ms"
-                
-                local fpsVal = 0
-                pcall(function()
-                    fpsVal = math.floor(workspace:GetRealPhysicsFPS())
-                end)
-                v_fps.Text = tostring(fpsVal)
-                
+                animateValue(v_solved, solved, function(n) return tostring(math.floor(n)) end, nil, nil, CLR_WHITE)
+
+                -- Animasi prints (flash hijau)
+                if prints ~= prevPrints then
+                    prevPrints = prints
+                    v_prints.TextColor3 = CLR_GREEN
+                    Services.TweenSvc:Create(v_prints, TweenInfo.new(0.6, Enum.EasingStyle.Quad), { TextColor3 = CLR_WHITE }):Play()
+                end
+                animateValue(v_prints, prints, function(n) return tostring(math.floor(n)) end, nil, nil, CLR_WHITE)
+
+                -- Animasi profit/h
+                animateValue(v_profitH, profitH, fmtShort, CLR_GREEN, CLR_RED, nil)
+
+                -- Ping: flash merah kalau > 200
+                animateValue(v_ping, pingVal, function(n)
+                    return tostring(math.floor(n)) .. " ms"
+                end, nil, nil, pingVal > 200 and CLR_RED or CLR_WHITE)
+
+                -- FPS: warna dinamis
+                local fpsColor = fpsVal >= 30 and CLR_GREEN or (fpsVal >= 15 and CLR_YELLOW or CLR_RED)
+                animateValue(v_fps, fpsVal, function(n) return tostring(math.floor(n)) end, nil, nil, fpsColor)
+
+                -- Uptime: langsung (bukan angka murni)
                 v_uptime.Text = formatTime(uptimeDetik)
+                v_uptime.TextColor3 = CLR_WHITE
             end)
-            task.wait(1)
+
+            -- Update tiap 100ms biar animasi terasa, bukan 1 detik penuh
+            task.wait(0.1)
         end
     end)
 end
@@ -1737,39 +1823,29 @@ local function StartOfficeScript()
     getgenv().UangAwalDikunci = nil
     getgenv().WaktuMulai = tick()
 
+    -- ✅ [DEX] Join team Office Worker dulu sebelum duduk
+    joinOfficeTeam()
+    task.wait(0.8)
+
     if not CharRef.Humanoid or not CharRef.Humanoid.SeatPart then
-        WindUI:Notify({ Title = "🔍 Office", Content = "Finding empty chair & TP...", Duration = 3 })
-        local targetChair = nil
-        
-        pcall(function()
-            for _, comp in pairs(workspace.Computers:GetChildren()) do
-                local chair = comp:FindFirstChild("Chair")
-                if chair and not isChairOccupied(chair) then
-                    targetChair = chair
-                    break
-                end
-            end
-        end)
+        WindUI:Notify({ Title = "🔍 Office", Content = "TP", Duration = 3 })
 
-        if not targetChair then
-            targetChair = findEmptyChair(150)
-        end
+        -- ✅ [DEX] Pakai findOfficeSeat: Computers → Setup → Seat
+        local targetSeat = findOfficeSeat(nil)
 
-        if targetChair then
-            myChair = targetChair
+        if targetSeat then
+            myChair = targetSeat
             dudukKeKursi(true)
         else
-            WindUI:Notify({ Title = "⚠️ Office", Content = "No empty chair found! Please sit manually.", Duration = 5 })
+            WindUI:Notify({ Title = "⚠️ Office", Content = "No empty seat found! Sit manually.", Duration = 5 })
         end
     else
         myChair = CharRef.Humanoid.SeatPart
     end
 
     lastActivityTime = tick()
-    lastSoalChangeTime = tick()
-    failStreak = 0
     buatMonitoringGUI()
-    WindUI:Notify({ Title = "✅ Office", Content = "Auto Office started! Initial money scanned.", Duration = 4 })
+    WindUI:Notify({ Title = "✅ Office", Content = "Auto Office v2 started!", Duration = 4 })
 end
 
 local function StopOfficeScript()
@@ -1777,12 +1853,17 @@ local function StopOfficeScript()
     getgenv().fullAuto = false
     getgenv().forceStopMath = false
     getgenv().isGoingToPrinter = false
-    
+
+    -- ✅ [DEX] Beritahu server kita keluar dari Office Worker
+    pcall(function()
+        Services.ReplicatedStorage:WaitForChild("JobEvents")
+            :WaitForChild("PlayerChangedJob"):FireServer()
+    end)
+
     if CharRef.Humanoid then
         CharRef.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
     end
 
-    CachedTargetLabel, CachedTargetParent, CachedTargetText = nil, nil, nil
     CachedMoneyLabel = nil
     getgenv().UangAwalDikunci = nil
 
@@ -2418,8 +2499,18 @@ Window:SetIconSize(47)
 WindUI:SetTheme("dark")
 TabInfo:Select()
 
+-- // LOCK WINDUI DI DEPAN, MONITORING DI BELAKANG
+pcall(function()
+    local container = (gethui and gethui()) or game:GetService("CoreGui")
+    for _, sg in pairs(container:GetChildren()) do
+        if sg:IsA("ScreenGui") and sg ~= TrackerGui then
+            sg.DisplayOrder = 100   -- paksa semua ScreenGui lain (termasuk WindUI) di atas
+        end
+    end
+end)
+
 WindUI:Notify({
-    Title    = "👑 KING AKBAR V8.2.1 FIXED READY!",
-    Content  = "klikTombol Fallback + Regex Fix + Desimal Fix! Gas AFK!",
+    Title    = "👑 KING AKBAR V9.3 READY!",
+    Content  = "Math solver God Mode: Real Click + Visual Highlight!",
     Duration = 5,
 })
