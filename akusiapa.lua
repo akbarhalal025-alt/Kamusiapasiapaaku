@@ -3,8 +3,10 @@
   👑 KING AKBAR - ULTIMATE AUTO FARM SCRIPT 👑
 ================================================================================
     [+] Developer   : King Akbar
-    [+] Version     : DDS GLOBAL EDITION (v8.3.1)
-    [+] Changelog   : - [FIX] Math solver firesignal only (method pertama)
+    [+] Version     : DDS GLOBAL EDITION (v8.3.2 - F9 CLEAN)
+    [+] Changelog   : - [NEW] safeDestroy (task.defer) → F9 warning spam hilang
+                      - [NEW] ULTRA POTATO MODE (Extreme FPS + Mutual Exclusion)
+                      - [FIX] Math solver firesignal only (method pertama)
                       - [FIX] Monitoring animated numbers (Instance key fix)
                       - [FIX] Anti-Stuck 6s + Stand/Sit auto recovery
                       - [NEW] DEX Office: findOfficeSeat + joinOfficeTeam
@@ -12,9 +14,6 @@
                       - [NEW] Camera Printer fix (Scriptable lock saat hold)
                       - NO-VIM Barista Minigame (SafeClick)
                       - Fast Chair Routing + FULL ENGLISH UI
-                      - [FIX v8.2.1] klikTombol fallback SafeClick posisi absolut
-                      - [FIX v8.2.1] hitungSoal regex lebih robust
-                      - [FIX v8.2.1] getButtonText support desimal
 ================================================================================
 ]]--
 
@@ -24,6 +23,17 @@
 local print = function() end
 local warn = function() end
 local error = function() end
+
+-- ============================================================================
+-- // SAFE DESTROY (ANTI WARNING SPAM - F9 CLEAN)
+-- ============================================================================
+local function safeDestroy(obj)
+    task.defer(function()
+        pcall(function()
+            if obj and obj.Parent then obj:Destroy() end
+        end)
+    end)
+end
 
 -- ============================================================================
 -- // 0. ULTIMATE FULL BYPASS V3 (Zero-Lag / Anti FPS Drop + WRONGTEAM BLOCK)
@@ -96,8 +106,8 @@ do
             if name:find("adonis") or name:find("ae_") or name:find("admin") or name:find("anticheat") or name:find("detector") then
                 pcall(function()
                     if v:IsA("LocalScript") or v:IsA("ModuleScript") or v:IsA("Script") then v.Disabled = true end
-                    v:Destroy()
                 end)
+                safeDestroy(v)
             end
         end
     end
@@ -117,8 +127,8 @@ do
             if name:find("adonis") or name:find("ae_") or name:find("admin") or name:find("anticheat") or name:find("detector") then
                 pcall(function()
                     if child:IsA("LocalScript") or child:IsA("ModuleScript") or child:IsA("Script") then child.Disabled = true end
-                    child:Destroy()
                 end)
+                safeDestroy(child)
             end
         end)
     end
@@ -263,9 +273,6 @@ LocalPlayer.Idled:Connect(function()
         end)
     end
 end)
-
-
-
 
 -- ============================================================================
 -- // 3.5 FAKE NAME SYSTEM
@@ -587,7 +594,7 @@ local Paths = {
 }
 
 -- ============================================================================
--- // 9. PERFORMANCE SYSTEMS (BLACK SCREEN + ANTI-LAG)
+-- // 9. PERFORMANCE SYSTEMS (BLACK SCREEN + ANTI-LAG + ULTRA POTATO)
 -- ============================================================================
 local BlackGui
 local function ToggleBlackScreen(on)
@@ -624,7 +631,114 @@ local function isLaggy(inst)
     return false
 end
 
+-- Declare Potato variables first so ToggleAntiLag can reference them
+local PotatoActive = false
+local PotatoConns = {}
+
+local function TogglePotatoMode(on)
+    if on and AntiLagActive then
+        ToggleAntiLag(false)
+    end
+    PotatoActive = on
+    
+    if on then
+        pcall(function()
+            settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+            pcall(function() settings().Rendering.MeshQuality = Enum.QualityLevel.Level01 end)
+            pcall(function() settings().Rendering.TextureQuality = Enum.QualityLevel.Level01 end)
+            pcall(function() settings().Rendering.GraphicsQuality = Enum.QualityLevel.Level01 end)
+            pcall(function() settings().Rendering.ShadowsQuality = Enum.QualityLevel.Level01 end)
+        end)
+        
+        pcall(function()
+            local Lighting = game:GetService("Lighting")
+            Lighting.GlobalShadows = false
+            Lighting.FogEnd = 10
+            Lighting.Brightness = 0
+            Lighting.TimeOfDay = "12:00:00"
+            for _, v in pairs(Lighting:GetDescendants()) do
+                if v:IsA("PostEffect") or v:IsA("Atmosphere") or v:IsA("Sky") or v:IsA("Clouds") or v:IsA("ColorCorrectionEffect") or v:IsA("BloomEffect") or v:IsA("BlurEffect") or v:IsA("DepthOfFieldEffect") or v:IsA("SunRaysEffect") then
+                    pcall(function() v.Enabled = false end)
+                end
+            end
+        end)
+        
+        task.spawn(function()
+            for _, v in pairs(Services.Workspace:GetDescendants()) do
+                if v:IsA("ParticleEmitter") or v:IsA("Smoke") or v:IsA("Fire") or 
+                   v:IsA("Explosion") or v:IsA("Beam") or v:IsA("Trail") or 
+                   v:IsA("Sparkles") or v:IsA("Sound") or v:IsA("Decal") or 
+                   v:IsA("Texture") or v:IsA("PointLight") or v:IsA("SpotLight") or 
+                   v:IsA("SurfaceLight") then
+                    safeDestroy(v)
+                elseif v:IsA("MeshPart") then
+                    pcall(function() v.TextureID = ""; v.MeshId = "" end)
+                elseif v:IsA("BasePart") then
+                    pcall(function() v.Material = Enum.Material.SmoothPlastic end)
+                end
+            end
+        end)
+        
+        pcall(function()
+            Services.Workspace.Terrain:Clear()
+            Services.Workspace.Terrain.WaterWaveSize = 0
+            Services.Workspace.Terrain.WaterWaveSpeed = 0
+            Services.Workspace.Terrain.WaterReflectance = 0
+        end)
+        
+        pcall(function()
+            local c1 = Services.Workspace.DescendantAdded:Connect(function(v)
+                if PotatoActive then
+                    if v:IsA("ParticleEmitter") or v:IsA("Smoke") or v:IsA("Fire") or 
+                       v:IsA("Explosion") or v:IsA("Beam") or v:IsA("Trail") or 
+                       v:IsA("Sparkles") or v:IsA("Sound") or v:IsA("Decal") or 
+                       v:IsA("Texture") or v:IsA("PointLight") or v:IsA("SpotLight") or 
+                       v:IsA("SurfaceLight") then
+                        safeDestroy(v)
+                    elseif v:IsA("MeshPart") then
+                        pcall(function() v.TextureID = ""; v.MeshId = "" end)
+                    elseif v:IsA("BasePart") then
+                        pcall(function() v.Material = Enum.Material.SmoothPlastic end)
+                    end
+                end
+            end)
+            table.insert(PotatoConns, c1)
+            
+            local c2 = Services.Workspace.Terrain.DescendantAdded:Connect(function(v)
+                if PotatoActive then safeDestroy(v) end
+            end)
+            table.insert(PotatoConns, c2)
+            
+            local c3 = Services.Lighting.ChildAdded:Connect(function(v)
+                if PotatoActive and (v:IsA("PostEffect") or v:IsA("Atmosphere") or v:IsA("Sky") or v:IsA("Clouds")) then
+                    pcall(function() v.Enabled = false end)
+                    safeDestroy(v)
+                end
+            end)
+            table.insert(PotatoConns, c3)
+        end)
+        
+    else
+        for _, conn in ipairs(PotatoConns) do
+            pcall(function() conn:Disconnect() end)
+        end
+        PotatoConns = {}
+        
+        pcall(function()
+            settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
+        end)
+        pcall(function()
+            game:GetService("Lighting").GlobalShadows = true
+            game:GetService("Lighting").FogEnd = 100000
+            game:GetService("Lighting").Brightness = 2
+        end)
+    end
+end
+
 local function ToggleAntiLag(on)
+    if on and PotatoActive then
+        TogglePotatoMode(false)
+    end
     AntiLagActive = on
     if on then
         pcall(function()
@@ -636,14 +750,14 @@ local function ToggleAntiLag(on)
 
         task.spawn(function()
             for _, v in pairs(Services.Workspace:GetDescendants()) do
-                if isLaggy(v) then pcall(function() v:Destroy() end) end
+                if isLaggy(v) then safeDestroy(v) end
             end
         end)
 
         if not AntiLagConn then
             AntiLagConn = Services.Workspace.DescendantAdded:Connect(function(v)
                 if AntiLagActive and isLaggy(v) then
-                    pcall(function() v:Destroy() end)
+                    safeDestroy(v)
                 end
             end)
         end
@@ -1186,10 +1300,6 @@ local JobEvents = ReplicatedStorage:WaitForChild("JobEvents")
 local GenerateQuestion = JobEvents:WaitForChild("GenerateQuestion")
 local CorrectAnswer = JobEvents:WaitForChild("CorrectAnswer")
 
-print("===============================================")
-print("[AUTO-MATH] KING AKBAR v9.3 God Mode Aktif! (Smart-Wait + Visual)")
-print("===============================================")
-
 -- Evaluasi matematika ringan (Hanya Tambah & Kurang)
 local function evaluateMath(text)
     local cleanText = string.gsub(text, "<[^>]+>", "")
@@ -1236,7 +1346,7 @@ local function clearHighlights()
     if not gui then return end
     for _, obj in ipairs(gui:GetDescendants()) do
         if obj.Name == "AutoMathHighlight" then
-            obj:Destroy()
+            safeDestroy(obj)
         end
     end
 end
@@ -1258,7 +1368,7 @@ local function unhighlightLater(btn, delaySec)
         local s = btn:FindFirstChild("AutoMathHighlight")
         if s then
             TweenService:Create(s, TweenInfo.new(0.2), {Thickness = 0}):Play()
-            task.delay(0.25, function() pcall(function() s:Destroy() end) end)
+            task.delay(0.25, function() safeDestroy(s) end)
         end
     end)
 end
@@ -1294,15 +1404,8 @@ end
 GenerateQuestion.OnClientEvent:Connect(function(questionText, answerData, sessionID)
     if State and State.IsOfficeActive == false then return end
 
-    print("[AUTO-MATH] ---------------------------------")
-    print("[AUTO-MATH] Menerima soal: " .. tostring(questionText))
-
     local jawaban = evaluateMath(questionText)
-    if not jawaban then
-        warn("[AUTO-MATH] Gagal mengeksekusi rumus matematika!")
-        return
-    end
-    print("[AUTO-MATH] Kalkulasi selesai: " .. tostring(jawaban))
+    if not jawaban then return end
 
     local correctAnswerID = nil
     if type(answerData) == "table" then
@@ -1319,10 +1422,7 @@ GenerateQuestion.OnClientEvent:Connect(function(questionText, answerData, sessio
     local correctButton = findCorrectButton(jawaban, 2.5)
 
     -- 2) Pasang highlight putih
-    if correctButton then
-        highlightButton(correctButton)
-        print("[AUTO-MATH] Highlight putih dipasang di tombol [" .. tostring(correctButton.Text) .. "]")
-    end
+    if correctButton then highlightButton(correctButton) end
 
     -- 3) Jeda manusiawi 1.5-3 dtk (highlight sempat kelihatan)
     task.wait(math.random(15, 30) / 10)
@@ -1338,21 +1438,16 @@ GenerateQuestion.OnClientEvent:Connect(function(questionText, answerData, sessio
     -- 5) Klik!
     if correctButton then
         local method = pressButton(correctButton)
-        if method then
-            print("[AUTO-MATH] Jawaban disubmit via " .. method .. " → tombol [" .. tostring(correctButton.Text) .. "]")
-        else
+        if not method then
             pcall(function()
                 CorrectAnswer:FireServer(correctAnswerID, sessionID, correctButton)
             end)
-            print("[AUTO-MATH] Fallback FireServer + instance tombol dikirim.")
         end
         unhighlightLater(correctButton, 0.4)
     elseif correctAnswerID then
-        warn("[AUTO-MATH] Tombol UI tidak ditemukan, FireServer manual...")
         CorrectAnswer:FireServer(correctAnswerID, sessionID)
         clearHighlights()
     else
-        warn("[AUTO-MATH] Gagal menemukan UUID/tombol untuk angka: " .. tostring(jawaban))
         clearHighlights()
     end
 
@@ -1415,7 +1510,6 @@ end)
 local JobEvents      = Services.ReplicatedStorage:WaitForChild("JobEvents")
 local AssignPrintJob = JobEvents:WaitForChild("AssignPrintJob")
 local ClearPrintJob  = JobEvents:WaitForChild("ClearPrintJob")
--- ComputersFolder sudah dideklarasi di atas
 
 local activePrinterName = nil
 
@@ -1607,11 +1701,10 @@ end
 -- // MONITORING GUI — ANIMATED NUMBERS
 -- ============================================================================
 
--- Animasi angka: key pakai Instance reference langsung (bukan tostring yang balik "Label" sama untuk semua)
 local DisplayedValues = {}
 
 local function animateValue(label, targetNum, formatter, colorPos, colorNeg, colorNeutral)
-    local key = label  -- ✅ Instance reference = unik per label, bukan "Label" string yang sama
+    local key = label
     if DisplayedValues[key] == nil then
         DisplayedValues[key] = targetNum
     end
@@ -1641,14 +1734,13 @@ local function buatMonitoringGUI()
     getgenv().WaktuMulai = getgenv().WaktuMulai or tick()
 
     local uangAwal = getgenv().UangAwalDikunci
-    DisplayedValues = {}  -- reset animasi saat mulai
+    DisplayedValues = {}
 
     if TrackerGui and TrackerGui.Parent then TrackerGui:Destroy() end
     TrackerGui = Instance.new("ScreenGui")
     TrackerGui.Name = "KingAkbarTracker"
     TrackerGui.Parent = CoreGui
 
-    -- Frame utama
     local Frame = Instance.new("Frame")
     Frame.Size        = UDim2.new(0, 228, 0, 0)
     Frame.Position    = UDim2.new(1, -16, 0.5, 0)
@@ -1669,7 +1761,6 @@ local function buatMonitoringGUI()
     local List = Instance.new("UIListLayout", Frame)
     List.Padding = UDim.new(0, 7); List.SortOrder = Enum.SortOrder.LayoutOrder
 
-    -- Header
     local H = Instance.new("Frame", Frame)
     H.Size = UDim2.new(1,0,0,36); H.BackgroundTransparency = 1; H.LayoutOrder = 1
     local Img = Instance.new("ImageLabel", H)
@@ -1688,12 +1779,10 @@ local function buatMonitoringGUI()
     SubLbl.TextColor3 = Color3.fromRGB(90,90,100); SubLbl.Font = Enum.Font.Gotham
     SubLbl.TextSize = 9; SubLbl.TextXAlignment = Enum.TextXAlignment.Left
 
-    -- Divider
     local Div = Instance.new("Frame", Frame)
     Div.Size = UDim2.new(1,0,0,1); Div.BackgroundColor3 = Color3.fromRGB(55,55,62)
     Div.BorderSizePixel = 0; Div.LayoutOrder = 2
 
-    -- Helper buat baris dua kolom
     local function baris(iconL, labelL, iconR, labelR, order)
         local R = Instance.new("Frame", Frame)
         R.Size = UDim2.new(1,0,0,34); R.BackgroundTransparency = 1; R.LayoutOrder = order
@@ -1722,13 +1811,11 @@ local function buatMonitoringGUI()
         return lv, rv
     end
 
-    -- Baris data
     local v_initial, v_profit  = baris("💵","Initial",  "💰","Profit",   3)
     local v_solved,  v_prints  = baris("📝","Solved",   "🖨️","Prints",   4)
     local v_profitH, v_ping    = baris("⚡","Profit/H", "📶","Ping",     5)
     local v_fps,     v_uptime  = baris("🎮","FPS",      "⏱️","Uptime",   6)
 
-    -- Warna khusus
     local CLR_WHITE  = Color3.fromRGB(225,225,230)
     local CLR_GREEN  = Color3.fromRGB(80, 210, 120)
     local CLR_RED    = Color3.fromRGB(230, 80,  80)
@@ -1736,7 +1823,6 @@ local function buatMonitoringGUI()
 
     v_initial.Text = fmtRupiah(uangAwal)
 
-    -- ✅ Loop update + animasi angka
     task.spawn(function()
         local prevProfit  = 0
         local prevSolved  = 0
@@ -1766,19 +1852,15 @@ local function buatMonitoringGUI()
                 pcall(function() pingVal = math.floor(Services.Stats.Network.ServerStatsItem["Data Ping"]:GetValue()) end)
                 pcall(function() fpsVal  = math.floor(workspace:GetRealPhysicsFPS()) end)
 
-                -- Animasi profit (smooth counter, warna hijau/merah)
                 animateValue(v_profit, profit, fmtProfit, CLR_GREEN, CLR_RED, nil)
 
-                -- Animasi solved (hanya counter naik)
                 if solved ~= prevSolved then
                     prevSolved = solved
-                    -- Flash kuning sebentar lalu balik putih
                     v_solved.TextColor3 = CLR_YELLOW
                     Services.TweenSvc:Create(v_solved, TweenInfo.new(0.6, Enum.EasingStyle.Quad), { TextColor3 = CLR_WHITE }):Play()
                 end
                 animateValue(v_solved, solved, function(n) return tostring(math.floor(n)) end, nil, nil, CLR_WHITE)
 
-                -- Animasi prints (flash hijau)
                 if prints ~= prevPrints then
                     prevPrints = prints
                     v_prints.TextColor3 = CLR_GREEN
@@ -1786,24 +1868,19 @@ local function buatMonitoringGUI()
                 end
                 animateValue(v_prints, prints, function(n) return tostring(math.floor(n)) end, nil, nil, CLR_WHITE)
 
-                -- Animasi profit/h
                 animateValue(v_profitH, profitH, fmtShort, CLR_GREEN, CLR_RED, nil)
 
-                -- Ping: flash merah kalau > 200
                 animateValue(v_ping, pingVal, function(n)
                     return tostring(math.floor(n)) .. " ms"
                 end, nil, nil, pingVal > 200 and CLR_RED or CLR_WHITE)
 
-                -- FPS: warna dinamis
                 local fpsColor = fpsVal >= 30 and CLR_GREEN or (fpsVal >= 15 and CLR_YELLOW or CLR_RED)
                 animateValue(v_fps, fpsVal, function(n) return tostring(math.floor(n)) end, nil, nil, fpsColor)
 
-                -- Uptime: langsung (bukan angka murni)
                 v_uptime.Text = formatTime(uptimeDetik)
                 v_uptime.TextColor3 = CLR_WHITE
             end)
 
-            -- Update tiap 100ms biar animasi terasa, bukan 1 detik penuh
             task.wait(0.1)
         end
     end)
@@ -1824,14 +1901,12 @@ local function StartOfficeScript()
     getgenv().UangAwalDikunci = nil
     getgenv().WaktuMulai = tick()
 
-    -- ✅ [DEX] Join team Office Worker dulu sebelum duduk
     joinOfficeTeam()
     task.wait(0.8)
 
     if not CharRef.Humanoid or not CharRef.Humanoid.SeatPart then
         WindUI:Notify({ Title = "🔍 Office", Content = "TP", Duration = 3 })
 
-        -- ✅ [DEX] Pakai findOfficeSeat: Computers → Setup → Seat
         local targetSeat = findOfficeSeat(nil)
 
         if targetSeat then
@@ -1855,7 +1930,6 @@ local function StopOfficeScript()
     getgenv().forceStopMath = false
     getgenv().isGoingToPrinter = false
 
-    -- ✅ [DEX] Beritahu server kita keluar dari Office Worker
     pcall(function()
         Services.ReplicatedStorage:WaitForChild("JobEvents")
             :WaitForChild("PlayerChangedJob"):FireServer()
@@ -2227,7 +2301,8 @@ local function InjectMesin(HP_Mult, RPM_Add, Ratio_Mult, FD_Mult, NamaMode)
                     local name = string.lower(s.Name)
                     if string.find(name, "limit") or string.find(name, "speed") or string.find(name, "cap") then
                         if name ~= "a-chassis interface" and name ~= "drive" then
-                            pcall(function() s.Disabled = true s:Destroy() end)
+                            pcall(function() s.Disabled = true end)
+                            safeDestroy(s)
                         end
                     end
                 end
@@ -2373,6 +2448,14 @@ SectionAntiLag:Toggle({
     Callback = function(on) ToggleAntiLag(on) end
 })
 
+local SectionPotato = TabPerf:Section({ Title = "Ultra Potato Mode", Box = true, BoxBorder = true, Opened = false })
+SectionPotato:Toggle({
+    Title = "Enable Potato Mode (EXTREME)",
+    Desc = "Destroys terrain, meshes, lighting, sounds, textures for MAX FPS. Mutually exclusive with Anti-Lag.",
+    Value = false,
+    Callback = function(on) TogglePotatoMode(on) end
+})
+
 local TabCfg = Window:Tab({ Title = "Settings", Icon = "settings", Border = true })
 
 local Konfigurasi = TabCfg:Section({ Title = "Configuration", Box = true, BoxBorder = true, Opened = false })
@@ -2501,7 +2584,7 @@ WindUI:SetTheme("dark")
 TabInfo:Select()
 
 WindUI:Notify({
-    Title    = "👑 KING AKBAR V9.3 READY!",
-    Content  = "Math solver God Mode: Real Click + Visual Highlight!",
+    Title    = "👑 KING AKBAR V8.3.2 READY!",
+    Content  = "F9 Clean Edition: safeDestroy aktif, warning spam hilang!",
     Duration = 5,
 })
