@@ -264,6 +264,9 @@ LocalPlayer.Idled:Connect(function()
     end
 end)
 
+
+
+
 -- ============================================================================
 -- // 3.5 FAKE NAME SYSTEM
 -- ============================================================================
@@ -1643,8 +1646,6 @@ local function buatMonitoringGUI()
     if TrackerGui and TrackerGui.Parent then TrackerGui:Destroy() end
     TrackerGui = Instance.new("ScreenGui")
     TrackerGui.Name = "KingAkbarTracker"
-    TrackerGui.ResetOnSpawn = false
-    TrackerGui.DisplayOrder = 1   -- ✅ taruh di layer belakang
     TrackerGui.Parent = CoreGui
 
     -- Frame utama
@@ -2498,16 +2499,6 @@ end)
 Window:SetIconSize(47)
 WindUI:SetTheme("dark")
 TabInfo:Select()
-
--- // LOCK WINDUI DI DEPAN, MONITORING DI BELAKANG
-pcall(function()
-    local container = (gethui and gethui()) or game:GetService("CoreGui")
-    for _, sg in pairs(container:GetChildren()) do
-        if sg:IsA("ScreenGui") and sg ~= TrackerGui then
-            sg.DisplayOrder = 100   -- paksa semua ScreenGui lain (termasuk WindUI) di atas
-        end
-    end
-end)
 
 WindUI:Notify({
     Title    = "👑 KING AKBAR V9.3 READY!",
