@@ -1292,7 +1292,6 @@ end
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
-local VirtualInputManager = game:GetService("VirtualInputManager")
 local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
 
@@ -1375,7 +1374,7 @@ end
 -- ===================================================================
 
 local function pressButton(btn)
-    -- METODE 1: handler asli game
+    -- METODE 1: handler asli game (getconnections)
     if getconnections then
         for _, signal in ipairs({btn.MouseButton1Click, btn.Activated}) do
             for _, conn in ipairs(getconnections(signal)) do
@@ -1387,17 +1386,15 @@ local function pressButton(btn)
             end
         end
     end
-    -- METODE 2: klik virtual
+    -- METODE 2: SafeClick (100% Non‑VIM)
     local ok = pcall(function()
         local pos = btn.AbsolutePosition
         local size = btn.AbsoluteSize
         local x = pos.X + size.X / 2
         local y = pos.Y + size.Y / 2
-        VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
-        task.wait(0.06)
-        VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 1)
+        SafeClick(x, y, 0.06)  -- hold singkat agar terdeteksi klik
     end)
-    if ok then return "virtual-click" end
+    if ok then return "safe-click" end
     return nil
 end
 
