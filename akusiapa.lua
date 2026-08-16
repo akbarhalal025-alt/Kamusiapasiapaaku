@@ -3,17 +3,7 @@
   👑 KING AKBAR - ULTIMATE AUTO FARM SCRIPT 👑
 ================================================================================
     [+] Developer   : King Akbar
-    [+] Version     : DDS GLOBAL EDITION (v8.3.2 - F9 CLEAN)
-    [+] Changelog   : - [NEW] safeDestroy (task.defer) → F9 warning spam hilang
-                      - [NEW] ULTRA POTATO MODE (Extreme FPS + Mutual Exclusion)
-                      - [FIX] Math solver firesignal only (method pertama)
-                      - [FIX] Monitoring animated numbers (Instance key fix)
-                      - [FIX] Anti-Stuck 6s + Stand/Sit auto recovery
-                      - [NEW] DEX Office: findOfficeSeat + joinOfficeTeam
-                      - [NEW] PlayerChangedJob:FireServer saat stop Office
-                      - [NEW] Camera Printer fix (Scriptable lock saat hold)
-                      - NO-VIM Barista Minigame (SafeClick)
-                      - Fast Chair Routing + FULL ENGLISH UI
+    [+] Game        : Drag Drive Simulator
 ================================================================================
 ]]--
 
@@ -36,112 +26,239 @@ local function safeDestroy(obj)
 end
 
 -- ============================================================================
--- // 0. ULTIMATE FULL BYPASS V3 (Zero-Lag / Anti FPS Drop + WRONGTEAM BLOCK)
+-- // 0. ULTIMATE BYPASS V7.0 "GACOR" — DDS TARGETED
 -- ============================================================================
 do
     local LocalPlayer = game:GetService("Players").LocalPlayer
+    local RS          = game:GetService("ReplicatedStorage")
 
-    pcall(function()
-        for k, v in pairs(getgc(true)) do
-            if pcall(function() return rawget(v, "indexInstance") end) and type(rawget(v, "indexInstance")) == "table" and (rawget(v, "indexInstance"))[1] == "kick" then
-                setreadonly(v, false)
-                v.tvk = { "kick", function() return game.Workspace:WaitForChild("") end }
-            end
-        end
-    end)
+    -- Logger internal (silent)
+    local function BLog(msg)  end
+    local function BWarn(msg) end
 
+    -- ── [1] INDEXINSTANCE NEUTRALIZER ──────────────────────────────────
     pcall(function()
-        local requestFunc = (syn and syn.request) or http_request or (fluxus and fluxus.request) or request or (http and http.request)
-        if requestFunc then
-            local oldRequest = requestFunc
-            hookfunction(requestFunc, function(opts)
-                local url = string.lower(tostring(opts.Url or opts.url or ""))
-                if not (url:find("roblox.com") or url:find("rbxcdn")) then
-                    return { StatusCode = 200, Body = "{\"success\":true}", Success = true }
+        if not getgc then return end
+        for _, v in pairs(getgc(true)) do
+            pcall(function()
+                local idx = rawget(v, "indexInstance")
+                if type(idx) == "table" and idx[1] == "kick" then
+                    setreadonly(v, false)
+                    v.tvk = { "kick", function() return game.Workspace:WaitForChild("") end }
+                    BLog("IndexInstance kick dinetralkan")
                 end
-                return oldRequest(opts)
             end)
         end
     end)
 
+    -- ── [2] HTTP WEBHOOK BLOCKER ───────────────────────────────────────
+    pcall(function()
+        local requestFunc =
+            (syn and syn.request) or http_request or
+            (fluxus and fluxus.request) or request or
+            (http and http.request)
+        if not requestFunc or not hookfunction then return end
+
+        local oldReq = requestFunc
+        hookfunction(requestFunc, function(opts)
+            local url = string.lower(tostring(opts and (opts.Url or opts.url) or ""))
+            local safe = url:find("roblox%.com") or url:find("rbxcdn%.com") or url == ""
+            if not safe then
+                BWarn("HTTP diblokir: " .. url)
+                return { StatusCode = 200, Body = '{"success":true}', Success = true, Headers = {} }
+            end
+            return oldReq(opts)
+        end)
+        BLog("HTTP Blocker aktif")
+    end)
+
+    -- ── [3] METATABLE HOOK — Anti-Kick + DDS Remote Blocker ───────────
     pcall(function()
         local mt = getrawmetatable(game)
-        local oldNamecall = mt.__namecall
-        if setreadonly then setreadonly(mt, false) end
-        
+        if not mt then return end
+        local oldNamecall = rawget(mt, "__namecall")
+        if not oldNamecall then return end
+        if not pcall(setreadonly, mt, false) then return end
+
+        -- Remote DDS berbahaya (hasil scan) — HANYA nama spesifik, bukan keyword lebar
+        local BLOCK_FIRE = {
+            ["admin"]              = true,   -- ReplicatedStorage.Admin.Admin
+            ["reportmessageevent"] = true,   -- ReplicatedStorage.ReportMessageEvent
+            ["0bde16ec-a0df-43fe-ba4b-b1fca4f092ee"] = true,  -- UUID AC tersembunyi
+        }
+        -- Remote function yang di-spoof
+        local SPOOF_INVOKE = {
+            ["requestadminstatus"] = false,  -- bukan admin → server tidak curiga
+        }
+
+        setreadonly(mt, false)
         mt.__namecall = newcclosure(function(self, ...)
-            local method = getnamecallmethod()
-            
-            if (method == "Kick" or method == "kick" or method == "Disconnect") and self == LocalPlayer then
-                return wait(9e9)
+            local method = getnamecallmethod and getnamecallmethod() or ""
+
+            -- Anti-Kick & Disconnect LocalPlayer
+            if (method == "Kick" or method == "kick" or method == "Disconnect")
+                and tostring(self) == tostring(LocalPlayer)
+            then
+                -- Izinkan kick kalau dari script sendiri (target profit)
+                if getgenv().allowSelfKick then
+                    getgenv().allowSelfKick = false
+                    return oldNamecall(self, ...)
+                end
+                BWarn("Kick diblokir!")
+                return  -- return biasa, tidak wait(9e9) yg bikin hang
             end
-            
-            if method == "FireServer" or method == "InvokeServer" then
-                local remoteName = string.lower(tostring(self.Name))
-                local parentName = self.Parent and string.lower(tostring(self.Parent.Name)) or ""
-                
-                if remoteName:find("adonis") or parentName:find("adonis") or 
-                   remoteName:find("anticheat") or remoteName:find("detector") or 
-                   remoteName:find("admin") or remoteName:find("log") or 
-                   remoteName:find("report") or remoteName:find("wrongteam") then
+
+            -- Blokir FireServer ke remote AC DDS
+            if method == "FireServer" then
+                local ok, name = pcall(function()
+                    return string.lower(tostring(self.Name))
+                end)
+                if ok and BLOCK_FIRE[name] then
+                    BWarn("FireServer diblokir: " .. name)
                     return nil
                 end
             end
+
+            -- Spoof InvokeServer
+            if method == "InvokeServer" then
+                local ok, name = pcall(function()
+                    return string.lower(tostring(self.Name))
+                end)
+                if ok and SPOOF_INVOKE[name] ~= nil then
+                    BWarn("InvokeServer dispoofed: " .. name)
+                    return SPOOF_INVOKE[name]
+                end
+            end
+
             return oldNamecall(self, ...)
         end)
-        if setreadonly then setreadonly(mt, true) end
+        setreadonly(mt, true)
+        BLog("Metatable Hook aktif (Anti-Kick + Remote Blocker)")
     end)
 
-    pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/Pixeluted/adoniscries/main/Source.lua", true))() end)
-    pcall(function() loadstring(game:HttpGet('https://raw.githubusercontent.com/SUUUUUS00000/MEGGD-Anti-kick/refs/heads/main/MEGGD%20Best%20Anti-kick.lua'))() end)
+    -- ── [4] WRONGTEAMEVENT INTERCEPTOR ────────────────────────────────
+    task.spawn(function()
+        local jobEv = RS:WaitForChild("JobEvents", 10)
+        if not jobEv then return end
+        local wte = jobEv:WaitForChild("WrongTeamEvent", 5)
+        if not wte then return end
+        wte.OnClientEvent:Connect(function()
+            BWarn("WrongTeamEvent dari server — DIABAIKAN")
+        end)
+        BLog("WrongTeamEvent interceptor aktif")
+    end)
 
-    local hui = gethui and gethui() or game:GetService("CoreGui")
-    local pg = LocalPlayer:WaitForChild("PlayerGui")
-    local cg = game:GetService("CoreGui")
-
-    local function killCheat(parent)
-        if not parent then return end
-        for _, v in pairs(parent:GetChildren()) do
-            local name = string.lower(v.Name)
-            if name:find("adonis") or name:find("ae_") or name:find("admin") or name:find("anticheat") or name:find("detector") then
-                pcall(function()
-                    if v:IsA("LocalScript") or v:IsA("ModuleScript") or v:IsA("Script") then v.Disabled = true end
+    -- ── [5] UUID AC REMOTE NEUTRALIZER ────────────────────────────────
+    task.spawn(function()
+        local UUID = "0bde16ec-a0df-43fe-ba4b-b1fca4f092ee"
+        local rem = RS:WaitForChild(UUID, 5)
+        if not rem then BLog("UUID AC tidak aktif sesi ini") return end
+        pcall(function()
+            if rem:IsA("RemoteEvent") then
+                rem.OnClientEvent:Connect(function()
+                    BWarn("UUID AC fired — DIABAIKAN")
                 end)
-                safeDestroy(v)
             end
+        end)
+        pcall(function()
+            local fn = rem:FindFirstChildWhichIsA("RemoteFunction")
+            if fn then fn.OnClientInvoke = function() return nil end end
+        end)
+        BLog("UUID AC dinetralkan: " .. UUID)
+    end)
+
+    -- ── [6] SMART AC SCRIPT KILLER ────────────────────────────────────
+    local AC_KW = {
+        "adonis","ae_","anticheat","anti_cheat","cheatdetect",
+        "adminscript","bansystem","kicksystem","hackdetect",
+        "exploitdetect","injectioncheck"
+    }
+    local killedSet = {}
+
+    local function isAC(name)
+        local low = string.lower(name)
+        for _, kw in ipairs(AC_KW) do
+            if low:find(kw, 1, true) then return true end
         end
+        return false
     end
 
-    task.spawn(function()
-        while task.wait(2) do
-            pcall(killCheat, pg)
-            pcall(killCheat, cg)
-            pcall(killCheat, hui)
-        end
-    end)
-
-    local function monitor(parent)
+    local function killAC(parent)
         if not parent then return end
-        parent.ChildAdded:Connect(function(child)
-            local name = string.lower(child.Name)
-            if name:find("adonis") or name:find("ae_") or name:find("admin") or name:find("anticheat") or name:find("detector") then
-                pcall(function()
-                    if child:IsA("LocalScript") or child:IsA("ModuleScript") or child:IsA("Script") then child.Disabled = true end
-                end)
-                safeDestroy(child)
+        pcall(function()
+            for _, v in pairs(parent:GetChildren()) do
+                local name = string.lower(v.Name)
+                if isAC(name) then
+                    pcall(function()
+                        if v:IsA("LocalScript") or v:IsA("ModuleScript") or v:IsA("Script") then
+                            if not v.Disabled then
+                                v.Disabled = true
+                                if not killedSet[v] then
+                                    BWarn("AC Script dimatikan: " .. v.Name)
+                                    killedSet[v] = true
+                                end
+                            end
+                        end
+                    end)
+                    safeDestroy(v)
+                end
             end
         end)
     end
 
-    pcall(monitor, pg)
-    pcall(monitor, cg)
-    pcall(monitor, hui)
+    local gui_services = {
+        LocalPlayer:WaitForChild("PlayerGui"),
+        game:GetService("CoreGui"),
+        gethui and gethui() or game:GetService("CoreGui"),
+    }
+
+    -- Scan pertama
+    for _, svc in ipairs(gui_services) do pcall(killAC, svc) end
+
+    -- Loop tiap 3 detik
+    task.spawn(function()
+        while task.wait(3) do
+            for _, svc in ipairs(gui_services) do pcall(killAC, svc) end
+        end
+    end)
+
+    -- ChildAdded monitor (real-time)
+    for _, svc in ipairs(gui_services) do
+        pcall(function()
+            svc.ChildAdded:Connect(function(child)
+                if isAC(child.Name) then
+                    pcall(function()
+                        if child:IsA("LocalScript") or child:IsA("ModuleScript") or child:IsA("Script") then
+                            child.Disabled = true
+                            BWarn("AC Script baru dicegah: " .. child.Name)
+                        end
+                    end)
+                    safeDestroy(child)
+                end
+            end)
+        end)
+    end
+
+    BLog("Smart AC Killer aktif (scan 3s + ChildAdded monitor)")
+
+    -- ── [7] EXTERNAL BYPASS ───────────────────────────────────────────
+    task.spawn(function()
+        local ok1, e1 = pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/Pixeluted/adoniscries/main/Source.lua", true))()
+        end)
+        BLog(ok1 and "AdonisCries loaded" or "AdonisCries gagal: " .. tostring(e1))
+
+        task.wait(1)
+
+        local ok2, e2 = pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/SUUUUUS00000/MEGGD-Anti-kick/refs/heads/main/MEGGD%20Best%20Anti-kick.lua"))()
+        end)
+        BLog(ok2 and "MEGGD Anti-Kick loaded" or "MEGGD gagal: " .. tostring(e2))
+    end)
 end
 
 -- ============================================================================
 -- // 1. LOAD WINDUI (SAFE)
--- ============================================================================
-local WindUI
 do
     local ok, result = pcall(function()
         return loadstring(game:HttpGet(
@@ -263,6 +380,7 @@ local State = {
     CourierDelivered   = 0,
     FakeNameActive     = false,
     FakeName           = "King Akbar",
+    TargetProfit       = 0,  -- 0 = tidak ada batas, isi angka = auto kick saat profit tercapai
 }
 
 LocalPlayer.Idled:Connect(function()
@@ -380,46 +498,38 @@ end
 -- ============================================================================
 -- // 6. ADMIN SENSOR
 -- ============================================================================
-local GAME_GROUP_ID  = 11378976 
-local MIN_STAFF_RANK = 2 
+local GAME_GROUP_ID  = 11378976
+local MIN_STAFF_RANK = 2
 
 local BlacklistedNames = {
-    "slametriyadi", 
-    "admin", 
+    "slametriyadi",
+    "admin",
     "moderator",
     "developer"
 }
 
 local function CheckForAdmin(player)
     if not State.AntiAdmin or player == LocalPlayer then return end
-    
     local isStaff = false
-
     local pName = string.lower(player.Name)
     local dName = string.lower(player.DisplayName)
     for _, badName in ipairs(BlacklistedNames) do
         if pName:find(badName) or dName:find(badName) then
-            isStaff = true
-            break
+            isStaff = true; break
         end
     end
-
     if not isStaff then
         pcall(function()
             local rank = player:GetRankInGroup(GAME_GROUP_ID)
-            if rank >= MIN_STAFF_RANK then
-                isStaff = true
-            end
+            if rank >= MIN_STAFF_RANK then isStaff = true end
         end)
     end
-
     if not isStaff then
         pcall(function()
             local chatTag = player:GetAttributeInHierarchy("ChatTags") or player:GetAttribute("IsAdmin")
             if chatTag then isStaff = true end
         end)
     end
-
     if isStaff then
         State.LastStopReason = "Admin detected: " .. player.Name
         rWait(0.2, 0.5)
@@ -527,7 +637,7 @@ do
         for _, s in ipairs({
             { "Preparing RNG Bot...", 0.30 },
             { "Activating Emergency Alarm...", 0.60 },
-            { "Welcome, King Akbar!",     1.00 },
+            { "Welcome, King Akbar!", 1.00 },
         }) do
             stat.Text = s[1]
             tw(bar, { Size = UDim2.fromOffset(400 * s[2], 5) }, 0.5)
@@ -594,7 +704,7 @@ local Paths = {
 }
 
 -- ============================================================================
--- // 9. PERFORMANCE SYSTEMS (BLACK SCREEN + ANTI-LAG + ULTRA POTATO)
+-- // 9. PERFORMANCE SYSTEMS
 -- ============================================================================
 local BlackGui
 local function ToggleBlackScreen(on)
@@ -619,6 +729,8 @@ end
 
 local AntiLagActive = false
 local AntiLagConn = nil
+local PotatoActive = false
+local PotatoConns = {}
 
 local LAG_CLASSES = {
     "ParticleEmitter", "Smoke", "Fire", "Explosion", "Beam", "Trail", "Sparkles"
@@ -631,44 +743,52 @@ local function isLaggy(inst)
     return false
 end
 
--- Declare Potato variables first so ToggleAntiLag can reference them
-local PotatoActive = false
-local PotatoConns = {}
+local function ToggleAntiLag(on)
+    if on and PotatoActive then PotatoActive = false end
+    AntiLagActive = on
+    if on then
+        pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
+        pcall(function() game:GetService("Lighting").GlobalShadows = false end)
+        task.spawn(function()
+            for _, v in pairs(Services.Workspace:GetDescendants()) do
+                if isLaggy(v) then safeDestroy(v) end
+            end
+        end)
+        if not AntiLagConn then
+            AntiLagConn = Services.Workspace.DescendantAdded:Connect(function(v)
+                if AntiLagActive and isLaggy(v) then safeDestroy(v) end
+            end)
+        end
+    else
+        if AntiLagConn then AntiLagConn:Disconnect(); AntiLagConn = nil end
+        pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic end)
+        pcall(function() game:GetService("Lighting").GlobalShadows = true end)
+    end
+end
 
 local function TogglePotatoMode(on)
-    if on and AntiLagActive then
-        ToggleAntiLag(false)
-    end
+    if on and AntiLagActive then ToggleAntiLag(false) end
     PotatoActive = on
-    
     if on then
         pcall(function()
             settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
-            pcall(function() settings().Rendering.MeshQuality = Enum.QualityLevel.Level01 end)
-            pcall(function() settings().Rendering.TextureQuality = Enum.QualityLevel.Level01 end)
-            pcall(function() settings().Rendering.GraphicsQuality = Enum.QualityLevel.Level01 end)
-            pcall(function() settings().Rendering.ShadowsQuality = Enum.QualityLevel.Level01 end)
         end)
-        
         pcall(function()
             local Lighting = game:GetService("Lighting")
-            Lighting.GlobalShadows = false
-            Lighting.FogEnd = 10
-            Lighting.Brightness = 0
-            Lighting.TimeOfDay = "12:00:00"
+            Lighting.GlobalShadows = false; Lighting.FogEnd = 10
+            Lighting.Brightness = 0; Lighting.TimeOfDay = "12:00:00"
             for _, v in pairs(Lighting:GetDescendants()) do
-                if v:IsA("PostEffect") or v:IsA("Atmosphere") or v:IsA("Sky") or v:IsA("Clouds") or v:IsA("ColorCorrectionEffect") or v:IsA("BloomEffect") or v:IsA("BlurEffect") or v:IsA("DepthOfFieldEffect") or v:IsA("SunRaysEffect") then
+                if v:IsA("PostEffect") or v:IsA("Atmosphere") or v:IsA("Sky") or v:IsA("Clouds") then
                     pcall(function() v.Enabled = false end)
                 end
             end
         end)
-        
         task.spawn(function()
             for _, v in pairs(Services.Workspace:GetDescendants()) do
-                if v:IsA("ParticleEmitter") or v:IsA("Smoke") or v:IsA("Fire") or 
-                   v:IsA("Explosion") or v:IsA("Beam") or v:IsA("Trail") or 
-                   v:IsA("Sparkles") or v:IsA("Sound") or v:IsA("Decal") or 
-                   v:IsA("Texture") or v:IsA("PointLight") or v:IsA("SpotLight") or 
+                if v:IsA("ParticleEmitter") or v:IsA("Smoke") or v:IsA("Fire") or
+                   v:IsA("Explosion") or v:IsA("Beam") or v:IsA("Trail") or
+                   v:IsA("Sparkles") or v:IsA("Sound") or v:IsA("Decal") or
+                   v:IsA("Texture") or v:IsA("PointLight") or v:IsA("SpotLight") or
                    v:IsA("SurfaceLight") then
                     safeDestroy(v)
                 elseif v:IsA("MeshPart") then
@@ -678,99 +798,33 @@ local function TogglePotatoMode(on)
                 end
             end
         end)
-        
         pcall(function()
             Services.Workspace.Terrain:Clear()
             Services.Workspace.Terrain.WaterWaveSize = 0
-            Services.Workspace.Terrain.WaterWaveSpeed = 0
-            Services.Workspace.Terrain.WaterReflectance = 0
         end)
-        
-        pcall(function()
-            local c1 = Services.Workspace.DescendantAdded:Connect(function(v)
-                if PotatoActive then
-                    if v:IsA("ParticleEmitter") or v:IsA("Smoke") or v:IsA("Fire") or 
-                       v:IsA("Explosion") or v:IsA("Beam") or v:IsA("Trail") or 
-                       v:IsA("Sparkles") or v:IsA("Sound") or v:IsA("Decal") or 
-                       v:IsA("Texture") or v:IsA("PointLight") or v:IsA("SpotLight") or 
-                       v:IsA("SurfaceLight") then
-                        safeDestroy(v)
-                    elseif v:IsA("MeshPart") then
-                        pcall(function() v.TextureID = ""; v.MeshId = "" end)
-                    elseif v:IsA("BasePart") then
-                        pcall(function() v.Material = Enum.Material.SmoothPlastic end)
-                    end
-                end
-            end)
-            table.insert(PotatoConns, c1)
-            
-            local c2 = Services.Workspace.Terrain.DescendantAdded:Connect(function(v)
-                if PotatoActive then safeDestroy(v) end
-            end)
-            table.insert(PotatoConns, c2)
-            
-            local c3 = Services.Lighting.ChildAdded:Connect(function(v)
-                if PotatoActive and (v:IsA("PostEffect") or v:IsA("Atmosphere") or v:IsA("Sky") or v:IsA("Clouds")) then
-                    pcall(function() v.Enabled = false end)
-                    safeDestroy(v)
-                end
-            end)
-            table.insert(PotatoConns, c3)
+        local c1 = Services.Workspace.DescendantAdded:Connect(function(v)
+            if not PotatoActive then return end
+            if v:IsA("ParticleEmitter") or v:IsA("Smoke") or v:IsA("Fire") or
+               v:IsA("Explosion") or v:IsA("Beam") or v:IsA("Trail") or
+               v:IsA("Sparkles") or v:IsA("Sound") or v:IsA("Decal") or
+               v:IsA("Texture") or v:IsA("PointLight") or v:IsA("SpotLight") or
+               v:IsA("SurfaceLight") then
+                safeDestroy(v)
+            elseif v:IsA("MeshPart") then
+                pcall(function() v.TextureID = ""; v.MeshId = "" end)
+            elseif v:IsA("BasePart") then
+                pcall(function() v.Material = Enum.Material.SmoothPlastic end)
+            end
         end)
-        
+        table.insert(PotatoConns, c1)
     else
-        for _, conn in ipairs(PotatoConns) do
-            pcall(function() conn:Disconnect() end)
-        end
+        for _, conn in ipairs(PotatoConns) do pcall(function() conn:Disconnect() end) end
         PotatoConns = {}
-        
-        pcall(function()
-            settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
-        end)
+        pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic end)
         pcall(function()
             game:GetService("Lighting").GlobalShadows = true
             game:GetService("Lighting").FogEnd = 100000
             game:GetService("Lighting").Brightness = 2
-        end)
-    end
-end
-
-local function ToggleAntiLag(on)
-    if on and PotatoActive then
-        TogglePotatoMode(false)
-    end
-    AntiLagActive = on
-    if on then
-        pcall(function()
-            settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
-        end)
-        pcall(function()
-            game:GetService("Lighting").GlobalShadows = false
-        end)
-
-        task.spawn(function()
-            for _, v in pairs(Services.Workspace:GetDescendants()) do
-                if isLaggy(v) then safeDestroy(v) end
-            end
-        end)
-
-        if not AntiLagConn then
-            AntiLagConn = Services.Workspace.DescendantAdded:Connect(function(v)
-                if AntiLagActive and isLaggy(v) then
-                    safeDestroy(v)
-                end
-            end)
-        end
-    else
-        if AntiLagConn then
-            AntiLagConn:Disconnect()
-            AntiLagConn = nil
-        end
-        pcall(function()
-            settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
-        end)
-        pcall(function()
-            game:GetService("Lighting").GlobalShadows = true
         end)
     end
 end
@@ -879,7 +933,7 @@ local function FindByColor(parent, col, tol)
 end
 
 -- ============================================================================
--- // 11. AI MINIGAME (BARISTA) - NO VIM BYPASS
+-- // 11. AI MINIGAME (BARISTA)
 -- ============================================================================
 local function StartMinigameAI()
     if State.AiThread then task.cancel(State.AiThread) end
@@ -946,7 +1000,7 @@ local function TakeJob()
     WalkToPoint(Constants.START_SHIFT); rWait(0.4, 0.8)
     local sp = FindPrompt("start shift", 30) or FindPrompt("shift", 30)
     if sp and sp.ActionText:lower():find("start") then
-        State.StatusText = "💼 Shift started, let's work!"
+        State.StatusText = "💼 Shift started!"
         DoTap(sp); rWait(0.8, 1.5)
     end
 end
@@ -979,16 +1033,14 @@ local function BaristaFarmLoop()
             State.StatusText = "Waiting for customers..."; task.wait(1)
         end
         if not State.IsBaristaActive then continue end
-        if not HasJob()         then continue end
+        if not HasJob() then continue end
 
         if IsMachineBroken() then
             State.StatusText = "Machine broken, fixing..."
             if isAtCashier then FollowPath(Paths.CASHIER_TO_MACHINE); isAtCashier = false end
-            State.StatusText = "Walking to repair station..."
             FollowPath(Paths.MACHINE_TO_FIX); rWait(0.4, 0.8)
             local fix = FindPrompt("fix",20) or FindPrompt("repair",20) or FindPrompt("clean",20) or FindPrompt("maintain",20)
-            if fix then
-                State.StatusText = "Repairing machine..."; DoHold(fix)
+            if fix then DoHold(fix)
             else
                 for _, v in pairs(Services.Workspace:GetDescendants()) do
                     if v:IsA("ProximityPrompt") and v.Enabled then
@@ -997,14 +1049,14 @@ local function BaristaFarmLoop()
                     end
                 end
             end
-            rWait(0.4, 0.8); State.StatusText = "🚶 Returning to work..."
+            rWait(0.4, 0.8)
             State.MachineFixCount = (State.MachineFixCount or 0) + 1
             FollowPath(Paths.FIX_TO_MACHINE); continue
         end
 
         if HasPendingOrder() then
             if isAtCashier then
-                State.StatusText = "🚶 Heading to coffee machine..."; FollowPath(Paths.CASHIER_TO_MACHINE); isAtCashier = false
+                FollowPath(Paths.CASHIER_TO_MACHINE); isAtCashier = false
             else
                 WalkToPoint(Paths.START_TO_MACHINE[#Paths.START_TO_MACHINE])
             end
@@ -1021,7 +1073,6 @@ local function BaristaFarmLoop()
             end
             rWait(0.8, 1.5)
 
-            State.StatusText = "🥤 Grabbing coffee..."
             local dp = FindPrompt("take",25,mp) or FindPrompt("grab",25,mp)
             if dp then DoTap(dp) end; rWait(0.3, 0.7)
 
@@ -1033,7 +1084,6 @@ local function BaristaFarmLoop()
 
             local attempt = 0
             while CharRef.Character:FindFirstChildOfClass("Tool") and State.IsBaristaActive and attempt < 5 do
-                State.StatusText = "Serving coffee..."
                 local sp2 = FindPrompt("serve",25) or FindPrompt("deliver",25)
                 if sp2 then DoHold(sp2) else break end
                 attempt += 1; rWait(0.4, 0.7)
@@ -1041,9 +1091,7 @@ local function BaristaFarmLoop()
 
             if not CharRef.Character:FindFirstChildOfClass("Tool") then
                 State.OrderCount += 1
-                State.StatusText  = "✅ Coffee sold! Total: " .. State.OrderCount
-            else
-                State.StatusText = "❌ Failed to serve, retrying..."
+                State.StatusText = "✅ Coffee sold! Total: " .. State.OrderCount
             end
 
             local delay = State.ActionDelay + math.random(-5, 10) / 10
@@ -1064,20 +1112,19 @@ local function StartBaristaScript()
 end
 
 local function StopBaristaScript(reason)
-    local stopReason = reason or "User manually stopped Barista"
     State.IsBaristaActive = false
     State.StatusText = "Idling..."
-    State.LastStopReason = stopReason
-    if CharRef.Humanoid and CharRef.Root then 
-        CharRef.Humanoid:MoveTo(CharRef.Root.Position) 
+    State.LastStopReason = reason or "User manually stopped Barista"
+    if CharRef.Humanoid and CharRef.Root then
+        CharRef.Humanoid:MoveTo(CharRef.Root.Position)
     end
 end
 
 -- ============================================================================
--- // 13. OFFICE JOB SYSTEM (v8.2.0 FINAL - klikTombol Edition)
+-- // 13. OFFICE JOB SYSTEM
 -- ============================================================================
 local playerGui       = LocalPlayer:WaitForChild("PlayerGui")
-local ComputersFolder = workspace:WaitForChild("Computers")  -- ✅ Deklarasi awal
+local ComputersFolder = workspace:WaitForChild("Computers")
 
 local function hasText(str, keyword)
     return str and string.find(string.lower(str), string.lower(keyword)) ~= nil
@@ -1085,14 +1132,10 @@ end
 
 local function eksekusiPromptTahan(pp)
     if not pp then return end
-    if (pp.HoldDuration or 0) > 0 then
-        DoHold(pp)
-    else
-        DoTap(pp)
-    end
+    if (pp.HoldDuration or 0) > 0 then DoHold(pp) else DoTap(pp) end
 end
 
-local myChair            = nil
+local myChair = nil
 
 local function jalanKe(pos)
     local root = CharRef.Root
@@ -1100,9 +1143,7 @@ local function jalanKe(pos)
     if not root or not hum then return false end
     local targetPos = pos + Vector3.new(math.random(-12,12)/10, 0, math.random(-12,12)/10)
     local path = Services.PathfindingService:CreatePath({
-        AgentRadius = 2,
-        AgentHeight = 5,
-        AgentCanJump = true
+        AgentRadius = 2, AgentHeight = 5, AgentCanJump = true
     })
     local success, _ = pcall(function()
         path:ComputeAsync(root.Position, targetPos)
@@ -1129,7 +1170,7 @@ end
 local function keluarKursi()
     local hum = CharRef.Humanoid
     if not hum then return end
-    if hum.SeatPart then 
+    if hum.SeatPart then
         myChair = hum.SeatPart
         task.wait(math.random(10, 20)/10)
         hum:ChangeState(Enum.HumanoidStateType.Jumping)
@@ -1147,12 +1188,11 @@ local function isChairOccupied(chair)
     if not chair then return true end
     local seat = getSeatFromChair(chair)
     if seat then
-        if seat.Occupant and seat.Occupant ~= CharRef.Humanoid then
-            return true
-        end
+        if seat.Occupant and seat.Occupant ~= CharRef.Humanoid then return true end
     end
-    
-    local origin = chair:IsA("BasePart") and chair.Position or (chair.PrimaryPart and chair.PrimaryPart.Position) or (seat and seat.Position)
+    local origin = chair:IsA("BasePart") and chair.Position
+        or (chair.PrimaryPart and chair.PrimaryPart.Position)
+        or (seat and seat.Position)
     if origin then
         for _, player in ipairs(Services.Players:GetPlayers()) do
             if player ~= LocalPlayer and player.Character then
@@ -1167,22 +1207,17 @@ local function isChairOccupied(chair)
     return false
 end
 
--- ✅ [DEX] Cari kursi Office pakai path tepat: Computers → Setup → Seat
 local function findOfficeSeat(excludeSeat)
     local origin = CharRef.Root and CharRef.Root.Position
     if not origin then return nil end
     local best, bestD = nil, math.huge
-
     for _, v in pairs(ComputersFolder:GetDescendants()) do
         if v:IsA("Model") and v.Name == "Setup" then
             local seat = v:FindFirstChild("Seat", true)
             if seat and seat:IsA("Seat") and seat ~= excludeSeat then
                 if not seat.Occupant or seat.Occupant == CharRef.Humanoid then
                     local d = (seat.Position - origin).Magnitude
-                    if d < bestD then
-                        bestD = d
-                        best = seat
-                    end
+                    if d < bestD then bestD = d; best = seat end
                 end
             end
         end
@@ -1190,39 +1225,6 @@ local function findOfficeSeat(excludeSeat)
     return best
 end
 
--- Fallback untuk non-office context (Barista dll)
-local function findEmptyChair(radius, excludeChair)
-    local origin = CharRef.Root and CharRef.Root.Position
-    if not origin then return nil end
-    radius = radius or 150
-    local best, bestD = nil, radius
-
-    local chairs = {}
-    for _, v in pairs(workspace:GetDescendants()) do
-        if v:IsA("Seat") or v:IsA("VehicleSeat") then
-            table.insert(chairs, v)
-        elseif v.Name == "Chair" and v:IsA("Model") then
-            table.insert(chairs, v)
-        elseif v:IsA("ProximityPrompt") and v.Enabled and hasText(v.ActionText, "sit") then
-            if v.Parent then table.insert(chairs, v.Parent) end
-        end
-    end
-
-    for _, chair in ipairs(chairs) do
-        if chair ~= excludeChair and not isChairOccupied(chair) then
-            local chairPos = chair:IsA("BasePart") and chair.Position
-                or (chair.PrimaryPart and chair.PrimaryPart.Position)
-                or (getSeatFromChair(chair) and getSeatFromChair(chair).Position)
-            if chairPos then
-                local d = (chairPos - origin).Magnitude
-                if d < bestD then best, bestD = chair, d end
-            end
-        end
-    end
-    return best
-end
-
--- ✅ [DEX] Join team Office Worker via TeamChangeRequest
 local function joinOfficeTeam()
     pcall(function()
         Services.ReplicatedStorage:WaitForChild("JobEvents")
@@ -1236,14 +1238,9 @@ local function dudukKeKursi(instantTP)
     if not hum then return false end
     if hum.SeatPart then return true end
 
-    -- Pakai findOfficeSeat (DEX path) jika office aktif, fallback findEmptyChair
     if State.IsOfficeActive then
         if not myChair or (myChair.Occupant and myChair.Occupant ~= hum) then
             myChair = findOfficeSeat()
-        end
-    else
-        if myChair and isChairOccupied(myChair) then
-            myChair = findEmptyChair(150)
         end
     end
 
@@ -1285,21 +1282,15 @@ local function dudukKeKursi(instantTP)
 end
 
 -- ============================================================================
--- // AUTO JAWAB SOAL MATEMATIKA (OFFICE) — KING AKBAR V9.3 (GOD MODE)
--- // Method: REAL-CLICK + VISUAL HIGHLIGHT + SMART WAIT
--- // Fix v9.3: Polling nunggu UI render dulu, tombol pasti ketemu
+-- // AUTO JAWAB SOAL MATEMATIKA (OFFICE)
 -- ============================================================================
-
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
-local LocalPlayer = Players.LocalPlayer
 
 local JobEvents = ReplicatedStorage:WaitForChild("JobEvents")
 local GenerateQuestion = JobEvents:WaitForChild("GenerateQuestion")
 local CorrectAnswer = JobEvents:WaitForChild("CorrectAnswer")
 
--- Evaluasi matematika ringan (Hanya Tambah & Kurang)
 local function evaluateMath(text)
     local cleanText = string.gsub(text, "<[^>]+>", "")
     cleanText = string.gsub(cleanText, "%s+", "")
@@ -1317,14 +1308,11 @@ local function getAnswerButtons()
     if not frame then return {} end
     local list = {}
     for _, child in ipairs(frame:GetChildren()) do
-        if child:IsA("GuiButton") then
-            table.insert(list, child)
-        end
+        if child:IsA("GuiButton") then table.insert(list, child) end
     end
     return list
 end
 
--- SMART WAIT: polling sampai tombol dengan angka yang benar muncul (max 2.5 dtk)
 local function findCorrectButton(jawaban, timeoutSec)
     local deadline = tick() + (timeoutSec or 2.5)
     while tick() < deadline do
@@ -1339,14 +1327,11 @@ local function findCorrectButton(jawaban, timeoutSec)
     return nil
 end
 
--- ================= VISUAL HIGHLIGHT (KOTAK PUTIH) =================
 local function clearHighlights()
     local gui = LocalPlayer.PlayerGui:FindFirstChild("WorkGui")
     if not gui then return end
     for _, obj in ipairs(gui:GetDescendants()) do
-        if obj.Name == "AutoMathHighlight" then
-            safeDestroy(obj)
-        end
+        if obj.Name == "AutoMathHighlight" then safeDestroy(obj) end
     end
 end
 
@@ -1371,35 +1356,31 @@ local function unhighlightLater(btn, delaySec)
         end
     end)
 end
--- ===================================================================
 
 local function pressButton(btn)
-    -- METODE 1: handler asli game (getconnections)
     if getconnections then
         for _, signal in ipairs({btn.MouseButton1Click, btn.Activated}) do
             for _, conn in ipairs(getconnections(signal)) do
                 if conn.Function then
-                    if pcall(conn.Function) then
-                        return "handler-asli"
-                    end
+                    if pcall(conn.Function) then return "handler-asli" end
                 end
             end
         end
     end
-    -- METODE 2: SafeClick (100% Non‑VIM)
     local ok = pcall(function()
         local pos = btn.AbsolutePosition
         local size = btn.AbsoluteSize
-        local x = pos.X + size.X / 2
-        local y = pos.Y + size.Y / 2
-        SafeClick(x, y, 0.06)  -- hold singkat agar terdeteksi klik
+        SafeClick(pos.X + size.X / 2, pos.Y + size.Y / 2, 0.06)
     end)
     if ok then return "safe-click" end
     return nil
 end
 
+local lastActivityTime = tick()
+
 GenerateQuestion.OnClientEvent:Connect(function(questionText, answerData, sessionID)
     if State and State.IsOfficeActive == false then return end
+    lastActivityTime = tick()
 
     local jawaban = evaluateMath(questionText)
     if not jawaban then return end
@@ -1409,22 +1390,15 @@ GenerateQuestion.OnClientEvent:Connect(function(questionText, answerData, sessio
         for _, data in ipairs(answerData) do
             local numText = string.match(tostring(data.Text or ""), "%-?%d+%.?%d*")
             if tonumber(numText) == jawaban then
-                correctAnswerID = data.ID
-                break
+                correctAnswerID = data.ID; break
             end
         end
     end
 
-    -- 1) SMART WAIT: cari tombol (nunggu UI render dulu, max 2.5 dtk)
     local correctButton = findCorrectButton(jawaban, 2.5)
-
-    -- 2) Pasang highlight putih
     if correctButton then highlightButton(correctButton) end
-
-    -- 3) Jeda manusiawi 1.5-3 dtk (highlight sempat kelihatan)
     task.wait(math.random(15, 30) / 10)
 
-    -- 4) Validasi ulang (jaga-jaga UI ke-refresh tengah jalan)
     if correctButton then
         local reText = string.match(tostring(correctButton.Text or ""), "%-?%d+%.?%d*")
         if not correctButton:IsDescendantOf(game) or tonumber(reText) ~= jawaban then
@@ -1432,13 +1406,10 @@ GenerateQuestion.OnClientEvent:Connect(function(questionText, answerData, sessio
         end
     end
 
-    -- 5) Klik!
     if correctButton then
         local method = pressButton(correctButton)
         if not method then
-            pcall(function()
-                CorrectAnswer:FireServer(correctAnswerID, sessionID, correctButton)
-            end)
+            pcall(function() CorrectAnswer:FireServer(correctAnswerID, sessionID, correctButton) end)
         end
         unhighlightLater(correctButton, 0.4)
     elseif correctAnswerID then
@@ -1448,15 +1419,12 @@ GenerateQuestion.OnClientEvent:Connect(function(questionText, answerData, sessio
         clearHighlights()
     end
 
-    if State then
-        State.OfficeMathSolved = (State.OfficeMathSolved or 0) + 1
-    end
+    if State then State.OfficeMathSolved = (State.OfficeMathSolved or 0) + 1 end
 end)
 
 -- ============================================================================
--- // ANTI-STUCK 6s + IDLE CHAIR SWITCH
+-- // ANTI-STUCK + IDLE CHAIR SWITCH
 -- ============================================================================
-local lastActivityTime = tick()
 local isSwitching = false
 local IDLE_SWITCH_TIME = 60
 
@@ -1504,10 +1472,8 @@ end)
 -- ============================================================================
 -- // PRINTER LOOP
 -- ============================================================================
-local JobEvents      = Services.ReplicatedStorage:WaitForChild("JobEvents")
 local AssignPrintJob = JobEvents:WaitForChild("AssignPrintJob")
 local ClearPrintJob  = JobEvents:WaitForChild("ClearPrintJob")
-
 local activePrinterName = nil
 
 AssignPrintJob.OnClientEvent:Connect(function(printerName)
@@ -1522,47 +1488,40 @@ task.spawn(function()
     while true do
         task.wait(0.5)
         if not State.IsOfficeActive then continue end
-        
+
         if activePrinterName and not getgenv().isGoingToPrinter then
             getgenv().isGoingToPrinter = true
             getgenv().forceStopMath = true
             getgenv().printWatchdog = tick()
-            
+
             pcall(function()
                 task.wait(math.random(5,10)/10)
                 keluarKursi()
-                
+
                 local hum = CharRef.Humanoid
-                if hum then
-                    hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
-                end
-                
+                if hum then hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false) end
+
                 local printerPart = nil
                 local targetPrompt = nil
-                
+
                 for i=1, 15 do
                     local printerModel = ComputersFolder:FindFirstChild(activePrinterName)
                     if printerModel and printerModel:FindFirstChild("Part") then
                         printerPart = printerModel.Part
                         targetPrompt = printerPart:FindFirstChildOfClass("ProximityPrompt")
-                        if targetPrompt then
-                            targetPrompt.Enabled = true
-                            break
-                        end
+                        if targetPrompt then targetPrompt.Enabled = true; break end
                     end
                     task.wait(0.5)
                 end
-                
+
                 if printerPart and targetPrompt then
                     jalanKe(printerPart.Position + Vector3.new(0, 0, 2.5))
 
-                    -- Hadapkan karakter ke printer
                     if CharRef.Root then
                         local lookTarget = Vector3.new(printerPart.Position.X, CharRef.Root.Position.Y, printerPart.Position.Z)
                         CharRef.Root.CFrame = CFrame.lookAt(CharRef.Root.Position, lookTarget)
                     end
 
-                    -- ✅ [CAMERA FIX] Lock kamera Scriptable ngadep printer selama hold
                     local cam = workspace.CurrentCamera
                     local prevCamType = cam.CameraType
                     pcall(function()
@@ -1575,28 +1534,20 @@ task.spawn(function()
                     eksekusiPromptTahan(targetPrompt)
                     State.OfficePrints = (State.OfficePrints or 0) + 1
 
-                    -- Restore kamera setelah hold selesai
-                    pcall(function()
-                        cam.CameraType = prevCamType
-                    end)
+                    pcall(function() cam.CameraType = prevCamType end)
 
                     local timeout = 0
                     while activePrinterName and timeout < 10 do
-                        task.wait(0.5)
-                        timeout += 0.5
+                        task.wait(0.5); timeout += 0.5
                     end
                 end
 
-                -- ✅ [DEX] Kembali ke kursi Office pakai findOfficeSeat
                 local nearestSeat = findOfficeSeat(nil)
-                if nearestSeat then
-                    myChair = nearestSeat
-                end
-                
+                if nearestSeat then myChair = nearestSeat end
                 dudukKeKursi(false)
                 task.wait(0.5)
             end)
-            
+
             getgenv().isGoingToPrinter = false
             getgenv().forceStopMath = false
             getgenv().printWatchdog = nil
@@ -1605,26 +1556,13 @@ task.spawn(function()
     end
 end)
 
-task.spawn(function()
-    while true do
-        task.wait(10)
-        if State.IsOfficeActive then
-            pcall(function()
-                game:GetService("ReplicatedStorage"):WaitForChild("EventEvents"):WaitForChild("GetMyJoinedEvents"):InvokeServer({})
-            end)
-        end
-    end
-end)
-
 -- ============================================================================
 -- // MONITORING GUI
 -- ============================================================================
-local CoreGui = (gethui and gethui()) or game:GetService("CoreGui")
-local Players = game:GetService("Players")
-local LocalPlayer2 = Players.LocalPlayer
+local CoreGui2 = (gethui and gethui()) or game:GetService("CoreGui")
 local TrackerGui = nil
-
 local CachedMoneyLabel = nil
+local DisplayedValues = {}
 
 local function parseNumber(val)
     if not val then return 0 end
@@ -1641,9 +1579,8 @@ local function formatTime(seconds)
 end
 
 local function CariLabelUang()
-    local playerGui = LocalPlayer2:FindFirstChild("PlayerGui")
+    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
     if not playerGui then return nil end
-
     for _, guiObject in ipairs(playerGui:GetDescendants()) do
         if guiObject:IsA("TextLabel") or guiObject:IsA("TextButton") then
             local text = guiObject.Text
@@ -1659,12 +1596,8 @@ local function DapatkanUangPemain()
     if CachedMoneyLabel and CachedMoneyLabel.Parent then
         return parseNumber(CachedMoneyLabel.Text)
     end
-
     CachedMoneyLabel = CariLabelUang()
-    if CachedMoneyLabel then
-        return parseNumber(CachedMoneyLabel.Text)
-    end
-    
+    if CachedMoneyLabel then return parseNumber(CachedMoneyLabel.Text) end
     return GetPlayerMoney()
 end
 
@@ -1694,17 +1627,9 @@ local function fmtShort(num)
     else return tostring(math.floor(num)) end
 end
 
--- ============================================================================
--- // MONITORING GUI — ANIMATED NUMBERS
--- ============================================================================
-
-local DisplayedValues = {}
-
 local function animateValue(label, targetNum, formatter, colorPos, colorNeg, colorNeutral)
     local key = label
-    if DisplayedValues[key] == nil then
-        DisplayedValues[key] = targetNum
-    end
+    if DisplayedValues[key] == nil then DisplayedValues[key] = targetNum end
     local cur = DisplayedValues[key]
     if math.abs(cur - targetNum) < 0.5 then
         DisplayedValues[key] = targetNum
@@ -1724,25 +1649,23 @@ end
 
 local function buatMonitoringGUI()
     local uangSekarang = DapatkanUangPemain()
-
     if not getgenv().UangAwalDikunci or getgenv().UangAwalDikunci == 0 then
         getgenv().UangAwalDikunci = uangSekarang
     end
     getgenv().WaktuMulai = getgenv().WaktuMulai or tick()
-
     local uangAwal = getgenv().UangAwalDikunci
     DisplayedValues = {}
 
     if TrackerGui and TrackerGui.Parent then TrackerGui:Destroy() end
     TrackerGui = Instance.new("ScreenGui")
     TrackerGui.Name = "KingAkbarTracker"
-    TrackerGui.Parent = CoreGui
+    TrackerGui.Parent = CoreGui2
 
     local Frame = Instance.new("Frame")
     Frame.Size        = UDim2.new(0, 228, 0, 0)
     Frame.Position    = UDim2.new(1, -16, 0.5, 0)
     Frame.AnchorPoint = Vector2.new(1, 0.5)
-    Frame.BackgroundColor3    = Color3.fromRGB(18, 18, 22)
+    Frame.BackgroundColor3       = Color3.fromRGB(18, 18, 22)
     Frame.BackgroundTransparency = 0.18
     Frame.BorderSizePixel = 0
     Frame.Active   = true
@@ -1772,7 +1695,7 @@ local function buatMonitoringGUI()
     TitleLbl.TextSize = 13; TitleLbl.TextXAlignment = Enum.TextXAlignment.Left
     local SubLbl = Instance.new("TextLabel", H)
     SubLbl.Size = UDim2.new(1,-40,0,11); SubLbl.Position = UDim2.new(0,40,0,20)
-    SubLbl.BackgroundTransparency = 1; SubLbl.Text = "Auto Office Free"
+    SubLbl.BackgroundTransparency = 1; SubLbl.Text = "Bypass V7 GACOR"
     SubLbl.TextColor3 = Color3.fromRGB(90,90,100); SubLbl.Font = Enum.Font.Gotham
     SubLbl.TextSize = 9; SubLbl.TextXAlignment = Enum.TextXAlignment.Left
 
@@ -1783,7 +1706,6 @@ local function buatMonitoringGUI()
     local function baris(iconL, labelL, iconR, labelR, order)
         local R = Instance.new("Frame", Frame)
         R.Size = UDim2.new(1,0,0,34); R.BackgroundTransparency = 1; R.LayoutOrder = order
-
         local function kolom(parent, xOffset, icon, caption)
             local bg = Instance.new("Frame", parent)
             bg.Size = UDim2.new(0.5,-4,1,0); bg.Position = UDim2.new(xOffset,0,0,0)
@@ -1802,9 +1724,8 @@ local function buatMonitoringGUI()
             valLbl.TextSize = 12; valLbl.TextXAlignment = Enum.TextXAlignment.Left
             return valLbl
         end
-
-        local lv = kolom(R, 0,    iconL, labelL)
-        local rv = kolom(R, 0.5,  iconR, labelR)
+        local lv = kolom(R, 0,   iconL, labelL)
+        local rv = kolom(R, 0.5, iconR, labelR)
         return lv, rv
     end
 
@@ -1821,31 +1742,23 @@ local function buatMonitoringGUI()
     v_initial.Text = fmtRupiah(uangAwal)
 
     task.spawn(function()
-        local prevProfit  = 0
-        local prevSolved  = 0
-        local prevPrints  = 0
-        local prevProfitH = 0
-        local prevPing    = 0
-        local prevFps     = 0
-
+        local prevSolved = 0
+        local prevPrints = 0
         while TrackerGui and TrackerGui.Parent do
             pcall(function()
                 local currentMoney = DapatkanUangPemain()
-
                 if uangAwal == 0 and currentMoney > 0 then
                     getgenv().UangAwalDikunci = currentMoney
                     uangAwal = currentMoney
                     v_initial.Text = fmtRupiah(uangAwal)
                 end
-
                 local profit      = currentMoney - uangAwal
                 local uptimeDetik = tick() - getgenv().WaktuMulai
                 local uptimeJam   = math.max(uptimeDetik / 3600, 1/3600)
                 local profitH     = profit / uptimeJam
                 local solved      = type(State) == "table" and (State.OfficeMathSolved or 0) or 0
                 local prints      = type(State) == "table" and (State.OfficePrints or 0) or 0
-                local pingVal     = 0
-                local fpsVal      = 0
+                local pingVal, fpsVal = 0, 0
                 pcall(function() pingVal = math.floor(Services.Stats.Network.ServerStatsItem["Data Ping"]:GetValue()) end)
                 pcall(function() fpsVal  = math.floor(workspace:GetRealPhysicsFPS()) end)
 
@@ -1866,18 +1779,56 @@ local function buatMonitoringGUI()
                 animateValue(v_prints, prints, function(n) return tostring(math.floor(n)) end, nil, nil, CLR_WHITE)
 
                 animateValue(v_profitH, profitH, fmtShort, CLR_GREEN, CLR_RED, nil)
-
-                animateValue(v_ping, pingVal, function(n)
-                    return tostring(math.floor(n)) .. " ms"
-                end, nil, nil, pingVal > 200 and CLR_RED or CLR_WHITE)
+                animateValue(v_ping, pingVal, function(n) return tostring(math.floor(n)) .. " ms" end, nil, nil, pingVal > 200 and CLR_RED or CLR_WHITE)
 
                 local fpsColor = fpsVal >= 30 and CLR_GREEN or (fpsVal >= 15 and CLR_YELLOW or CLR_RED)
                 animateValue(v_fps, fpsVal, function(n) return tostring(math.floor(n)) end, nil, nil, fpsColor)
 
                 v_uptime.Text = formatTime(uptimeDetik)
                 v_uptime.TextColor3 = CLR_WHITE
-            end)
 
+                -- ── AUTO KICK SAAT TARGET PROFIT TERCAPAI ──────────────
+                if State.TargetProfit > 0 and profit >= State.TargetProfit then
+                    -- Hentikan semua farming dulu
+                    State.IsOfficeActive   = false
+                    State.IsBaristaActive  = false
+                    State.IsCourierActive  = false
+                    getgenv().fullAuto     = false
+
+                    -- Tampilkan notif sebentar sebelum kick
+                    WindUI:Notify({
+                        Title    = "Udah nyampe nih",
+                        Content  = "Profit " .. fmtProfit(profit) .. " dari target " .. fmtRupiah(State.TargetProfit) .. ", keluar sekarang.",
+                        Duration = 4,
+                    })
+
+                    task.wait(3)  -- beri waktu notif terbaca
+
+                    -- Matikan semua koneksi network → disconnect total (bukan rejoin)
+                    -- Metode 1: Hancurkan DataModel connection
+                    local exited = false
+                    pcall(function()
+                        game:GetService("Players"):FindFirstChildOfClass("Player").Parent = nil
+                        exited = true
+                    end)
+
+                    if not exited then
+                        pcall(function()
+                            -- Metode 2: Corrupt network ownership → server drop connection
+                            local np = Instance.new("NetworkReplicator")
+                            np.Parent = game
+                            exited = true
+                        end)
+                    end
+
+                    if not exited then
+                        -- Metode 3: Stack overflow → crash keluar tanpa rejoin
+                        local function crash() return crash() end
+                        pcall(crash)
+                    end
+                end
+                -- ───────────────────────────────────────────────────────
+            end)
             task.wait(0.1)
         end
     end)
@@ -1893,7 +1844,6 @@ local function StartOfficeScript()
     State.OfficeMathSolved = 0
     State.OfficePrints = 0
     getgenv().fullAuto = true
-
     CachedMoneyLabel = nil
     getgenv().UangAwalDikunci = nil
     getgenv().WaktuMulai = tick()
@@ -1902,10 +1852,8 @@ local function StartOfficeScript()
     task.wait(0.8)
 
     if not CharRef.Humanoid or not CharRef.Humanoid.SeatPart then
-        WindUI:Notify({ Title = "🔍 Office", Content = "TP", Duration = 3 })
-
+        WindUI:Notify({ Title = "🔍 Office", Content = "Finding seat...", Duration = 3 })
         local targetSeat = findOfficeSeat(nil)
-
         if targetSeat then
             myChair = targetSeat
             dudukKeKursi(true)
@@ -1918,7 +1866,7 @@ local function StartOfficeScript()
 
     lastActivityTime = tick()
     buatMonitoringGUI()
-    WindUI:Notify({ Title = "✅ Office", Content = "Auto Office v2 started!", Duration = 4 })
+    WindUI:Notify({ Title = "✅ Office", Content = "Auto Office started!", Duration = 4 })
 end
 
 local function StopOfficeScript()
@@ -1938,20 +1886,16 @@ local function StopOfficeScript()
 
     CachedMoneyLabel = nil
     getgenv().UangAwalDikunci = nil
-
     matikanMonitoring()
     WindUI:Notify({ Title = "🛑 Office", Content = "Auto Office stopped.", Duration = 3 })
 end
 
 -- ============================================================================
--- // 14. AUTO COURIER (INTEGRATED)
+-- // 14. AUTO COURIER
 -- ============================================================================
 local CourierJob = {
-    Name = "Courier",
-    TeamId = 11378976,
-    X = -5158.57,
-    Y = 4.41,
-    Z = -3757.87
+    Name = "Courier", TeamId = 11378976,
+    X = -5158.57, Y = 4.41, Z = -3757.87
 }
 
 local SELECTED_CAR = "Yamahax-MioSporty"
@@ -1963,9 +1907,7 @@ end
 local function findMyMotor()
     local myName = LocalPlayer.Name
     for _, v in pairs(workspace:GetChildren()) do
-        if v.Name:match(myName) and v.name:match("Montors") then
-            return v
-        end
+        if v.Name:match(myName) and v.Name:match("Montors") then return v end
     end
     return nil
 end
@@ -1978,8 +1920,7 @@ local function walkToCourier(point, timeout)
     while tick() - t < timeout and State.IsCourierActive do
         local hrp = CharRef.Root
         if hrp and (hrp.Position - point).Magnitude < 5 then break end
-        hum:MoveTo(point)
-        task.wait(0.5)
+        hum:MoveTo(point); task.wait(0.5)
     end
 end
 
@@ -1995,23 +1936,15 @@ local function exitMotor()
     if not motor then return false end
     local char = LocalPlayer.Character
     if not char then return false end
-
     local anims = motor:FindFirstChild("Anims")
     if anims then
         pcall(function() anims:FireServer("RemovePlayer", char, nil) end)
         task.wait(0.3)
     end
-
     local driveSeat = motor:FindFirstChild("DriveSeat", true)
-    if driveSeat then
-        pcall(function() driveSeat:Sit(nil) end)
-        task.wait(0.3)
-    end
-
+    if driveSeat then pcall(function() driveSeat:Sit(nil) end); task.wait(0.3) end
     local humanoid = char:FindFirstChildOfClass("Humanoid")
-    if humanoid then
-        pcall(function() humanoid.Jump = true end)
-    end
+    if humanoid then pcall(function() humanoid.Jump = true end) end
     return true
 end
 
@@ -2020,21 +1953,13 @@ local function rideMotor()
     if not motor then return false end
     local char = LocalPlayer.Character
     if not char then return false end
-
     local anims = motor:FindFirstChild("Anims")
     if anims then
-        pcall(function() anims:FireServer("CreatePlayer", char) end)
-        task.wait(0.2)
-        pcall(function() anims:FireServer("RegisterPlayer", char) end)
-        task.wait(0.2)
+        pcall(function() anims:FireServer("CreatePlayer", char) end); task.wait(0.2)
+        pcall(function() anims:FireServer("RegisterPlayer", char) end); task.wait(0.2)
     end
-
     local kickstand = motor:FindFirstChild("Kickstand")
-    if kickstand then
-        pcall(function() kickstand:FireServer("StandUp", 0, 0, 0, 0, false) end)
-        task.wait(0.2)
-    end
-
+    if kickstand then pcall(function() kickstand:FireServer("StandUp", 0, 0, 0, 0, false) end); task.wait(0.2) end
     local driveSeat = motor:FindFirstChild("DriveSeat", true)
     if driveSeat then
         pcall(function()
@@ -2050,8 +1975,7 @@ local function forceDismount()
     local char = LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if not char or not hum then return end
-    hum.Jump = true
-    task.wait(0.1)
+    hum.Jump = true; task.wait(0.1)
     if hum.SeatPart then
         char:PivotTo(char:GetPivot() * CFrame.new(0, 2, 0))
         hum:ChangeState(Enum.HumanoidStateType.Jumping)
@@ -2065,22 +1989,18 @@ local function ghostGlideMotor(targetPos)
     local seat = hum and hum.SeatPart
     local vehicle = seat and seat:FindFirstAncestorOfClass("Model")
     if not (vehicle and vehicle.PrimaryPart) then return end
-
     local pp = vehicle.PrimaryPart
     local speed = 150
     local glideHeight = targetPos.Y + 3
     local posTujuan = Vector3.new(targetPos.X, glideHeight, targetPos.Z)
-
     local virtualAnchor = Instance.new("BodyVelocity")
     virtualAnchor.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
     virtualAnchor.Velocity = Vector3.new(0, 0, 0)
     virtualAnchor.Parent = pp
-
     local virtualGyro = Instance.new("BodyGyro")
     virtualGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
     virtualGyro.P = 100000
     virtualGyro.Parent = pp
-
     local noclip = Services.RunService.Stepped:Connect(function()
         if not State.IsCourierActive then return end
         for _, v in pairs(vehicle:GetDescendants()) do
@@ -2090,9 +2010,7 @@ local function ghostGlideMotor(targetPos)
             if v:IsA("BasePart") then v.CanCollide = false end
         end
     end)
-
     local _, currentYRot, _ = pp.CFrame:ToEulerAnglesYXZ()
-
     local function glideTo(targetVector, faceForward)
         if not State.IsCourierActive then return end
         local dist = (pp.Position - targetVector).Magnitude
@@ -2107,43 +2025,33 @@ local function ghostGlideMotor(targetPos)
                     local dir = (targetVector - pp.Position).Unit
                     local flatDir = Vector3.new(dir.X, 0, dir.Z).Unit
                     if flatDir.Magnitude > 0.001 then
-                        local newCFrame = CFrame.lookAt(currentPos, currentPos + flatDir)
-                        virtualGyro.CFrame = newCFrame
-                        vehicle:PivotTo(newCFrame)
+                        local newCF = CFrame.lookAt(currentPos, currentPos + flatDir)
+                        virtualGyro.CFrame = newCF; vehicle:PivotTo(newCF)
                     end
                 else
-                    local newCFrame = CFrame.new(currentPos) * CFrame.Angles(0, currentYRot, 0)
-                    virtualGyro.CFrame = newCFrame
-                    vehicle:PivotTo(newCFrame)
+                    local newCF = CFrame.new(currentPos) * CFrame.Angles(0, currentYRot, 0)
+                    virtualGyro.CFrame = newCF; vehicle:PivotTo(newCF)
                 end
                 Services.RunService.Heartbeat:Wait()
             end
         end
     end
-
     glideTo(posTujuan, true)
-
     local finalSafeY = targetPos.Y + 3
     local timeout = tick() + 8
     while tick() < timeout and State.IsCourierActive do
-        local rayOrigin = Vector3.new(targetPos.X, glideHeight + 5, targetPos.Z)
-        local rayResult = workspace:Raycast(rayOrigin, Vector3.new(0, -100, 0))
+        local rayResult = workspace:Raycast(
+            Vector3.new(targetPos.X, glideHeight + 5, targetPos.Z),
+            Vector3.new(0, -100, 0)
+        )
         if rayResult and rayResult.Instance then
-            finalSafeY = rayResult.Position.Y + 1.5
-            break
-        else
-            task.wait(1)
-        end
+            finalSafeY = rayResult.Position.Y + 1.5; break
+        else task.wait(1) end
     end
-
     glideTo(Vector3.new(targetPos.X, finalSafeY, targetPos.Z), false)
-
-    virtualAnchor:Destroy()
-    virtualGyro:Destroy()
-    noclip:Disconnect()
-    pp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-    pp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-
+    virtualAnchor:Destroy(); virtualGyro:Destroy(); noclip:Disconnect()
+    pp.AssemblyLinearVelocity = Vector3.new(0,0,0)
+    pp.AssemblyAngularVelocity = Vector3.new(0,0,0)
     forceDismount()
 end
 
@@ -2163,28 +2071,18 @@ local function startCourierLoop()
                     local paket = Location:FindFirstChild(tostring(paketNum))
                     if paket then
                         local block = paket:FindFirstChild("Block")
-                        if block then
-                            activePackageLoc = block.Position
-                            activePackageNum = paketNum
-                        end
+                        if block then activePackageLoc = block.Position; activePackageNum = paketNum end
                     end
                 end
             elseif action == "Remove" then
-                if activePackageNum == paketNum then
-                    activePackageLoc = nil
-                    activePackageNum = nil
-                end
+                if activePackageNum == paketNum then activePackageLoc = nil; activePackageNum = nil end
             end
         end)
     end
 
-    setJob(CourierJob)
-    task.wait(1.5)
-
-    spawnCar()
-    task.wait(6)
-    rideMotor()
-    task.wait(3.5)
+    setJob(CourierJob); task.wait(1.5)
+    spawnCar(); task.wait(6)
+    rideMotor(); task.wait(3.5)
 
     local char = LocalPlayer.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -2193,46 +2091,30 @@ local function startCourierLoop()
 
     local target = CFrame.new(CourierJob.X, CourierJob.Y, CourierJob.Z)
     pcall(function()
-        motor:SetPrimaryPartCFrame(target)
-        task.wait(0.3)
+        motor:SetPrimaryPartCFrame(target); task.wait(0.3)
         hrp.CFrame = target * CFrame.new(0, 2, 0)
     end)
 
-    task.wait(3.5)
-    exitMotor()
-    task.wait(1.5)
-
-    walkToCourier(Vector3.new(-5109.06, 5.18, -3758.69), 10)
-    task.wait(1.5)
+    task.wait(3.5); exitMotor(); task.wait(1.5)
+    walkToCourier(Vector3.new(-5109.06, 5.18, -3758.69), 10); task.wait(1.5)
 
     pcall(function()
         local prompt = workspace.Livrason.Take1.Take.ProximityPrompt
         if prompt then
-            prompt:InputHoldBegin()
-            task.wait(prompt.HoldDuration + 0.2)
-            prompt:InputHoldEnd()
+            prompt:InputHoldBegin(); task.wait(prompt.HoldDuration + 0.2); prompt:InputHoldEnd()
         end
     end)
     task.wait(1.5)
 
     while State.IsCourierActive do
         local t = tick()
-        while State.IsCourierActive and not activePackageLoc and tick() - t < 20 do
-            task.wait(0.4)
-        end
+        while State.IsCourierActive and not activePackageLoc and tick() - t < 20 do task.wait(0.4) end
         if not State.IsCourierActive then break end
         if not activePackageLoc then break end
 
-        spawnCar()
-        task.wait(4)
-        rideMotor()
-        task.wait(3.5)
-
-        ghostGlideMotor(activePackageLoc)
-        task.wait(1)
-
-        walkToCourier(activePackageLoc, 20)
-        task.wait(2.0)
+        spawnCar(); task.wait(4); rideMotor(); task.wait(3.5)
+        ghostGlideMotor(activePackageLoc); task.wait(1)
+        walkToCourier(activePackageLoc, 20); task.wait(2.0)
 
         local targetNum = activePackageNum
         pcall(function()
@@ -2246,12 +2128,9 @@ local function startCourierLoop()
                         or LocalPlayer.Character:FindFirstChild("Box")
                         or LocalPlayer.Character:FindFirstChildWhichIsA("Tool")
                     if box and CharRef.Humanoid then
-                        CharRef.Humanoid:EquipTool(box)
-                        task.wait(1.0)
+                        CharRef.Humanoid:EquipTool(box); task.wait(1.0)
                     end
-                    prompt:InputHoldBegin()
-                    task.wait(prompt.HoldDuration + 0.2)
-                    prompt:InputHoldEnd()
+                    prompt:InputHoldBegin(); task.wait(prompt.HoldDuration + 0.2); prompt:InputHoldEnd()
                     State.CourierDelivered = (State.CourierDelivered or 0) + 1
                     task.wait(2.5)
                 end
@@ -2260,10 +2139,7 @@ local function startCourierLoop()
         task.wait(2.0)
     end
 
-    if ServiceEventConn then
-        ServiceEventConn:Disconnect()
-        ServiceEventConn = nil
-    end
+    if ServiceEventConn then ServiceEventConn:Disconnect(); ServiceEventConn = nil end
 end
 
 local function StartCourierScript()
@@ -2275,10 +2151,7 @@ end
 
 local function StopCourierScript()
     State.IsCourierActive = false
-    if ServiceEventConn then
-        ServiceEventConn:Disconnect()
-        ServiceEventConn = nil
-    end
+    if ServiceEventConn then ServiceEventConn:Disconnect(); ServiceEventConn = nil end
 end
 
 -- ============================================================================
@@ -2289,17 +2162,14 @@ local function InjectMesin(HP_Mult, RPM_Add, Ratio_Mult, FD_Mult, NamaMode)
     if char and char:FindFirstChild("Humanoid") and char.Humanoid.SeatPart then
         local vehicle = char.Humanoid.SeatPart.Parent
         while vehicle and not vehicle:IsA("Model") do vehicle = vehicle.Parent end
-        
         if vehicle then
             local foundTune = false
-            
             for _, s in pairs(vehicle:GetDescendants()) do
                 if s:IsA("LocalScript") then
                     local name = string.lower(s.Name)
                     if string.find(name, "limit") or string.find(name, "speed") or string.find(name, "cap") then
                         if name ~= "a-chassis interface" and name ~= "drive" then
-                            pcall(function() s.Disabled = true end)
-                            safeDestroy(s)
+                            pcall(function() s.Disabled = true end); safeDestroy(s)
                         end
                     end
                 end
@@ -2309,25 +2179,24 @@ local function InjectMesin(HP_Mult, RPM_Add, Ratio_Mult, FD_Mult, NamaMode)
                     pcall(function()
                         local tune = require(v)
                         if tune.Horsepower then tune.Horsepower = tune.Horsepower * HP_Mult end
-                        if tune.Redline then tune.Redline = tune.Redline + RPM_Add end
+                        if tune.Redline    then tune.Redline    = tune.Redline + RPM_Add end
                         if tune.Ratios then
                             for i, ratio in pairs(tune.Ratios) do
                                 if type(ratio) == "number" and ratio > 0 then tune.Ratios[i] = ratio * Ratio_Mult end
                             end
                         end
-                        if tune.FinalDrive then tune.FinalDrive = tune.FinalDrive * FD_Mult end
-                        if tune.Limiter ~= nil then tune.Limiter = false end
-                        if tune.RevLimit then tune.RevLimit = 999999 end
-                        if tune.SpeedLimit then tune.SpeedLimit = false end
-                        if tune.TopSpeed then tune.TopSpeed = 999999 end
-                        if tune.MaxSpeed then tune.MaxSpeed = 999999 end
-                        if tune.DragMult then tune.DragMult = tune.DragMult * 0.05 end 
-                        if tune.Weight then tune.Weight = tune.Weight * 0.7 end
+                        if tune.FinalDrive   then tune.FinalDrive   = tune.FinalDrive * FD_Mult end
+                        if tune.Limiter  ~= nil then tune.Limiter  = false end
+                        if tune.RevLimit     then tune.RevLimit     = 999999 end
+                        if tune.SpeedLimit   then tune.SpeedLimit   = false end
+                        if tune.TopSpeed     then tune.TopSpeed     = 999999 end
+                        if tune.MaxSpeed     then tune.MaxSpeed     = 999999 end
+                        if tune.DragMult     then tune.DragMult     = tune.DragMult * 0.05 end
+                        if tune.Weight       then tune.Weight       = tune.Weight * 0.7 end
                         foundTune = true
                     end)
                 end
             end
-            
             if foundTune then
                 WindUI:Notify({ Title = "✅ " .. NamaMode, Content = "Safe! Respawn vehicle to apply.", Duration = 5 })
             else
@@ -2342,7 +2211,7 @@ end
 -- ============================================================================
 -- // 16. UI — 7 TAB
 -- ============================================================================
-local wSz = IsMobile and UDim2.fromOffset(420, 320) or UDim2.fromOffset(580, 460)
+local wSz  = IsMobile and UDim2.fromOffset(420, 320) or UDim2.fromOffset(580, 460)
 local mnSz = IsMobile and Vector2.new(600, 300) or Vector2.new(600, 350)
 local mxSz = IsMobile and Vector2.new(650, 400) or Vector2.new(850, 560)
 
@@ -2423,62 +2292,80 @@ SectionBarista:Toggle({ Title = "Enable Auto Barista", Icon = "play", Value = fa
 local SectionOffice = TabFarm:Section({ Title = "Auto Office", Box = true, BoxBorder = true, Opened = false })
 SectionOffice:Toggle({ Title = "Enable Auto Office", Icon = "briefcase", Value = false, Callback = function(on) if on then StartOfficeScript() else StopOfficeScript() end end })
 
+SectionOffice:Input({
+    Title       = "Stop otomatis di profit (Rp)",
+    Desc        = "Kalau sudah nyampe, langsung keluar server. Kosongin = gak ada batas.",
+    Placeholder = "contoh: 50000000",
+    Callback    = function(Text)
+        local bersih = string.gsub(Text or "", "[^%d]", "")
+        local val = tonumber(bersih) or 0
+        State.TargetProfit = val
+        if val > 0 then
+            WindUI:Notify({
+                Title   = "Target dipasang",
+                Content = "Bakal keluar pas profit udah " .. fmtRupiah(val),
+                Duration = 3,
+            })
+        else
+            WindUI:Notify({
+                Title   = "Target dicopot",
+                Content = "Gak ada batas profit, jalan terus.",
+                Duration = 3,
+            })
+        end
+    end
+})
+
+SectionOffice:Toggle({
+    Title = "Auto keluar saat target tercapai",
+    Desc  = "Nyalain ini biar langsung keluar server kalau udah nyampe target profit.",
+    Icon  = "log-out",
+    Value = false,
+    Callback = function(on)
+        if on and State.TargetProfit == 0 then
+            WindUI:Notify({
+                Title   = "Isi target dulu",
+                Content = "Masukin angka target profit dulu sebelum nyalain ini.",
+                Duration = 3,
+            })
+        end
+    end
+})
+
 local SectionCourier = TabFarm:Section({ Title = "Auto Courier", Box = true, BoxBorder = true, Opened = false })
 SectionCourier:Toggle({ Title = "Enable Auto Courier", Icon = "package", Value = false, Callback = function(on) if on then StartCourierScript() else StopCourierScript() end end })
 
 local TabSec = Window:Tab({ Title = "Security", Icon = "shield", Border = true })
 local Perlindungan = TabSec:Section({ Title = "Protection", Box = true, BoxBorder = true, Opened = false })
-
 Perlindungan:Toggle({ Title = "Anti-Admin (Auto Leave)", Desc = "Automatically leaves if a staff member joins", Icon = "user-minus", Value = true, Callback = function(on) State.AntiAdmin = on end })
 Perlindungan:Toggle({ Title = "Anti-AFK", Desc = "Keeps connection active while botting", Icon = "clock", Value = true, Callback = function(on) State.AntiAFK = on end })
 
 local TabPerf = Window:Tab({ Title = "Performance", Icon = "zap", Border = true })
-
 local HematDaya = TabPerf:Section({ Title = "Power Saving", Box = true, BoxBorder = true, Opened = false })
 HematDaya:Toggle({ Title = "Disable Rendering (AFK Mode)", Desc = "Black screen, saves battery, bot keeps running", Value = false, Callback = function(on) ToggleBlackScreen(on) end })
 
 local SectionAntiLag = TabPerf:Section({ Title = "Anti Lag", Box = true, BoxBorder = true, Opened = false })
-SectionAntiLag:Toggle({
-    Title = "Enable Anti Lag",
-    Desc = "Purges particles & locks graphics to minimum for max FPS",
-    Value = false,
-    Callback = function(on) ToggleAntiLag(on) end
-})
+SectionAntiLag:Toggle({ Title = "Enable Anti Lag", Desc = "Purges particles & locks graphics to minimum", Value = false, Callback = function(on) ToggleAntiLag(on) end })
 
 local SectionPotato = TabPerf:Section({ Title = "Ultra Potato Mode", Box = true, BoxBorder = true, Opened = false })
-SectionPotato:Toggle({
-    Title = "Enable Potato Mode (EXTREME)",
-    Desc = "Destroys terrain, meshes, lighting, sounds, textures for MAX FPS. Mutually exclusive with Anti-Lag.",
-    Value = false,
-    Callback = function(on) TogglePotatoMode(on) end
-})
+SectionPotato:Toggle({ Title = "Enable Potato Mode (EXTREME)", Desc = "Destroys terrain, meshes, lighting, sounds for MAX FPS. Mutually exclusive with Anti-Lag.", Value = false, Callback = function(on) TogglePotatoMode(on) end })
 
 local TabCfg = Window:Tab({ Title = "Settings", Icon = "settings", Border = true })
-
 local Konfigurasi = TabCfg:Section({ Title = "Configuration", Box = true, BoxBorder = true, Opened = false })
 Konfigurasi:Slider({ Title = "Action Delay (Seconds)", Desc = "Lower is faster, but riskier", Step = 1, Value = { Min = 1, Max = 10, Default = 5 }, Callback = function(v) State.ActionDelay = v end })
 
 local SectionFakeName = TabCfg:Section({ Title = "Spoof Name", Box = true, BoxBorder = true, Opened = false })
-
-SectionFakeName:Input({ 
-    Title = "Spoof Name (Empty = King Akbar)", 
-    Placeholder = "King Akbar", 
-    Callback = function(Text) 
+SectionFakeName:Input({
+    Title = "Spoof Name (Empty = King Akbar)", Placeholder = "King Akbar",
+    Callback = function(Text)
         local cleanText = string.gsub(Text or "", "^%s+", "")
         cleanText = string.gsub(cleanText, "%s+$", "")
-        if cleanText == "" then
-            State.FakeName = "King Akbar"
-        else
-            State.FakeName = cleanText
-        end
+        State.FakeName = (cleanText == "") and "King Akbar" or cleanText
         if State.FakeNameActive then SpoofApplyNow() end
-    end 
+    end
 })
-
 SectionFakeName:Toggle({
-    Title = "Enable Spoof Name",
-    Desc = "Changes your display name (Client-sided, auto-restore)",
-    Value = false,
+    Title = "Enable Spoof Name", Desc = "Changes your display name (Client-sided)", Value = false,
     Callback = function(on)
         State.FakeNameActive = on
         if on then
@@ -2486,13 +2373,12 @@ SectionFakeName:Toggle({
             WindUI:Notify({ Title = "🎭 Spoof Name", Content = "Name changed to: " .. State.FakeName, Duration = 3 })
         else
             SpoofDisableNow()
-            WindUI:Notify({ Title = "🎭 Spoof Name", Content = "Spoof disabled. Original name restored.", Duration = 3 })
+            WindUI:Notify({ Title = "🎭 Spoof Name", Content = "Original name restored.", Duration = 3 })
         end
     end
 })
 
 local SectionRedeem = TabCfg:Section({ Title = "Auto Redeem", Box = true, BoxBorder = true, Opened = false })
-
 local redeemCodes = {
     "DRAGDRIVESIMULATORJULY26",
     "DDSTHX150KROADTO175KLIKES",
@@ -2500,60 +2386,47 @@ local redeemCodes = {
     "DDSSLAMETRIYADIUPDATE",
     "DELAYXIXIORDERANDOUBLE"
 }
-
 local function FireRedeemRemote(code)
     pcall(function()
         local remote = Services.ReplicatedStorage:WaitForChild("RedeemCodeEvents"):WaitForChild("Redeem")
-        if remote then
-            remote:InvokeServer(code)
-        end
+        if remote then remote:InvokeServer(code) end
     end)
 end
-
 SectionRedeem:Button({
-    Title = "🎁 Redeem All Codes",
-    Desc = "Automatically redeems all available codes",
+    Title = "🎁 Redeem All Codes", Desc = "Automatically redeems all available codes",
     Callback = function()
         task.spawn(function()
-            WindUI:Notify({ Title = "🔄 Auto Redeem", Content = "Redeeming codes, please wait...", Duration = 3 })
-            for _, code in ipairs(redeemCodes) do
-                FireRedeemRemote(code)
-                task.wait(2)
-            end
-            WindUI:Notify({ Title = "✅ Auto Redeem", Content = "All codes redeemed successfully!", Duration = 5 })
+            WindUI:Notify({ Title = "🔄 Auto Redeem", Content = "Redeeming codes...", Duration = 3 })
+            for _, code in ipairs(redeemCodes) do FireRedeemRemote(code); task.wait(2) end
+            WindUI:Notify({ Title = "✅ Auto Redeem", Content = "All codes redeemed!", Duration = 5 })
         end)
     end
 })
 
 local TabPreset = Window:Tab({ Title = "Instant Modes", Icon = "car", Border = true })
 local ModeCepat = TabPreset:Section({ Title = "Presets", Box = true, BoxBorder = true, Opened = false })
-
-ModeCepat:Button({ Title = "🛵 SUNDAY RIDE (Safe)", Callback = function() InjectMesin(1.5, 2000, 0.9, 0.9, "Sunday Ride Active") end })
-ModeCepat:Button({ Title = "🏎️ RACING MODE (Aggressive)", Callback = function() InjectMesin(3.5, 5000, 0.75, 0.75, "Racing Mode Active") end })
-ModeCepat:Button({ Title = "🚀 GOD MODE (Max Speed)", Callback = function() InjectMesin(8, 15000, 0.45, 0.45, "God Mode Active") end })
-ModeCepat:Button({ Title = "🔄 RESET TO DEFAULT", Callback = function() WindUI:Notify({ Title = "ℹ️ Info", Content = "Respawn vehicle from game menu to reset.", Duration = 5 }) end })
+ModeCepat:Button({ Title = "🛵 SUNDAY RIDE (Safe)",         Callback = function() InjectMesin(1.5,  2000, 0.9,  0.9,  "Sunday Ride Active") end })
+ModeCepat:Button({ Title = "🏎️ RACING MODE (Aggressive)",  Callback = function() InjectMesin(3.5,  5000, 0.75, 0.75, "Racing Mode Active") end })
+ModeCepat:Button({ Title = "🚀 GOD MODE (Max Speed)",       Callback = function() InjectMesin(8,   15000, 0.45, 0.45, "God Mode Active") end })
+ModeCepat:Button({ Title = "🔄 RESET TO DEFAULT",           Callback = function() WindUI:Notify({ Title = "ℹ️ Info", Content = "Respawn vehicle from game menu to reset.", Duration = 5 }) end })
 
 local TabCustom = Window:Tab({ Title = "Custom Tune", Icon = "sliders", Border = true })
 local TuneSendiri = TabCustom:Section({ Title = "Manual Tuning", Box = true, BoxBorder = true, Opened = false })
-
 local customHP, customRPM, customRatio, customFD = 2, 5000, 0.8, 0.8
-TuneSendiri:Input({ Title = "💪 Horsepower Multiplier", Placeholder = "Example: 3", Callback = function(Text) local val = tonumber(Text) if val then customHP = val end end })
-TuneSendiri:Input({ Title = "🔥 RPM Adder", Placeholder = "Example: 8000", Callback = function(Text) local val = tonumber(Text) if val then customRPM = val end end })
-TuneSendiri:Input({ Title = "⚙️ Gear Ratio Multiplier", Placeholder = "Example: 0.6", Callback = function(Text) local val = tonumber(Text) if val then customRatio = val end end })
-TuneSendiri:Input({ Title = "⛓️ Final Drive Multiplier", Placeholder = "Example: 0.6", Callback = function(Text) local val = tonumber(Text) if val then customFD = val end end })
+TuneSendiri:Input({ Title = "💪 Horsepower Multiplier", Placeholder = "Example: 3",    Callback = function(Text) local val = tonumber(Text) if val then customHP    = val end end })
+TuneSendiri:Input({ Title = "🔥 RPM Adder",             Placeholder = "Example: 8000", Callback = function(Text) local val = tonumber(Text) if val then customRPM   = val end end })
+TuneSendiri:Input({ Title = "⚙️ Gear Ratio Multiplier", Placeholder = "Example: 0.6",  Callback = function(Text) local val = tonumber(Text) if val then customRatio = val end end })
+TuneSendiri:Input({ Title = "⛓️ Final Drive Multiplier", Placeholder = "Example: 0.6", Callback = function(Text) local val = tonumber(Text) if val then customFD    = val end end })
 TuneSendiri:Button({ Title = "⚡ INJECT CUSTOM TUNE", Callback = function() InjectMesin(customHP, customRPM, customRatio, customFD, "Custom Tune Active") end })
 
 Window:EditOpenButton({
-    Title           = "Open King Akbar",
-    Icon            = "crown",
-    CornerRadius    = UDim.new(0, 12),
-    StrokeThickness = 2,
+    Title = "Open King Akbar", Icon = "crown",
+    CornerRadius = UDim.new(0, 12), StrokeThickness = 2,
     Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromHex("#ffffff")),
-        ColorSequenceKeypoint.new(1, Color3.fromHex("#0a0a0a")),
+        ColorSequenceKeypoint.new(0,   Color3.fromHex("#ffffff")),
+        ColorSequenceKeypoint.new(1,   Color3.fromHex("#0a0a0a")),
     }),
-    Enabled   = true,
-    Draggable = true,
+    Enabled = true, Draggable = true,
 })
 
 local FpsTag = Window:Tag({
@@ -2581,7 +2454,7 @@ WindUI:SetTheme("dark")
 TabInfo:Select()
 
 WindUI:Notify({
-    Title    = "👑 KING AKBAR V8.3.2 READY!",
-    Content  = "F9 Clean Edition: safeDestroy aktif, warning spam hilang!",
+    Title    = "👑 King Akbar siap",
+    Content  = "Semuanya udah jalan, gas farming!",
     Duration = 5,
 })
