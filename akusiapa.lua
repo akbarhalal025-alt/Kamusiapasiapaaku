@@ -1407,15 +1407,12 @@ GenerateQuestion.OnClientEvent:Connect(function(questionText, answerData, sessio
     end
 
     if correctButton then
-        local method = pressButton(correctButton)
-        if not method then
-            pcall(function() CorrectAnswer:FireServer(correctAnswerID, sessionID, correctButton) end)
-        end
+        -- Hanya pakai pressButton (getconnections handler asli game)
+        -- JANGAN pakai FireServer langsung — diblokir checkcaller game
+        pressButton(correctButton)
         unhighlightLater(correctButton, 0.4)
-    elseif correctAnswerID then
-        CorrectAnswer:FireServer(correctAnswerID, sessionID)
-        clearHighlights()
     else
+        -- Tombol tidak ketemu sama sekali, skip
         clearHighlights()
     end
 
@@ -1423,8 +1420,63 @@ GenerateQuestion.OnClientEvent:Connect(function(questionText, answerData, sessio
 end)
 
 -- ============================================================================
--- // ANTI-STUCK + IDLE CHAIR SWITCH
+-- // OFFICE STABILITY ENGINE
+-- // 1. Heartbeat seat monitor — re-duduk kalau tiba-tiba berdiri
+-- // 2. Respawn recovery — join ulang tim & duduk kalau mati
+-- // 3. Periodic team rejoin — pastikan tim tidak reset sendiri
 -- ============================================================================
+
+-- [1] Heartbeat: cek tiap 2 detik, kalau tidak duduk & tidak ke printer → dudukkan lagi
+task.spawn(function()
+    while true do
+        task.wait(2)
+        if not State.IsOfficeActive then continue end
+        if getgenv().isGoingToPrinter or isSwitching then continue end
+
+        local hum = CharRef.Humanoid
+        if not hum then continue end
+
+        -- Kalau tidak duduk padahal harusnya duduk
+        if not hum.SeatPart then
+            pcall(function()
+                local seat = findOfficeSeat(nil)
+                if seat then
+                    myChair = seat
+                    -- Jalan ke kursi dulu baru duduk
+                    jalanKe(seat.CFrame.Position + Vector3.new(0, 2, 0))
+                    task.wait(0.3)
+                    if CharRef.Humanoid then seat:Sit(CharRef.Humanoid) end
+                end
+            end)
+        end
+    end
+end)
+
+-- [2] Respawn recovery — kalau mati, otomatis join ulang & duduk
+LocalPlayer.CharacterAdded:Connect(function(newChar)
+    if not State.IsOfficeActive then return end
+    -- Update referensi karakter
+    CharRef.Character = newChar
+    CharRef.Humanoid  = newChar:WaitForChild("Humanoid")
+    CharRef.Root      = newChar:WaitForChild("HumanoidRootPart")
+
+    task.wait(3) -- tunggu karakter spawn sempurna
+    if not State.IsOfficeActive then return end
+
+    -- Duduk ke kursi - jalan biasa
+    local seat = findOfficeSeat(nil)
+    if seat then
+        myChair = seat
+        pcall(function()
+            jalanKe(seat.CFrame.Position + Vector3.new(0, 2, 0))
+            task.wait(0.3)
+            seat:Sit(CharRef.Humanoid)
+        end)
+    end
+    lastActivityTime = tick()
+end)
+
+-- Anti-stuck + idle chair switch
 local isSwitching = false
 local IDLE_SWITCH_TIME = 60
 
@@ -1475,13 +1527,20 @@ end)
 local AssignPrintJob = JobEvents:WaitForChild("AssignPrintJob")
 local ClearPrintJob  = JobEvents:WaitForChild("ClearPrintJob")
 local activePrinterName = nil
+local printerRetryCount = 0
+local MAX_PRINTER_RETRY = 3
+local printerCooldownUntil = 0  -- timestamp, blokir job baru sampai waktu ini
 
 AssignPrintJob.OnClientEvent:Connect(function(printerName)
+    -- Abaikan job baru kalau masih dalam cooldown
+    if tick() < printerCooldownUntil then return end
     activePrinterName = printerName
+    printerRetryCount = 0
 end)
 
 ClearPrintJob.OnClientEvent:Connect(function()
     activePrinterName = nil
+    printerRetryCount = 0
 end)
 
 task.spawn(function()
@@ -1490,68 +1549,114 @@ task.spawn(function()
         if not State.IsOfficeActive then continue end
 
         if activePrinterName and not getgenv().isGoingToPrinter then
+            -- Lewati kalau sudah retry terlalu banyak
+            if printerRetryCount >= MAX_PRINTER_RETRY then
+                activePrinterName = nil
+                printerRetryCount = 0
+                getgenv().isGoingToPrinter = false
+                getgenv().forceStopMath = false
+                lastActivityTime = tick()
+                continue
+            end
+
             getgenv().isGoingToPrinter = true
             getgenv().forceStopMath = true
             getgenv().printWatchdog = tick()
+            printerRetryCount = printerRetryCount + 1
 
             pcall(function()
-                task.wait(math.random(5,10)/10)
-                keluarKursi()
+                task.wait(math.random(3,7)/10)
 
+                -- Keluar kursi dulu
                 local hum = CharRef.Humanoid
-                if hum then hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false) end
+                if hum then
+                    hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+                    if hum.SeatPart then
+                        hum:ChangeState(Enum.HumanoidStateType.Jumping)
+                        task.wait(0.4)
+                    end
+                end
 
                 local printerPart = nil
                 local targetPrompt = nil
+                local currentPrinterName = activePrinterName
 
-                for i=1, 15 do
+                -- Cari printer, max 10 coba
+                for i = 1, 10 do
+                    if not activePrinterName or activePrinterName ~= currentPrinterName then break end
                     local printerModel = ComputersFolder:FindFirstChild(activePrinterName)
-                    if printerModel and printerModel:FindFirstChild("Part") then
-                        printerPart = printerModel.Part
-                        targetPrompt = printerPart:FindFirstChildOfClass("ProximityPrompt")
-                        if targetPrompt then targetPrompt.Enabled = true; break end
+                    if printerModel then
+                        printerPart = printerModel:FindFirstChild("Part")
+                        if printerPart then
+                            targetPrompt = printerPart:FindFirstChildOfClass("ProximityPrompt")
+                            if targetPrompt then break end
+                        end
                     end
                     task.wait(0.5)
                 end
 
-                if printerPart and targetPrompt then
+                if printerPart and targetPrompt and activePrinterName then
+                    targetPrompt.Enabled = true
+
+                    -- Jalan ke printer
                     jalanKe(printerPart.Position + Vector3.new(0, 0, 2.5))
 
+                    -- Hadapkan ke printer
                     if CharRef.Root then
-                        local lookTarget = Vector3.new(printerPart.Position.X, CharRef.Root.Position.Y, printerPart.Position.Z)
-                        CharRef.Root.CFrame = CFrame.lookAt(CharRef.Root.Position, lookTarget)
+                        local look = Vector3.new(printerPart.Position.X, CharRef.Root.Position.Y, printerPart.Position.Z)
+                        CharRef.Root.CFrame = CFrame.lookAt(CharRef.Root.Position, look)
                     end
 
+                    -- Lock kamera
                     local cam = workspace.CurrentCamera
-                    local prevCamType = cam.CameraType
+                    local prevType = cam.CameraType
                     pcall(function()
                         cam.CameraType = Enum.CameraType.Scriptable
-                        local eyePos = CharRef.Root.Position + Vector3.new(0, 1.5, 0)
-                        cam.CFrame = CFrame.lookAt(eyePos, printerPart.Position)
+                        cam.CFrame = CFrame.lookAt(
+                            CharRef.Root.Position + Vector3.new(0, 1.5, 0),
+                            printerPart.Position
+                        )
                     end)
 
-                    task.wait(math.random(4,10)/10)
+                    task.wait(0.3)
                     eksekusiPromptTahan(targetPrompt)
                     State.OfficePrints = (State.OfficePrints or 0) + 1
 
-                    pcall(function() cam.CameraType = prevCamType end)
+                    pcall(function() cam.CameraType = prevType end)
 
-                    local timeout = 0
-                    while activePrinterName and timeout < 10 do
-                        task.wait(0.5); timeout += 0.5
+                    -- Tunggu ClearPrintJob atau timeout 12 detik
+                    local t = 0
+                    while activePrinterName == currentPrinterName and t < 12 do
+                        task.wait(0.5); t = t + 0.5
                     end
-                end
 
-                local nearestSeat = findOfficeSeat(nil)
-                if nearestSeat then myChair = nearestSeat end
-                dudukKeKursi(false)
-                task.wait(0.5)
+                    -- Sukses, reset retry
+                    printerRetryCount = 0
+                end
+            end)
+
+            -- Kembali duduk setelah printer selesai - jalan biasa, bukan TP
+            pcall(function()
+                local hum = CharRef.Humanoid
+                if hum then hum:SetStateEnabled(Enum.HumanoidStateType.Seated, true) end
+
+                local seat = findOfficeSeat(nil)
+                if seat then
+                    myChair = seat
+                    -- Jalan ke kursi dulu baru duduk
+                    jalanKe(seat.CFrame.Position + Vector3.new(0, 2, 0))
+                    task.wait(0.3)
+                    if CharRef.Humanoid then seat:Sit(CharRef.Humanoid) end
+                end
             end)
 
             getgenv().isGoingToPrinter = false
             getgenv().forceStopMath = false
             getgenv().printWatchdog = nil
             lastActivityTime = tick()
+
+            -- Cooldown 8 detik — biar duduk dulu stabil sebelum terima job print baru
+            printerCooldownUntil = tick() + 8
         end
     end
 end)
