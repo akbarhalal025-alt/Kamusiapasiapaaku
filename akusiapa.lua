@@ -5,6 +5,7 @@
     [+] Developer   : King Akbar
     [+] Game        : Drag Drive Simulator
     [+] Update      : + Auto RideGO Driver v10.30 (BETA)
+    [+] Fix         : Dynamic vehicle selection (uses first owned vehicle)
 ================================================================================
 ]]--
 
@@ -81,35 +82,30 @@ do
         if not oldNamecall then return end
         if not pcall(setreadonly, mt, false) then return end
 
-        -- Remote DDS berbahaya (hasil scan) — HANYA nama spesifik, bukan keyword lebar
         local BLOCK_FIRE = {
-            ["admin"]              = true,   -- ReplicatedStorage.Admin.Admin
-            ["reportmessageevent"] = true,   -- ReplicatedStorage.ReportMessageEvent
-            ["0bde16ec-a0df-43fe-ba4b-b1fca4f092ee"] = true,  -- UUID AC tersembunyi
+            ["admin"]              = true,
+            ["reportmessageevent"] = true,
+            ["0bde16ec-a0df-43fe-ba4b-b1fca4f092ee"] = true,
         }
-        -- Remote function yang di-spoof
         local SPOOF_INVOKE = {
-            ["requestadminstatus"] = false,  -- bukan admin → server tidak curiga
+            ["requestadminstatus"] = false,
         }
 
         setreadonly(mt, false)
         mt.__namecall = newcclosure(function(self, ...)
             local method = getnamecallmethod and getnamecallmethod() or ""
 
-            -- Anti-Kick & Disconnect LocalPlayer
             if (method == "Kick" or method == "kick" or method == "Disconnect")
                 and tostring(self) == tostring(LocalPlayer)
             then
-                -- Izinkan kick kalau dari script sendiri (target profit)
                 if getgenv().allowSelfKick then
                     getgenv().allowSelfKick = false
                     return oldNamecall(self, ...)
                 end
                 BWarn("Kick diblokir!")
-                return  -- return biasa, tidak wait(9e9) yg bikin hang
+                return
             end
 
-            -- Blokir FireServer ke remote AC DDS
             if method == "FireServer" then
                 local ok, name = pcall(function()
                     return string.lower(tostring(self.Name))
@@ -120,7 +116,6 @@ do
                 end
             end
 
-            -- Spoof InvokeServer
             if method == "InvokeServer" then
                 local ok, name = pcall(function()
                     return string.lower(tostring(self.Name))
@@ -213,17 +208,14 @@ do
         gethui and gethui() or game:GetService("CoreGui"),
     }
 
-    -- Scan pertama
     for _, svc in ipairs(gui_services) do pcall(killAC, svc) end
 
-    -- Loop tiap 3 detik
     task.spawn(function()
         while task.wait(3) do
             for _, svc in ipairs(gui_services) do pcall(killAC, svc) end
         end
     end)
 
-    -- ChildAdded monitor (real-time)
     for _, svc in ipairs(gui_services) do
         pcall(function()
             svc.ChildAdded:Connect(function(child)
@@ -366,7 +358,7 @@ local State = {
     IsBaristaActive    = false,
     IsOfficeActive     = false,
     IsCourierActive    = false,
-    IsRideGOActive     = false,   -- NEW: RideGO state
+    IsRideGOActive     = false,
     AiThread           = nil,
     StatusText         = "Idling...",
     OrderCount         = 0,
@@ -383,8 +375,7 @@ local State = {
     CourierDelivered   = 0,
     FakeNameActive     = false,
     FakeName           = "King Akbar",
-    TargetProfit       = 0,  -- 0 = tidak ada batas, isi angka = auto kick saat profit tercapai
-    -- RideGO fields
+    TargetProfit       = 0,
     RideGOIsOnline     = false,
     RideGOPhase        = "idle",
     RideGOToken        = nil,
@@ -1417,12 +1408,9 @@ GenerateQuestion.OnClientEvent:Connect(function(questionText, answerData, sessio
     end
 
     if correctButton then
-        -- Hanya pakai pressButton (getconnections handler asli game)
-        -- JANGAN pakai FireServer langsung — diblokir checkcaller game
         pressButton(correctButton)
         unhighlightLater(correctButton, 0.4)
     else
-        -- Tombol tidak ketemu sama sekali, skip
         clearHighlights()
     end
 
@@ -1431,12 +1419,7 @@ end)
 
 -- ============================================================================
 -- // OFFICE STABILITY ENGINE
--- // 1. Heartbeat seat monitor — re-duduk kalau tiba-tiba berdiri
--- // 2. Respawn recovery — join ulang tim & duduk kalau mati
--- // 3. Periodic team rejoin — pastikan tim tidak reset sendiri
 -- ============================================================================
-
--- [1] Heartbeat: cek tiap 2 detik, kalau tidak duduk & tidak ke printer → dudukkan lagi
 task.spawn(function()
     while true do
         task.wait(2)
@@ -1446,13 +1429,11 @@ task.spawn(function()
         local hum = CharRef.Humanoid
         if not hum then continue end
 
-        -- Kalau tidak duduk padahal harusnya duduk
         if not hum.SeatPart then
             pcall(function()
                 local seat = findOfficeSeat(nil)
                 if seat then
                     myChair = seat
-                    -- Jalan ke kursi dulu baru duduk
                     jalanKe(seat.CFrame.Position + Vector3.new(0, 2, 0))
                     task.wait(0.3)
                     if CharRef.Humanoid then seat:Sit(CharRef.Humanoid) end
@@ -1462,18 +1443,15 @@ task.spawn(function()
     end
 end)
 
--- [2] Respawn recovery — kalau mati, otomatis join ulang & duduk
 LocalPlayer.CharacterAdded:Connect(function(newChar)
     if not State.IsOfficeActive then return end
-    -- Update referensi karakter
     CharRef.Character = newChar
     CharRef.Humanoid  = newChar:WaitForChild("Humanoid")
     CharRef.Root      = newChar:WaitForChild("HumanoidRootPart")
 
-    task.wait(3) -- tunggu karakter spawn sempurna
+    task.wait(3)
     if not State.IsOfficeActive then return end
 
-    -- Duduk ke kursi - jalan biasa
     local seat = findOfficeSeat(nil)
     if seat then
         myChair = seat
@@ -1486,7 +1464,6 @@ LocalPlayer.CharacterAdded:Connect(function(newChar)
     lastActivityTime = tick()
 end)
 
--- Anti-stuck + idle chair switch
 local isSwitching = false
 local IDLE_SWITCH_TIME = 60
 
@@ -1539,10 +1516,9 @@ local ClearPrintJob  = JobEvents:WaitForChild("ClearPrintJob")
 local activePrinterName = nil
 local printerRetryCount = 0
 local MAX_PRINTER_RETRY = 3
-local printerCooldownUntil = 0  -- timestamp, blokir job baru sampai waktu ini
+local printerCooldownUntil = 0
 
 AssignPrintJob.OnClientEvent:Connect(function(printerName)
-    -- Abaikan job baru kalau masih dalam cooldown
     if tick() < printerCooldownUntil then return end
     activePrinterName = printerName
     printerRetryCount = 0
@@ -1559,7 +1535,6 @@ task.spawn(function()
         if not State.IsOfficeActive then continue end
 
         if activePrinterName and not getgenv().isGoingToPrinter then
-            -- Lewati kalau sudah retry terlalu banyak
             if printerRetryCount >= MAX_PRINTER_RETRY then
                 activePrinterName = nil
                 printerRetryCount = 0
@@ -1577,7 +1552,6 @@ task.spawn(function()
             pcall(function()
                 task.wait(math.random(3,7)/10)
 
-                -- Keluar kursi dulu
                 local hum = CharRef.Humanoid
                 if hum then
                     hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
@@ -1591,7 +1565,6 @@ task.spawn(function()
                 local targetPrompt = nil
                 local currentPrinterName = activePrinterName
 
-                -- Cari printer, max 10 coba
                 for i = 1, 10 do
                     if not activePrinterName or activePrinterName ~= currentPrinterName then break end
                     local printerModel = ComputersFolder:FindFirstChild(activePrinterName)
@@ -1608,16 +1581,13 @@ task.spawn(function()
                 if printerPart and targetPrompt and activePrinterName then
                     targetPrompt.Enabled = true
 
-                    -- Jalan ke printer
                     jalanKe(printerPart.Position + Vector3.new(0, 0, 2.5))
 
-                    -- Hadapkan ke printer
                     if CharRef.Root then
                         local look = Vector3.new(printerPart.Position.X, CharRef.Root.Position.Y, printerPart.Position.Z)
                         CharRef.Root.CFrame = CFrame.lookAt(CharRef.Root.Position, look)
                     end
 
-                    -- Lock kamera
                     local cam = workspace.CurrentCamera
                     local prevType = cam.CameraType
                     pcall(function()
@@ -1634,18 +1604,15 @@ task.spawn(function()
 
                     pcall(function() cam.CameraType = prevType end)
 
-                    -- Tunggu ClearPrintJob atau timeout 12 detik
                     local t = 0
                     while activePrinterName == currentPrinterName and t < 12 do
                         task.wait(0.5); t = t + 0.5
                     end
 
-                    -- Sukses, reset retry
                     printerRetryCount = 0
                 end
             end)
 
-            -- Kembali duduk setelah printer selesai - jalan biasa, bukan TP
             pcall(function()
                 local hum = CharRef.Humanoid
                 if hum then hum:SetStateEnabled(Enum.HumanoidStateType.Seated, true) end
@@ -1653,7 +1620,6 @@ task.spawn(function()
                 local seat = findOfficeSeat(nil)
                 if seat then
                     myChair = seat
-                    -- Jalan ke kursi dulu baru duduk
                     jalanKe(seat.CFrame.Position + Vector3.new(0, 2, 0))
                     task.wait(0.3)
                     if CharRef.Humanoid then seat:Sit(CharRef.Humanoid) end
@@ -1665,7 +1631,6 @@ task.spawn(function()
             getgenv().printWatchdog = nil
             lastActivityTime = tick()
 
-            -- Cooldown 8 detik — biar duduk dulu stabil sebelum terima job print baru
             printerCooldownUntil = tick() + 8
         end
     end
@@ -1902,26 +1867,21 @@ local function buatMonitoringGUI()
                 v_uptime.Text = formatTime(uptimeDetik)
                 v_uptime.TextColor3 = CLR_WHITE
 
-                -- ── AUTO KICK SAAT TARGET PROFIT TERCAPAI ──────────────
                 if State.TargetProfit > 0 and profit >= State.TargetProfit then
-                    -- Hentikan semua farming dulu
                     State.IsOfficeActive   = false
                     State.IsBaristaActive  = false
                     State.IsCourierActive  = false
                     State.IsRideGOActive   = false
                     getgenv().fullAuto     = false
 
-                    -- Tampilkan notif sebentar sebelum kick
                     WindUI:Notify({
                         Title    = "Udah nyampe nih",
                         Content  = "Profit " .. fmtProfit(profit) .. " dari target " .. fmtRupiah(State.TargetProfit) .. ", keluar sekarang.",
                         Duration = 4,
                     })
 
-                    task.wait(3)  -- beri waktu notif terbaca
+                    task.wait(3)
 
-                    -- Matikan semua koneksi network → disconnect total (bukan rejoin)
-                    -- Metode 1: Hancurkan DataModel connection
                     local exited = false
                     pcall(function()
                         game:GetService("Players"):FindFirstChildOfClass("Player").Parent = nil
@@ -1930,7 +1890,6 @@ local function buatMonitoringGUI()
 
                     if not exited then
                         pcall(function()
-                            -- Metode 2: Corrupt network ownership → server drop connection
                             local np = Instance.new("NetworkReplicator")
                             np.Parent = game
                             exited = true
@@ -1938,12 +1897,10 @@ local function buatMonitoringGUI()
                     end
 
                     if not exited then
-                        -- Metode 3: Stack overflow → crash keluar tanpa rejoin
                         local function crash() return crash() end
                         pcall(crash)
                     end
                 end
-                -- ───────────────────────────────────────────────────────
             end)
             task.wait(0.1)
         end
@@ -2014,7 +1971,32 @@ local CourierJob = {
     X = -5158.57, Y = 4.41, Z = -3757.87
 }
 
-local SELECTED_CAR = "Yamahax-MioSporty"
+-- Dynamic vehicle selection
+local function getOwnedVehicleName()
+    local vehicleName = "Yamahax-MioSporty" -- fallback
+    local success, result = pcall(function()
+        return game:GetService("ReplicatedStorage")
+            .DealershipEvents.GetInfoCarSlot:InvokeServer()
+    end)
+    if success and result then
+        if type(result) == "table" then
+            for _, v in ipairs(result) do
+                if type(v) == "string" and v ~= "" then
+                    vehicleName = v
+                    break
+                elseif type(v) == "table" and v.Name then
+                    vehicleName = v.Name
+                    break
+                end
+            end
+        elseif type(result) == "string" and result ~= "" then
+            vehicleName = result
+        end
+    end
+    return vehicleName
+end
+
+local SELECTED_CAR = getOwnedVehicleName() -- get once at start
 
 local function spawnCar()
     Services.ReplicatedStorage:WaitForChild("SpawnCarEvents"):WaitForChild("SpawnCar"):FireServer(SELECTED_CAR)
@@ -2466,7 +2448,7 @@ local SpawnCarEvents   = Services.ReplicatedStorage:WaitForChild("SpawnCarEvents
 local MAX_SPEED_LIMIT = 200
 local MIN_SPEED_LIMIT = 190
 local HOVER_HEIGHT    = 12
-local DEFAULT_VEHICLE = "Yamahax-MioSporty"
+local DEFAULT_VEHICLE = getOwnedVehicleName() -- dynamic
 local VOID_STOP_TIME  = 0.6
 local VOID_SCAN_MAX   = 6000
 local VOID_SCAN_STEP  = 50
@@ -2578,7 +2560,7 @@ local function ensureBike()
             DealershipEvents.GetInfoCarSlot:InvokeServer()
         end
         if SpawnCarEvents:FindFirstChild("SpawnCar") then
-            SpawnCarEvents.SpawnCar:FireServer(DEFAULT_VEHICLE)
+            SpawnCarEvents.SpawnCar:FireServer(DEFAULT_VEHICLE) -- dynamic
         end
     end)
 
@@ -2988,7 +2970,6 @@ local function StartRideGOScript()
         Content = "Auto RideGO dimulai. Join tim 'RideGO Driver' untuk mulai.",
         Duration = 5
     })
-    -- Script otomatis mendeteksi tim saat berubah
 end
 
 local function StopRideGOScript()
@@ -2997,7 +2978,6 @@ local function StopRideGOScript()
     if State.RideGOIsOnline then
         TaxiEvent:FireServer("GoOffline")
     end
-    -- Matikan movers kalau ada
     local bike = getBikeModel()
     if bike then
         local primary = bike.PrimaryPart or bike:FindFirstChild("VehicleSeat") or bike:FindFirstChildOfClass("BasePart")
