@@ -4,7 +4,8 @@
 ================================================================================
     [+] Developer   : King Akbar
     [+] Game        : Drag Drive Simulator
-    [+] Update      : Integrated Vehicle Selector in Courier & RideGO (Dropdown + Refresh)
+    [+] Update      : + Auto RideGO Driver v10.30 (BETA)
+    [+] Fitur Baru  : + Dynamic Vehicle Selector (Scan Garasi)
 ================================================================================
 ]]--
 
@@ -33,6 +34,7 @@ do
     local LocalPlayer = game:GetService("Players").LocalPlayer
     local RS          = game:GetService("ReplicatedStorage")
 
+    -- Logger internal (silent)
     local function BLog(msg)  end
     local function BWarn(msg) end
 
@@ -127,7 +129,7 @@ do
             return oldNamecall(self, ...)
         end)
         setreadonly(mt, true)
-        BLog("Metatable Hook aktif")
+        BLog("Metatable Hook aktif (Anti-Kick + Remote Blocker)")
     end)
 
     -- ── [4] WRONGTEAMEVENT INTERCEPTOR ────────────────────────────────
@@ -230,7 +232,7 @@ do
         end)
     end
 
-    BLog("Smart AC Killer aktif")
+    BLog("Smart AC Killer aktif (scan 3s + ChildAdded monitor)")
 
     -- ── [7] EXTERNAL BYPASS ───────────────────────────────────────────
     task.spawn(function()
@@ -250,8 +252,6 @@ end
 
 -- ============================================================================
 -- // 1. LOAD WINDUI (SAFE)
--- ============================================================================
-local WindUI
 do
     local ok, result = pcall(function()
         return loadstring(game:HttpGet(
@@ -264,21 +264,20 @@ do
         WindUI = {
             CreateWindow = function() return {
                 Tab            = function() return {
-                    Paragraph  = function() return { Set = function() end, SetDesc = function() end } end,
+                    Paragraph  = function() return { Set = function() end } end,
                     Toggle     = function() end,
                     Button     = function() end,
                     Input      = function() end,
                     Slider     = function() end,
-                    Dropdown   = function() return { Refresh = function() end, Select = function() end } end,
                     Section    = function() return {
-                        Paragraph = function() return { Set = function() end, SetDesc = function() end } end,
+                        Paragraph = function() return { Set = function() end } end,
                         Toggle    = function() end,
                         Button    = function() end,
                         Input     = function() end,
                         Slider    = function() end,
-                        Dropdown  = function() return { Refresh = function() end, Select = function() end } end,
                     } end,
                     Select     = function() end,
+                    Dropdown   = function() end,
                 } end,
                 Tag            = function() return { SetTitle = function() end } end,
                 EditOpenButton = function() end,
@@ -298,7 +297,7 @@ local Services = {
     Players            = game:GetService("Players"),
     RunService         = game:GetService("RunService"),
     TweenSvc           = game:GetService("TweenService"),
-    UserInput          = game:GetService("UserInputService"),
+    UserInput           = game:GetService("UserInputService"),
     Stats              = game:GetService("Stats"),
     Workspace          = game:GetService("Workspace"),
     VirtualUser        = game:GetService("VirtualUser"),
@@ -307,6 +306,7 @@ local Services = {
     PathfindingService = game:GetService("PathfindingService"),
     ReplicatedStorage  = game:GetService("ReplicatedStorage"),
     StarterGui         = game:GetService("StarterGui"),
+    VirtualInputManager = game:GetService("VirtualInputManager"),
 }
 
 local LocalPlayer = Services.Players.LocalPlayer
@@ -330,7 +330,7 @@ LocalPlayer.CharacterAdded:Connect(function(newChar)
 end)
 
 -- ============================================================================
--- // SAFE INPUT SYSTEM
+-- // SAFE INPUT SYSTEM (NO VIM - khusus Barista minigame & AFK)
 -- ============================================================================
 local function SafeClick(x, y, holdTime)
     holdTime = holdTime or 0.05
@@ -353,76 +353,7 @@ local function SafeClick(x, y, holdTime)
 end
 
 -- ============================================================================
--- // 3. VEHICLE SELECTION ENGINE
--- ============================================================================
-local SELECTED_CAR = "Yamahax-MioSporty"
-local OwnedVehiclesList = { "Yamahax-MioSporty" }
-
-local VehicleDropdownCourier = nil
-local VehicleDropdownRideGO  = nil
-
-local function FetchOwnedVehicles()
-    local list = {}
-    pcall(function()
-        local RS = Services.ReplicatedStorage
-        local DealershipEvents = RS:WaitForChild("DealershipEvents", 5)
-        if DealershipEvents then
-            if DealershipEvents:FindFirstChild("InitializeCarData") then
-                DealershipEvents.InitializeCarData:InvokeServer()
-            end
-            if DealershipEvents:FindFirstChild("GetInfoCarSlot") then
-                local slotData = DealershipEvents.GetInfoCarSlot:InvokeServer()
-                if type(slotData) == "table" then
-                    for _, item in pairs(slotData) do
-                        if type(item) == "string" and item ~= "" then
-                            table.insert(list, item)
-                        elseif type(item) == "table" then
-                            local carName = item.Car or item.Name or item.CarName or item.Vehicle or item[1]
-                            if carName and type(carName) == "string" and carName ~= "" then
-                                table.insert(list, carName)
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end)
-
-    local unique, hash = {}, {}
-    for _, car in ipairs(list) do
-        if not hash[car] then
-            table.insert(unique, car)
-            hash[car] = true
-        end
-    end
-
-    if #unique > 0 then
-        OwnedVehiclesList = unique
-        if not hash[SELECTED_CAR] then
-            SELECTED_CAR = OwnedVehiclesList[1]
-        end
-    else
-        OwnedVehiclesList = { "Yamahax-MioSporty" }
-    end
-
-    return OwnedVehiclesList
-end
-
-local function RefreshAllVehicleDropdowns()
-    local cars = FetchOwnedVehicles()
-    pcall(function()
-        if VehicleDropdownCourier and VehicleDropdownCourier.Refresh then
-            VehicleDropdownCourier:Refresh(cars)
-        end
-        if VehicleDropdownRideGO and VehicleDropdownRideGO.Refresh then
-            VehicleDropdownRideGO:Refresh(cars)
-        end
-    end)
-    return cars
-end
-
--- ============================================================================
--- // 4. STATE MANAGER
+-- // 3. STATE MANAGER
 -- ============================================================================
 local State = {
     IsBaristaActive    = false,
@@ -464,7 +395,7 @@ LocalPlayer.Idled:Connect(function()
 end)
 
 -- ============================================================================
--- // 4.5 FAKE NAME SYSTEM
+-- // 3.5 FAKE NAME SYSTEM
 -- ============================================================================
 local OriginalDisplayName = LocalPlayer.DisplayName
 local SpoofCache = {}
@@ -538,12 +469,15 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- // 5. HUMANIZATION & MONEY HELPERS
+-- // 4. HUMANIZATION (RNG WAIT)
 -- ============================================================================
 local function rWait(minSec, maxSec)
     task.wait(math.random((minSec or 0.5) * 1000, (maxSec or 1.5) * 1000) / 1000)
 end
 
+-- ============================================================================
+-- // 5. GetPlayerMoney
+-- ============================================================================
 local function GetPlayerMoney()
     local money = 0
     pcall(function()
@@ -569,7 +503,12 @@ end
 local GAME_GROUP_ID  = 11378976
 local MIN_STAFF_RANK = 2
 
-local BlacklistedNames = { "slametriyadi", "admin", "moderator", "developer" }
+local BlacklistedNames = {
+    "slametriyadi",
+    "admin",
+    "moderator",
+    "developer"
+}
 
 local function CheckForAdmin(player)
     if not State.AntiAdmin or player == LocalPlayer then return end
@@ -577,7 +516,9 @@ local function CheckForAdmin(player)
     local pName = string.lower(player.Name)
     local dName = string.lower(player.DisplayName)
     for _, badName in ipairs(BlacklistedNames) do
-        if pName:find(badName) or dName:find(badName) then isStaff = true; break end
+        if pName:find(badName) or dName:find(badName) then
+            isStaff = true; break
+        end
     end
     if not isStaff then
         pcall(function()
@@ -601,8 +542,9 @@ end
 for _, p in ipairs(Services.Players:GetPlayers()) do CheckForAdmin(p) end
 Services.Players.PlayerAdded:Connect(CheckForAdmin)
 
+local TextChatService = game:GetService("TextChatService")
 pcall(function()
-    game:GetService("TextChatService").MessageReceived:Connect(function(message)
+    TextChatService.MessageReceived:Connect(function(message)
         if not State.AntiAdmin then return end
         local text = string.lower(message.Text or "")
         local sender = message.TextSource
@@ -787,13 +729,19 @@ local function ToggleBlackScreen(on)
     end
 end
 
-local AntiLagActive, AntiLagConn = false, nil
-local PotatoActive, PotatoConns  = false, {}
+local AntiLagActive = false
+local AntiLagConn = nil
+local PotatoActive = false
+local PotatoConns = {}
 
-local LAG_CLASSES = { "ParticleEmitter", "Smoke", "Fire", "Explosion", "Beam", "Trail", "Sparkles" }
+local LAG_CLASSES = {
+    "ParticleEmitter", "Smoke", "Fire", "Explosion", "Beam", "Trail", "Sparkles"
+}
 
 local function isLaggy(inst)
-    for _, c in ipairs(LAG_CLASSES) do if inst:IsA(c) then return true end end
+    for _, c in ipairs(LAG_CLASSES) do
+        if inst:IsA(c) then return true end
+    end
     return false
 end
 
@@ -824,7 +772,9 @@ local function TogglePotatoMode(on)
     if on and AntiLagActive then ToggleAntiLag(false) end
     PotatoActive = on
     if on then
-        pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
+        pcall(function()
+            settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+        end)
         pcall(function()
             local Lighting = game:GetService("Lighting")
             Lighting.GlobalShadows = false; Lighting.FogEnd = 10
@@ -837,8 +787,11 @@ local function TogglePotatoMode(on)
         end)
         task.spawn(function()
             for _, v in pairs(Services.Workspace:GetDescendants()) do
-                if isLaggy(v) or v:IsA("Sound") or v:IsA("Decal") or v:IsA("Texture") or
-                   v:IsA("PointLight") or v:IsA("SpotLight") or v:IsA("SurfaceLight") then
+                if v:IsA("ParticleEmitter") or v:IsA("Smoke") or v:IsA("Fire") or
+                   v:IsA("Explosion") or v:IsA("Beam") or v:IsA("Trail") or
+                   v:IsA("Sparkles") or v:IsA("Sound") or v:IsA("Decal") or
+                   v:IsA("Texture") or v:IsA("PointLight") or v:IsA("SpotLight") or
+                   v:IsA("SurfaceLight") then
                     safeDestroy(v)
                 elseif v:IsA("MeshPart") then
                     pcall(function() v.TextureID = ""; v.MeshId = "" end)
@@ -847,10 +800,22 @@ local function TogglePotatoMode(on)
                 end
             end
         end)
+        pcall(function()
+            Services.Workspace.Terrain:Clear()
+            Services.Workspace.Terrain.WaterWaveSize = 0
+        end)
         local c1 = Services.Workspace.DescendantAdded:Connect(function(v)
             if not PotatoActive then return end
-            if isLaggy(v) or v:IsA("Sound") or v:IsA("Decal") or v:IsA("Texture") then
+            if v:IsA("ParticleEmitter") or v:IsA("Smoke") or v:IsA("Fire") or
+               v:IsA("Explosion") or v:IsA("Beam") or v:IsA("Trail") or
+               v:IsA("Sparkles") or v:IsA("Sound") or v:IsA("Decal") or
+               v:IsA("Texture") or v:IsA("PointLight") or v:IsA("SpotLight") or
+               v:IsA("SurfaceLight") then
                 safeDestroy(v)
+            elseif v:IsA("MeshPart") then
+                pcall(function() v.TextureID = ""; v.MeshId = "" end)
+            elseif v:IsA("BasePart") then
+                pcall(function() v.Material = Enum.Material.SmoothPlastic end)
             end
         end)
         table.insert(PotatoConns, c1)
@@ -1160,7 +1125,12 @@ end
 -- ============================================================================
 -- // 13. OFFICE JOB SYSTEM
 -- ============================================================================
+local playerGui       = LocalPlayer:WaitForChild("PlayerGui")
 local ComputersFolder = workspace:WaitForChild("Computers")
+
+local function hasText(str, keyword)
+    return str and string.find(string.lower(str), string.lower(keyword)) ~= nil
+end
 
 local function eksekusiPromptTahan(pp)
     if not pp then return end
@@ -1214,6 +1184,29 @@ local function getSeatFromChair(chair)
     if not chair then return nil end
     if chair:IsA("Seat") or chair:IsA("VehicleSeat") then return chair end
     return chair:FindFirstChildWhichIsA("Seat") or chair:FindFirstChildWhichIsA("VehicleSeat")
+end
+
+local function isChairOccupied(chair)
+    if not chair then return true end
+    local seat = getSeatFromChair(chair)
+    if seat then
+        if seat.Occupant and seat.Occupant ~= CharRef.Humanoid then return true end
+    end
+    local origin = chair:IsA("BasePart") and chair.Position
+        or (chair.PrimaryPart and chair.PrimaryPart.Position)
+        or (seat and seat.Position)
+    if origin then
+        for _, player in ipairs(Services.Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                local hum = player.Character:FindFirstChildOfClass("Humanoid")
+                if hum and hum.SeatPart then
+                    local dist = (hum.SeatPart.Position - origin).Magnitude
+                    if dist < 4 then return true end
+                end
+            end
+        end
+    end
+    return false
 end
 
 local function findOfficeSeat(excludeSeat)
@@ -1291,10 +1284,14 @@ local function dudukKeKursi(instantTP)
 end
 
 -- ============================================================================
--- // AUTO JAWAB MATEMATIKA (OFFICE)
+-- // AUTO JAWAB SOAL MATEMATIKA (OFFICE)
 -- ============================================================================
-local JobEvents = Services.ReplicatedStorage:WaitForChild("JobEvents")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+local JobEvents = ReplicatedStorage:WaitForChild("JobEvents")
 local GenerateQuestion = JobEvents:WaitForChild("GenerateQuestion")
+local CorrectAnswer = JobEvents:WaitForChild("CorrectAnswer")
 
 local function evaluateMath(text)
     local cleanText = string.gsub(text, "<[^>]+>", "")
@@ -1349,14 +1346,14 @@ local function highlightButton(btn)
     stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     stroke.LineJoinMode = Enum.LineJoinMode.Round
     stroke.Parent = btn
-    Services.TweenSvc:Create(stroke, TweenInfo.new(0.2, Enum.EasingStyle.Back), {Thickness = 7}):Play()
+    TweenService:Create(stroke, TweenInfo.new(0.2, Enum.EasingStyle.Back), {Thickness = 7}):Play()
 end
 
 local function unhighlightLater(btn, delaySec)
     task.delay(delaySec, function()
         local s = btn:FindFirstChild("AutoMathHighlight")
         if s then
-            Services.TweenSvc:Create(s, TweenInfo.new(0.2), {Thickness = 0}):Play()
+            TweenService:Create(s, TweenInfo.new(0.2), {Thickness = 0}):Play()
             task.delay(0.25, function() safeDestroy(s) end)
         end
     end)
@@ -1390,6 +1387,16 @@ GenerateQuestion.OnClientEvent:Connect(function(questionText, answerData, sessio
     local jawaban = evaluateMath(questionText)
     if not jawaban then return end
 
+    local correctAnswerID = nil
+    if type(answerData) == "table" then
+        for _, data in ipairs(answerData) do
+            local numText = string.match(tostring(data.Text or ""), "%-?%d+%.?%d*")
+            if tonumber(numText) == jawaban then
+                correctAnswerID = data.ID; break
+            end
+        end
+    end
+
     local correctButton = findCorrectButton(jawaban, 2.5)
     if correctButton then highlightButton(correctButton) end
     task.wait(math.random(15, 30) / 10)
@@ -1411,7 +1418,9 @@ GenerateQuestion.OnClientEvent:Connect(function(questionText, answerData, sessio
     if State then State.OfficeMathSolved = (State.OfficeMathSolved or 0) + 1 end
 end)
 
--- Office Stability Watchdog
+-- ============================================================================
+-- // OFFICE STABILITY ENGINE
+-- ============================================================================
 task.spawn(function()
     while true do
         task.wait(2)
@@ -1458,6 +1467,7 @@ end)
 
 local isSwitching = false
 local IDLE_SWITCH_TIME = 60
+
 getgenv().forceStopMath = false
 getgenv().isGoingToPrinter = false
 
@@ -1480,7 +1490,28 @@ task.spawn(function()
     end
 end)
 
--- Printer Loop
+task.spawn(function()
+    while true do
+        task.wait(5)
+        if not State.IsOfficeActive then continue end
+        if getgenv().isGoingToPrinter then
+            getgenv().printWatchdog = getgenv().printWatchdog or tick()
+            if tick() - getgenv().printWatchdog > 45 then
+                getgenv().isGoingToPrinter = false
+                getgenv().forceStopMath = false
+                getgenv().printWatchdog = nil
+                activePrinterName = nil
+                lastActivityTime = tick()
+            end
+        else
+            getgenv().printWatchdog = nil
+        end
+    end
+end)
+
+-- ============================================================================
+-- // PRINTER LOOP
+-- ============================================================================
 local AssignPrintJob = JobEvents:WaitForChild("AssignPrintJob")
 local ClearPrintJob  = JobEvents:WaitForChild("ClearPrintJob")
 local activePrinterName = nil
@@ -1516,10 +1547,12 @@ task.spawn(function()
 
             getgenv().isGoingToPrinter = true
             getgenv().forceStopMath = true
+            getgenv().printWatchdog = tick()
             printerRetryCount = printerRetryCount + 1
 
             pcall(function()
                 task.wait(math.random(3,7)/10)
+
                 local hum = CharRef.Humanoid
                 if hum then
                     hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
@@ -1529,7 +1562,8 @@ task.spawn(function()
                     end
                 end
 
-                local printerPart, targetPrompt = nil, nil
+                local printerPart = nil
+                local targetPrompt = nil
                 local currentPrinterName = activePrinterName
 
                 for i = 1, 10 do
@@ -1547,6 +1581,7 @@ task.spawn(function()
 
                 if printerPart and targetPrompt and activePrinterName then
                     targetPrompt.Enabled = true
+
                     jalanKe(printerPart.Position + Vector3.new(0, 0, 2.5))
 
                     if CharRef.Root then
@@ -1554,14 +1589,27 @@ task.spawn(function()
                         CharRef.Root.CFrame = CFrame.lookAt(CharRef.Root.Position, look)
                     end
 
+                    local cam = workspace.CurrentCamera
+                    local prevType = cam.CameraType
+                    pcall(function()
+                        cam.CameraType = Enum.CameraType.Scriptable
+                        cam.CFrame = CFrame.lookAt(
+                            CharRef.Root.Position + Vector3.new(0, 1.5, 0),
+                            printerPart.Position
+                        )
+                    end)
+
                     task.wait(0.3)
                     eksekusiPromptTahan(targetPrompt)
                     State.OfficePrints = (State.OfficePrints or 0) + 1
+
+                    pcall(function() cam.CameraType = prevType end)
 
                     local t = 0
                     while activePrinterName == currentPrinterName and t < 12 do
                         task.wait(0.5); t = t + 0.5
                     end
+
                     printerRetryCount = 0
                 end
             end)
@@ -1569,6 +1617,7 @@ task.spawn(function()
             pcall(function()
                 local hum = CharRef.Humanoid
                 if hum then hum:SetStateEnabled(Enum.HumanoidStateType.Seated, true) end
+
                 local seat = findOfficeSeat(nil)
                 if seat then
                     myChair = seat
@@ -1580,7 +1629,9 @@ task.spawn(function()
 
             getgenv().isGoingToPrinter = false
             getgenv().forceStopMath = false
+            getgenv().printWatchdog = nil
             lastActivityTime = tick()
+
             printerCooldownUntil = tick() + 8
         end
     end
@@ -1596,7 +1647,8 @@ local DisplayedValues = {}
 
 local function parseNumber(val)
     if not val then return 0 end
-    return tonumber(string.gsub(tostring(val), "[^%d%-]", "")) or 0
+    local cleanString = string.gsub(tostring(val), "[^%d%-]", "")
+    return tonumber(cleanString) or 0
 end
 
 local function formatTime(seconds)
@@ -1771,7 +1823,8 @@ local function buatMonitoringGUI()
     v_initial.Text = fmtRupiah(uangAwal)
 
     task.spawn(function()
-        local prevSolved, prevPrints = 0, 0
+        local prevSolved = 0
+        local prevPrints = 0
         while TrackerGui and TrackerGui.Parent do
             pcall(function()
                 local currentMoney = DapatkanUangPemain()
@@ -1823,13 +1876,31 @@ local function buatMonitoringGUI()
                     getgenv().fullAuto     = false
 
                     WindUI:Notify({
-                        Title    = "Target Profit Tercapai!",
-                        Content  = "Profit " .. fmtProfit(profit) .. ". Keluar server...",
+                        Title    = "Udah nyampe nih",
+                        Content  = "Profit " .. fmtProfit(profit) .. " dari target " .. fmtRupiah(State.TargetProfit) .. ", keluar sekarang.",
                         Duration = 4,
                     })
 
-                    task.wait(2)
-                    LocalPlayer:Kick("Target profit tercapai: " .. fmtRupiah(profit))
+                    task.wait(3)
+
+                    local exited = false
+                    pcall(function()
+                        game:GetService("Players"):FindFirstChildOfClass("Player").Parent = nil
+                        exited = true
+                    end)
+
+                    if not exited then
+                        pcall(function()
+                            local np = Instance.new("NetworkReplicator")
+                            np.Parent = game
+                            exited = true
+                        end)
+                    end
+
+                    if not exited then
+                        local function crash() return crash() end
+                        pcall(crash)
+                    end
                 end
             end)
             task.wait(0.1)
@@ -1855,13 +1926,13 @@ local function StartOfficeScript()
     task.wait(0.8)
 
     if not CharRef.Humanoid or not CharRef.Humanoid.SeatPart then
-        WindUI:Notify({ Title = "🔍 Office", Content = "Mencari kursi kosong...", Duration = 3 })
+        WindUI:Notify({ Title = "🔍 Office", Content = "Finding seat...", Duration = 3 })
         local targetSeat = findOfficeSeat(nil)
         if targetSeat then
             myChair = targetSeat
             dudukKeKursi(true)
         else
-            WindUI:Notify({ Title = "⚠️ Office", Content = "Kursi penuh! Duduk secara manual.", Duration = 5 })
+            WindUI:Notify({ Title = "⚠️ Office", Content = "No empty seat found! Sit manually.", Duration = 5 })
         end
     else
         myChair = CharRef.Humanoid.SeatPart
@@ -1869,7 +1940,7 @@ local function StartOfficeScript()
 
     lastActivityTime = tick()
     buatMonitoringGUI()
-    WindUI:Notify({ Title = "✅ Office", Content = "Auto Office dimulai!", Duration = 4 })
+    WindUI:Notify({ Title = "✅ Office", Content = "Auto Office started!", Duration = 4 })
 end
 
 local function StopOfficeScript()
@@ -1890,7 +1961,7 @@ local function StopOfficeScript()
     CachedMoneyLabel = nil
     getgenv().UangAwalDikunci = nil
     matikanMonitoring()
-    WindUI:Notify({ Title = "🛑 Office", Content = "Auto Office dihentikan.", Duration = 3 })
+    WindUI:Notify({ Title = "🛑 Office", Content = "Auto Office stopped.", Duration = 3 })
 end
 
 -- ============================================================================
@@ -1901,6 +1972,76 @@ local CourierJob = {
     X = -5158.57, Y = 4.41, Z = -3757.87
 }
 
+-- ============================================================================
+-- // GLOBAL VEHICLE SELECTOR
+-- ============================================================================
+SELECTED_CAR = "Yamahax-MioSporty"
+OwnedVehiclesList = { "Yamahax-MioSporty" }
+
+VehicleDropdownCourier = nil
+VehicleDropdownRideGO  = nil
+
+function FetchOwnedVehicles()
+    local list = {}
+    pcall(function()
+        local RS = game:GetService("ReplicatedStorage")
+        local DealershipEvents = RS:WaitForChild("DealershipEvents", 5)
+
+        if DealershipEvents then
+            if DealershipEvents:FindFirstChild("InitializeCarData") then
+                DealershipEvents.InitializeCarData:InvokeServer()
+            end
+            if DealershipEvents:FindFirstChild("GetInfoCarSlot") then
+                local slotData = DealershipEvents.GetInfoCarSlot:InvokeServer()
+                if type(slotData) == "table" then
+                    for _, item in pairs(slotData) do
+                        if type(item) == "string" and item ~= "" then
+                            table.insert(list, item)
+                        elseif type(item) == "table" then
+                            local carName = item.Car or item.Name or item.CarName or item.Vehicle or item[1]
+                            if carName and type(carName) == "string" and carName ~= "" then
+                                table.insert(list, carName)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end)
+
+    local unique, hash = {}, {}
+    for _, car in ipairs(list) do
+        if not hash[car] then
+            table.insert(unique, car)
+            hash[car] = true
+        end
+    end
+
+    if #unique > 0 then
+        OwnedVehiclesList = unique
+        if not hash[SELECTED_CAR] then
+            SELECTED_CAR = OwnedVehiclesList[1]
+        end
+    else
+        OwnedVehiclesList = { "Yamahax-MioSporty" }
+    end
+
+    return OwnedVehiclesList
+end
+
+function RefreshAllVehicleDropdowns()
+    local cars = FetchOwnedVehicles()
+    pcall(function()
+        if VehicleDropdownCourier and VehicleDropdownCourier.Refresh then
+            VehicleDropdownCourier:Refresh(cars)
+        end
+        if VehicleDropdownRideGO and VehicleDropdownRideGO.Refresh then
+            VehicleDropdownRideGO:Refresh(cars)
+        end
+    end)
+    return cars
+end
+
 local function spawnCar()
     Services.ReplicatedStorage:WaitForChild("SpawnCarEvents"):WaitForChild("SpawnCar"):FireServer(SELECTED_CAR)
 end
@@ -1908,11 +2049,7 @@ end
 local function findMyMotor()
     local myName = LocalPlayer.Name
     for _, v in pairs(workspace:GetChildren()) do
-        if v:IsA("Model") and v.Name:match(myName) then
-            if v:FindFirstChild("DriveSeat", true) or v:FindFirstChildOfClass("VehicleSeat") then
-                return v
-            end
-        end
+        if v.Name:match(myName) and v.Name:match("Montors") then return v end
     end
     return nil
 end
@@ -1946,7 +2083,7 @@ local function exitMotor()
         pcall(function() anims:FireServer("RemovePlayer", char, nil) end)
         task.wait(0.3)
     end
-    local driveSeat = motor:FindFirstChild("DriveSeat", true) or motor:FindFirstChildOfClass("VehicleSeat")
+    local driveSeat = motor:FindFirstChild("DriveSeat", true)
     if driveSeat then pcall(function() driveSeat:Sit(nil) end); task.wait(0.3) end
     local humanoid = char:FindFirstChildOfClass("Humanoid")
     if humanoid then pcall(function() humanoid.Jump = true end) end
@@ -1965,7 +2102,7 @@ local function rideMotor()
     end
     local kickstand = motor:FindFirstChild("Kickstand")
     if kickstand then pcall(function() kickstand:FireServer("StandUp", 0, 0, 0, 0, false) end); task.wait(0.2) end
-    local driveSeat = motor:FindFirstChild("DriveSeat", true) or motor:FindFirstChildOfClass("VehicleSeat")
+    local driveSeat = motor:FindFirstChild("DriveSeat", true)
     if driveSeat then
         pcall(function()
             local hrp = char:FindFirstChild("HumanoidRootPart")
@@ -2160,7 +2297,217 @@ local function StopCourierScript()
 end
 
 -- ============================================================================
--- // 15. AUTO RIDEGO DRIVER
+-- // 15. INJECT A-CHASSIS
+-- ============================================================================
+local function InjectMesin(HP_Mult, RPM_Add, Ratio_Mult, FD_Mult, NamaMode)
+    local char = game:GetService("Players").LocalPlayer.Character
+    if char and char:FindFirstChild("Humanoid") and char.Humanoid.SeatPart then
+        local vehicle = char.Humanoid.SeatPart.Parent
+        while vehicle and not vehicle:IsA("Model") do vehicle = vehicle.Parent end
+        if vehicle then
+            local foundTune = false
+            for _, s in pairs(vehicle:GetDescendants()) do
+                if s:IsA("LocalScript") then
+                    local name = string.lower(s.Name)
+                    if string.find(name, "limit") or string.find(name, "speed") or string.find(name, "cap") then
+                        if name ~= "a-chassis interface" and name ~= "drive" then
+                            pcall(function() s.Disabled = true end); safeDestroy(s)
+                        end
+                    end
+                end
+            end
+            for _, v in pairs(vehicle:GetDescendants()) do
+                if v:IsA("ModuleScript") and (v.Name == "Tune" or string.find(string.lower(v.Name), "tune")) then
+                    pcall(function()
+                        local tune = require(v)
+                        if tune.Horsepower then tune.Horsepower = tune.Horsepower * HP_Mult end
+                        if tune.Redline    then tune.Redline    = tune.Redline + RPM_Add end
+                        if tune.Ratios then
+                            for i, ratio in pairs(tune.Ratios) do
+                                if type(ratio) == "number" and ratio > 0 then tune.Ratios[i] = ratio * Ratio_Mult end
+                            end
+                        end
+                        if tune.FinalDrive   then tune.FinalDrive   = tune.FinalDrive * FD_Mult end
+                        if tune.Limiter  ~= nil then tune.Limiter  = false end
+                        if tune.RevLimit     then tune.RevLimit     = 999999 end
+                        if tune.SpeedLimit   then tune.SpeedLimit   = false end
+                        if tune.TopSpeed     then tune.TopSpeed     = 999999 end
+                        if tune.MaxSpeed     then tune.MaxSpeed     = 999999 end
+                        if tune.DragMult     then tune.DragMult     = tune.DragMult * 0.05 end
+                        if tune.Weight       then tune.Weight       = tune.Weight * 0.7 end
+                        foundTune = true
+                    end)
+                end
+            end
+            if foundTune then
+                WindUI:Notify({ Title = "✅ " .. NamaMode, Content = "Safe! Respawn vehicle to apply.", Duration = 5 })
+            else
+                WindUI:Notify({ Title = "❌ Injection Failed", Content = "Not a standard A-Chassis.", Duration = 4 })
+            end
+        end
+    else
+        WindUI:Notify({ Title = "⚠️ Warning!", Content = "Please enter a vehicle first!", Duration = 3 })
+    end
+end
+
+-- ============================================================================
+-- // 16. UI — 7 TAB
+-- ============================================================================
+local wSz  = IsMobile and UDim2.fromOffset(420, 320) or UDim2.fromOffset(580, 460)
+local mnSz = IsMobile and Vector2.new(600, 300) or Vector2.new(600, 350)
+local mxSz = IsMobile and Vector2.new(650, 400) or Vector2.new(850, 560)
+
+local Window = WindUI:CreateWindow({
+    Title                       = "King Akbar - Drag Drive Simulator",
+    Icon                        = "crown",
+    Author                      = "King Akbar",
+    Folder                      = "MySuperHub",
+    Size                        = wSz,
+    MinSize                     = mnSz,
+    MaxSize                     = mxSz,
+    Transparent                 = false,
+    Background                  = "rbxassetid://127295801178451",
+    BackgroundImageTransparency = 0.5,
+    Theme                       = "Dark",
+    Resizable                   = true,
+    SideBarWidth                = 210,
+    HideSearchBar               = false,
+    ScrollBarEnabled            = true,
+})
+
+local TabInfo = Window:Tab({ Title = "Info", Icon = "info", Border = true })
+
+local memberCount = "N/A"
+local onlineCount = "N/A"
+
+local function fetchDiscordInfo()
+    local req = request or http_request or (syn and syn.request)
+    if not req then return end
+    local ok, res = pcall(function()
+        return req({
+            Url     = "https://discord.com/api/v9/invites/XmWf3YQPpZ?with_counts=true",
+            Method  = "GET",
+            Headers = { ["User-Agent"] = "Mozilla/5.0" }
+        })
+    end)
+    if ok and res and res.StatusCode == 200 then
+        local ok2, data = pcall(function() return game:GetService("HttpService"):JSONDecode(res.Body) end)
+        if ok2 and data then
+            memberCount = tostring(data.approximate_member_count   or "N/A")
+            onlineCount = tostring(data.approximate_presence_count or "N/A")
+        end
+    end
+end
+fetchDiscordInfo()
+
+local ServerInfo = TabInfo:Paragraph({
+    Title         = "King Vypers | Official",
+    Desc          = "• Member Count: " .. memberCount .. "\n• Online Count: " .. onlineCount,
+    Image         = "rbxassetid://107726435417936",
+    Thumbnail     = "rbxassetid://83197533072664",
+    ThumbnailSize = 80,
+    Buttons = {
+        {
+            Title    = "Copy Discord Invite",
+            Color    = Color3.fromHex("#5707AB"),
+            Icon     = "link",
+            Callback = function()
+                if setclipboard then setclipboard("https://discord.gg/XmWf3YQPpZ") end
+            end
+        },
+        {
+            Title    = "Update Info",
+            Icon     = "refresh-cw",
+            Callback = function()
+                fetchDiscordInfo()
+                ServerInfo:SetDesc("• Member Count: " .. memberCount .. "\n• Online Count: " .. onlineCount)
+            end
+        }
+    }
+})
+
+local TabFarm = Window:Tab({ Title = "Auto Farm", Icon = "coffee", Border = true })
+
+local SectionBarista = TabFarm:Section({ Title = "Auto Barista", Box = true, BoxBorder = true, Opened = false })
+SectionBarista:Toggle({ Title = "Enable Auto Barista", Icon = "play", Value = false, Callback = function(on) if on then StartBaristaScript() else StopBaristaScript() end end })
+
+local SectionOffice = TabFarm:Section({ Title = "Auto Office", Box = true, BoxBorder = true, Opened = false })
+SectionOffice:Toggle({ Title = "Enable Auto Office", Icon = "briefcase", Value = false, Callback = function(on) if on then StartOfficeScript() else StopOfficeScript() end end })
+
+SectionOffice:Input({
+    Title       = "Stop otomatis di profit (Rp)",
+    Desc        = "Kalau sudah nyampe, langsung keluar server. Kosongin = gak ada batas.",
+    Placeholder = "contoh: 50000000",
+    Callback    = function(Text)
+        local bersih = string.gsub(Text or "", "[^%d]", "")
+        local val = tonumber(bersih) or 0
+        State.TargetProfit = val
+        if val > 0 then
+            WindUI:Notify({
+                Title   = "Target dipasang",
+                Content = "Bakal keluar pas profit udah " .. fmtRupiah(val),
+                Duration = 3,
+            })
+        else
+            WindUI:Notify({
+                Title   = "Target dicopot",
+                Content = "Gak ada batas profit, jalan terus.",
+                Duration = 3,
+            })
+        end
+    end
+})
+
+SectionOffice:Toggle({
+    Title = "Auto keluar saat target tercapai",
+    Desc  = "Nyalain ini biar langsung keluar server kalau udah nyampe target profit.",
+    Icon  = "log-out",
+    Value = false,
+    Callback = function(on)
+        if on and State.TargetProfit == 0 then
+            WindUI:Notify({
+                Title   = "Isi target dulu",
+                Content = "Masukin angka target profit dulu sebelum nyalain ini.",
+                Duration = 3,
+            })
+        end
+    end
+})
+
+local SectionCourier = TabFarm:Section({ Title = "Auto Courier", Box = true, BoxBorder = true, Opened = false })
+SectionCourier:Toggle({ Title = "Enable Auto Courier", Icon = "package", Value = false, Callback = function(on) if on then StartCourierScript() else StopCourierScript() end end })
+
+VehicleDropdownCourier = SectionCourier:Dropdown({
+    Title    = "Pilih Motor Kurir",
+    Multi    = false,
+    Options  = OwnedVehiclesList,
+    Callback = function(chosen)
+        if chosen and chosen ~= "" then
+            SELECTED_CAR = chosen
+            WindUI:Notify({
+                Title    = "🚗 Kendaraan Dipilih",
+                Content  = "Menggunakan: " .. SELECTED_CAR,
+                Duration = 2
+            })
+        end
+    end
+})
+
+SectionCourier:Button({
+    Title    = "🔄 Refresh Garasi",
+    Icon     = "refresh-cw",
+    Callback = function()
+        local cars = RefreshAllVehicleDropdowns()
+        WindUI:Notify({
+            Title    = "✅ Garasi Terdeteksi",
+            Content  = "Ditemukan " .. #cars .. " kendaraan!",
+            Duration = 3
+        })
+    end
+})
+
+-- ============================================================================
+-- // AUTO RIDEGO DRIVER (BETA)
 -- ============================================================================
 local TaxiEvent = Services.ReplicatedStorage
     :WaitForChild("TaxiAssets", 10)
@@ -2239,7 +2586,9 @@ local function findGroundYFar(x, z, fromY)
 end
 
 local function requestStream(pos)
-    pcall(function() Services.Workspace:RequestStreamAround(pos, 0.5) end)
+    pcall(function()
+        Services.Workspace:RequestStreamAround(pos, 0.5)
+    end)
 end
 
 local function hoverLock(primary, bv, bg, flatLook)
@@ -2287,17 +2636,17 @@ local function ensureBike()
     end)
 
     local seatFound = nil
-    local timeout = tick() + 6
+    local timeout = tick() + 5
 
     while tick() < timeout and not seatFound do
         task.wait(0.3)
         if CharRef.Root then
             for _, model in ipairs(Services.Workspace:GetChildren()) do
-                if model:IsA("Model") and (model.Name:find(LocalPlayer.Name) or model:FindFirstChildOfClass("VehicleSeat")) then
-                    local seat = model:FindFirstChildOfClass("VehicleSeat") or model:FindFirstChild("DriveSeat", true)
+                if model:IsA("Model") then
+                    local seat = model:FindFirstChildOfClass("VehicleSeat")
                     if seat and not seat.Occupant then
                         local dist = (seat.Position - CharRef.Root.Position).Magnitude
-                        if dist < 50 then
+                        if dist < 45 then
                             seatFound = seat
                             break
                         end
@@ -2331,14 +2680,18 @@ Services.RunService.Stepped:Connect(function()
     local bike = getBikeModel()
     if bike then
         for _, part in ipairs(bike:GetDescendants()) do
-            if part:IsA("BasePart") and part.CanCollide then part.CanCollide = false end
+            if part:IsA("BasePart") and part.CanCollide then
+                part.CanCollide = false
+            end
         end
         for _, seat in ipairs(bike:GetDescendants()) do
             if seat:IsA("VehicleSeat") and seat.Occupant then
                 local pax = seat.Occupant.Parent
                 if pax then
                     for _, part in ipairs(pax:GetDescendants()) do
-                        if part:IsA("BasePart") and part.CanCollide then part.CanCollide = false end
+                        if part:IsA("BasePart") and part.CanCollide then
+                            part.CanCollide = false
+                        end
                     end
                 end
             end
@@ -2347,7 +2700,22 @@ Services.RunService.Stepped:Connect(function()
 
     if CharRef.Character then
         for _, part in ipairs(CharRef.Character:GetDescendants()) do
-            if part:IsA("BasePart") and part.CanCollide then part.CanCollide = false end
+            if part:IsA("BasePart") and part.CanCollide then
+                part.CanCollide = false
+            end
+        end
+    end
+
+    local activeMissions = Services.Workspace:FindFirstChild("ActiveMissions")
+    if activeMissions then
+        for _, mission in ipairs(activeMissions:GetChildren()) do
+            if mission.Name:find("RideGO_Passenger") then
+                for _, part in ipairs(mission:GetDescendants()) do
+                    if part:IsA("BasePart") and part.CanCollide then
+                        part.CanCollide = false
+                    end
+                end
+            end
         end
     end
 end)
@@ -2390,6 +2758,7 @@ local function flyToTarget(targetPos)
         local hoverY   = posNow.Y
 
         voidHandled += 1
+
         local safeLandPos = nil
 
         local streak, firstD, firstGY = 0, nil, nil
@@ -2401,11 +2770,17 @@ local function flyToTarget(targetPos)
             local gY = findGroundYFar(px, pz, posNow.Y)
 
             if gY then
-                if streak == 0 then firstD = d; firstGY = gY end
+                if streak == 0 then
+                    firstD  = d
+                    firstGY = gY
+                end
                 streak += 1
+
                 if streak >= 3 then
                     local landD = firstD + 25
-                    if landD >= distNow - 10 then break end
+                    if landD >= distNow - 10 then
+                        break
+                    end
                     local lx = posNow.X + dirToTgt.X * landD
                     local lz = posNow.Z + dirToTgt.Z * landD
                     local newDist = (Vector3.new(lx, 0, lz) - flatTarget).Magnitude
@@ -2424,6 +2799,7 @@ local function flyToTarget(targetPos)
             bike:PivotTo(tpCFrame)
             bg.CFrame = tpCFrame
             requestStream(safeLandPos)
+
             task.wait(0.1)
             hoverLock(primary, bv, bg, dirToTgt)
             task.wait(0.2)
@@ -2476,15 +2852,20 @@ local function flyToTarget(targetPos)
         end
     end
 
-    pcall(function()
+    local ok, err = pcall(function()
         while State.IsRideGOActive and State.RideGOTargetPos == targetPos do
-            if not primary.Parent or not CharRef.Humanoid or not CharRef.Humanoid.SeatPart then break end
+            if not primary.Parent or not CharRef.Humanoid or not CharRef.Humanoid.SeatPart then
+                break
+            end
 
             local pos      = primary.Position
             local flatPos  = Vector3.new(pos.X, 0, pos.Z)
             local flatDist = (flatPos - flatTarget).Magnitude
 
-            if flatDist < 15 then reached = true; break end
+            if flatDist < 15 then
+                reached = true
+                break
+            end
 
             local dirToTarget    = (flatTarget - flatPos).Unit
             local currentGroundY = findGroundY(pos)
@@ -2497,8 +2878,11 @@ local function flyToTarget(targetPos)
             end
 
             local targetHoverY = currentGroundY + HOVER_HEIGHT
+
             local currentSpeed = baseSpeed
-            if flatDist < 90 then currentSpeed = math.clamp(flatDist * 2.2, 25, baseSpeed) end
+            if flatDist < 90 then
+                currentSpeed = math.clamp(flatDist * 2.2, 25, baseSpeed)
+            end
             currentSpeed = currentSpeed * (1 + (math.random(-3, 3) / 100))
 
             local moveDir = dirToTarget
@@ -2514,6 +2898,7 @@ local function flyToTarget(targetPos)
         end
     end)
 
+    if err then end
     if not reached then
         bv.Velocity = Vector3.zero
         return false
@@ -2543,6 +2928,7 @@ local function flyToTarget(targetPos)
 
         while primary.Parent and primary.Position.Y > targetLandY and tick() < landTimeout do
             if not State.IsRideGOActive then break end
+
             local remainingDist = primary.Position.Y - targetLandY
             local downSpeed = math.clamp(remainingDist * 3, 1, 6)
 
@@ -2591,7 +2977,7 @@ TaxiEvent.OnClientEvent:Connect(function(action, data)
 
     elseif action == "OrderCompleted" then
         State.RideGOTripCount += 1
-        local earned = tonumber(d.Earned or d.FareEarned) or 0
+        local earned    = tonumber(d.Earned or d.FareEarned) or 0
         State.RideGOEarnings += earned
 
         task.delay(1, function() TaxiEvent:FireServer("AckTripComplete") end)
@@ -2599,7 +2985,9 @@ TaxiEvent.OnClientEvent:Connect(function(action, data)
         State.RideGOTargetPos = nil
         State.RideGOPhase     = "idle"
 
-    elseif action == "OrderExpired" or action == "OrderDeclined" or action == "OrderCancelled" then
+    elseif action == "OrderExpired"
+        or action == "OrderDeclined"
+        or action == "OrderCancelled" then
         State.RideGOToken     = nil
         State.RideGOTargetPos = nil
         State.RideGOPhase     = "idle"
@@ -2616,6 +3004,7 @@ task.spawn(function()
             if ok and State.RideGOPhase == "goingPickup" then
                 State.RideGOPhase = "atPickup"
             end
+
         elseif State.RideGOPhase == "goingDrop" then
             flyToTarget(State.RideGOTargetPos)
         end
@@ -2647,18 +3036,19 @@ task.delay(1, OnRideGOTeamChanged)
 local function StartRideGOScript()
     if State.IsRideGOActive then return end
     State.IsRideGOActive = true
-    ensureBike()
     WindUI:Notify({
-        Title    = "🚕 RideGO Driver",
-        Content  = "Aktif dengan motor: " .. SELECTED_CAR,
-        Duration = 4
+        Title = "🚕 RideGO Driver (Beta)",
+        Content = "Auto RideGO dimulai. Join tim 'RideGO Driver' untuk mulai.",
+        Duration = 5
     })
 end
 
 local function StopRideGOScript()
     State.IsRideGOActive = false
     State.RideGOTargetPos = nil
-    if State.RideGOIsOnline then TaxiEvent:FireServer("GoOffline") end
+    if State.RideGOIsOnline then
+        TaxiEvent:FireServer("GoOffline")
+    end
     local bike = getBikeModel()
     if bike then
         local primary = bike.PrimaryPart or bike:FindFirstChild("VehicleSeat") or bike:FindFirstChildOfClass("BasePart")
@@ -2669,178 +3059,43 @@ local function StopRideGOScript()
             if bg then bg:Destroy() end
         end
     end
-    WindUI:Notify({ Title = "🛑 RideGO Driver", Content = "Auto RideGO dihentikan.", Duration = 3 })
+    WindUI:Notify({
+        Title = "🛑 RideGO Driver (Beta)",
+        Content = "Auto RideGO dihentikan.",
+        Duration = 3
+    })
 end
 
--- ============================================================================
--- // 16. INJECT A-CHASSIS
--- ============================================================================
-local function InjectMesin(HP_Mult, RPM_Add, Ratio_Mult, FD_Mult, NamaMode)
-    local char = LocalPlayer.Character
-    if char and char:FindFirstChild("Humanoid") and char.Humanoid.SeatPart then
-        local vehicle = char.Humanoid.SeatPart.Parent
-        while vehicle and not vehicle:IsA("Model") do vehicle = vehicle.Parent end
-        if vehicle then
-            local foundTune = false
-            for _, s in pairs(vehicle:GetDescendants()) do
-                if s:IsA("LocalScript") then
-                    local name = string.lower(s.Name)
-                    if string.find(name, "limit") or string.find(name, "speed") or string.find(name, "cap") then
-                        if name ~= "a-chassis interface" and name ~= "drive" then
-                            pcall(function() s.Disabled = true end); safeDestroy(s)
-                        end
-                    end
-                end
-            end
-            for _, v in pairs(vehicle:GetDescendants()) do
-                if v:IsA("ModuleScript") and (v.Name == "Tune" or string.find(string.lower(v.Name), "tune")) then
-                    pcall(function()
-                        local tune = require(v)
-                        if tune.Horsepower then tune.Horsepower = tune.Horsepower * HP_Mult end
-                        if tune.Redline    then tune.Redline    = tune.Redline + RPM_Add end
-                        if tune.Ratios then
-                            for i, ratio in pairs(tune.Ratios) do
-                                if type(ratio) == "number" and ratio > 0 then tune.Ratios[i] = ratio * Ratio_Mult end
-                            end
-                        end
-                        if tune.FinalDrive   then tune.FinalDrive   = tune.FinalDrive * FD_Mult end
-                        if tune.Limiter  ~= nil then tune.Limiter  = false end
-                        if tune.RevLimit     then tune.RevLimit     = 999999 end
-                        if tune.SpeedLimit   then tune.SpeedLimit   = false end
-                        if tune.TopSpeed     then tune.TopSpeed     = 999999 end
-                        if tune.MaxSpeed     then tune.MaxSpeed     = 999999 end
-                        if tune.DragMult     then tune.DragMult     = tune.DragMult * 0.05 end
-                        if tune.Weight       then tune.Weight       = tune.Weight * 0.7 end
-                        foundTune = true
-                    end)
-                end
-            end
-            if foundTune then
-                WindUI:Notify({ Title = "✅ " .. NamaMode, Content = "Safe! Respawn vehicle to apply.", Duration = 5 })
-            else
-                WindUI:Notify({ Title = "❌ Injection Failed", Content = "Not a standard A-Chassis.", Duration = 4 })
-            end
-        end
-    else
-        WindUI:Notify({ Title = "⚠️ Warning!", Content = "Please enter a vehicle first!", Duration = 3 })
-    end
-end
-
--- ============================================================================
--- // 17. UI INITIALIZATION & TABS
--- ============================================================================
-local wSz  = IsMobile and UDim2.fromOffset(420, 320) or UDim2.fromOffset(580, 460)
-local mnSz = IsMobile and Vector2.new(600, 300) or Vector2.new(600, 350)
-local mxSz = IsMobile and Vector2.new(650, 400) or Vector2.new(850, 560)
-
-local Window = WindUI:CreateWindow({
-    Title                       = "King Akbar - Drag Drive Simulator",
-    Icon                        = "crown",
-    Author                      = "King Akbar",
-    Folder                      = "MySuperHub",
-    Size                        = wSz,
-    MinSize                     = mnSz,
-    MaxSize                     = mxSz,
-    Transparent                 = false,
-    Background                  = "rbxassetid://127295801178451",
-    BackgroundImageTransparency = 0.5,
-    Theme                       = "Dark",
-    Resizable                   = true,
-    SideBarWidth                = 210,
-    HideSearchBar               = false,
-    ScrollBarEnabled            = true,
-})
-
--- TAB 1: INFO
-local TabInfo = Window:Tab({ Title = "Info", Icon = "info", Border = true })
-local ServerInfo = TabInfo:Paragraph({
-    Title         = "King Vypers | Official",
-    Desc          = "• Member Count: ...\n• Online Count: ...",
-    Image         = "rbxassetid://107726435417936",
-    Thumbnail     = "rbxassetid://83197533072664",
-    ThumbnailSize = 80,
-    Buttons = {
-        {
-            Title    = "Copy Discord Invite",
-            Color    = Color3.fromHex("#5707AB"),
-            Icon     = "link",
-            Callback = function() if setclipboard then setclipboard("https://discord.gg/XmWf3YQPpZ") end end
-        }
-    }
-})
-
--- TAB 2: AUTO FARM
-local TabFarm = Window:Tab({ Title = "Auto Farm", Icon = "coffee", Border = true })
-
--- SECTION BARISTA
-local SectionBarista = TabFarm:Section({ Title = "Auto Barista", Box = true, BoxBorder = true, Opened = false })
-SectionBarista:Toggle({
-    Title = "Enable Auto Barista", Icon = "play", Value = false,
-    Callback = function(on) if on then StartBaristaScript() else StopBaristaScript() end end
-})
-
--- SECTION OFFICE
-local SectionOffice = TabFarm:Section({ Title = "Auto Office", Box = true, BoxBorder = true, Opened = false })
-SectionOffice:Toggle({
-    Title = "Enable Auto Office", Icon = "briefcase", Value = false,
-    Callback = function(on) if on then StartOfficeScript() else StopOfficeScript() end end
-})
-
-SectionOffice:Input({
-    Title       = "Stop otomatis di profit (Rp)",
-    Desc        = "Kalau sudah nyampe, langsung keluar server. Kosongkan jika tanpa batas.",
-    Placeholder = "contoh: 50000000",
-    Callback    = function(Text)
-        local val = tonumber(string.gsub(Text or "", "[^%d]", "")) or 0
-        State.TargetProfit = val
-        WindUI:Notify({
-            Title   = val > 0 and "Target Dipasang" or "Target Dicopot",
-            Content = val > 0 and ("Keluar saat profit: " .. fmtRupiah(val)) or "Farming tanpa batas profit.",
-            Duration = 3
-        })
-    end
-})
-
--- SECTION COURIER (DENGAN DROPDOWN & REFRESH)
-local SectionCourier = TabFarm:Section({ Title = "Auto Courier", Box = true, BoxBorder = true, Opened = false })
-
-VehicleDropdownCourier = SectionCourier:Dropdown({
-    Title    = "Pilih Motor Kurir",
-    Multi    = false,
-    Options  = OwnedVehiclesList,
-    Callback = function(chosen)
-        if chosen and chosen ~= "" then
-            SELECTED_CAR = chosen
-            WindUI:Notify({ Title = "🚗 Motor Kurir", Content = "Menggunakan: " .. SELECTED_CAR, Duration = 2 })
-        end
-    end
-})
-
-SectionCourier:Button({
-    Title    = "🔄 Refresh Garasi",
-    Icon     = "refresh-cw",
-    Callback = function()
-        local cars = RefreshAllVehicleDropdowns()
-        WindUI:Notify({ Title = "✅ Garasi Terdeteksi", Content = "Ditemukan " .. #cars .. " kendaraan!", Duration = 3 })
-    end
-})
-
-SectionCourier:Toggle({
-    Title = "Enable Auto Courier", Icon = "package", Value = false,
-    Callback = function(on) if on then StartCourierScript() else StopCourierScript() end end
-})
-
--- SECTION RIDEGO (DENGAN DROPDOWN & REFRESH)
 local SectionRideGO = TabFarm:Section({ Title = "Auto RideGO Driver (BETA)", Box = true, BoxBorder = true, Opened = false })
+SectionRideGO:Paragraph({
+    Title = "Status: BETA",
+    Desc = "Fitur baru. Gunakan dengan hati-hati.",
+})
+SectionRideGO:Toggle({
+    Title = "Enable Auto RideGO (Beta)",
+    Icon = "car",
+    Value = false,
+    Callback = function(on)
+        if on then
+            StartRideGOScript()
+        else
+            StopRideGOScript()
+        end
+    end
+})
 
 VehicleDropdownRideGO = SectionRideGO:Dropdown({
-    Title    = "Pilih Motor RideGO",
+    Title    = "Pilih Kendaraan RideGO",
     Multi    = false,
     Options  = OwnedVehiclesList,
     Callback = function(chosen)
         if chosen and chosen ~= "" then
             SELECTED_CAR = chosen
-            WindUI:Notify({ Title = "🚗 Motor RideGO", Content = "Menggunakan: " .. SELECTED_CAR, Duration = 2 })
+            WindUI:Notify({
+                Title    = "🚕 Kendaraan Dipilih",
+                Content  = "Menggunakan: " .. SELECTED_CAR,
+                Duration = 2
+            })
         end
     end
 })
@@ -2850,131 +3105,27 @@ SectionRideGO:Button({
     Icon     = "refresh-cw",
     Callback = function()
         local cars = RefreshAllVehicleDropdowns()
-        WindUI:Notify({ Title = "✅ Garasi Terdeteksi", Content = "Ditemukan " .. #cars .. " kendaraan!", Duration = 3 })
+        WindUI:Notify({
+            Title    = "✅ Garasi Terdeteksi",
+            Content  = "Ditemukan " .. #cars .. " kendaraan!",
+            Duration = 3
+        })
     end
 })
 
-SectionRideGO:Toggle({
-    Title = "Enable Auto RideGO", Icon = "car", Value = false,
-    Callback = function(on) if on then StartRideGOScript() else StopRideGOScript() end end
-})
-
--- TAB 3: SECURITY
 local TabSec = Window:Tab({ Title = "Security", Icon = "shield", Border = true })
 local Perlindungan = TabSec:Section({ Title = "Protection", Box = true, BoxBorder = true, Opened = false })
-Perlindungan:Toggle({ Title = "Anti-Admin (Auto Leave)", Value = true, Callback = function(on) State.AntiAdmin = on end })
-Perlindungan:Toggle({ Title = "Anti-AFK", Value = true, Callback = function(on) State.AntiAFK = on end })
+Perlindungan:Toggle({ Title = "Anti-Admin (Auto Leave)", Desc = "Automatically leaves if a staff member joins", Icon = "user-minus", Value = true, Callback = function(on) State.AntiAdmin = on end })
+Perlindungan:Toggle({ Title = "Anti-AFK", Desc = "Keeps connection active while botting", Icon = "clock", Value = true, Callback = function(on) State.AntiAFK = on end })
 
--- TAB 4: PERFORMANCE
 local TabPerf = Window:Tab({ Title = "Performance", Icon = "zap", Border = true })
 local HematDaya = TabPerf:Section({ Title = "Power Saving", Box = true, BoxBorder = true, Opened = false })
-HematDaya:Toggle({ Title = "Disable Rendering (AFK Mode)", Value = false, Callback = function(on) ToggleBlackScreen(on) end })
+HematDaya:Toggle({ Title = "Disable Rendering (AFK Mode)", Desc = "Black screen, saves battery, bot keeps running", Value = false, Callback = function(on) ToggleBlackScreen(on) end })
 
-local SectionAntiLag = TabPerf:Section({ Title = "Anti Lag", Value = false, Callback = function(on) ToggleAntiLag(on) end })
+local SectionAntiLag = TabPerf:Section({ Title = "Anti Lag", Box = true, BoxBorder = true, Opened = false })
+SectionAntiLag:Toggle({ Title = "Enable Anti Lag", Desc = "Purges particles & locks graphics to minimum", Value = false, Callback = function(on) ToggleAntiLag(on) end })
 
 local SectionPotato = TabPerf:Section({ Title = "Ultra Potato Mode", Box = true, BoxBorder = true, Opened = false })
-SectionPotato:Toggle({ Title = "Enable Potato Mode (EXTREME)", Value = false, Callback = function(on) TogglePotatoMode(on) end })
+SectionPotato:Toggle({ Title = "Enable Potato Mode (EXTREME)", Desc = "Destroys terrain, meshes, lighting, sounds for MAX FPS. Mutually exclusive with Anti-Lag.", Value = false, Callback = function(on) TogglePotatoMode(on) end })
 
--- TAB 5: SETTINGS
-local TabCfg = Window:Tab({ Title = "Settings", Icon = "settings", Border = true })
-local Konfigurasi = TabCfg:Section({ Title = "Configuration", Box = true, BoxBorder = true, Opened = false })
-Konfigurasi:Slider({ Title = "Action Delay (Seconds)", Step = 1, Value = { Min = 1, Max = 10, Default = 5 }, Callback = function(v) State.ActionDelay = v end })
-
-local SectionFakeName = TabCfg:Section({ Title = "Spoof Name", Box = true, BoxBorder = true, Opened = false })
-SectionFakeName:Input({
-    Title = "Spoof Name (Empty = King Akbar)", Placeholder = "King Akbar",
-    Callback = function(Text)
-        local clean = string.gsub(Text or "", "^%s*(.-)%s*$", "%1")
-        State.FakeName = (clean == "") and "King Akbar" or clean
-        if State.FakeNameActive then SpoofApplyNow() end
-    end
-})
-SectionFakeName:Toggle({
-    Title = "Enable Spoof Name", Value = false,
-    Callback = function(on)
-        State.FakeNameActive = on
-        if on then SpoofApplyNow() else SpoofDisableNow() end
-    end
-})
-
-local SectionRedeem = TabCfg:Section({ Title = "Auto Redeem", Box = true, BoxBorder = true, Opened = false })
-local redeemCodes = {
-    "DRAGDRIVESIMULATORJULY26", "DDSTHX150KROADTO175KLIKES",
-    "DDSDRIVERTAXIONLINEUPDATE", "DDSSLAMETRIYADIUPDATE", "DELAYXIXIORDERANDOUBLE"
-}
-SectionRedeem:Button({
-    Title = "🎁 Redeem All Codes",
-    Callback = function()
-        task.spawn(function()
-            WindUI:Notify({ Title = "🔄 Redeem", Content = "Mencairkan kode...", Duration = 3 })
-            for _, code in ipairs(redeemCodes) do
-                pcall(function() Services.ReplicatedStorage.RedeemCodeEvents.Redeem:InvokeServer(code) end)
-                task.wait(2)
-            end
-            WindUI:Notify({ Title = "✅ Redeem", Content = "Semua kode selesai!", Duration = 4 })
-        end)
-    end
-})
-
--- TAB 6 & 7: TUNING
-local TabPreset = Window:Tab({ Title = "Instant Modes", Icon = "car", Border = true })
-local ModeCepat = TabPreset:Section({ Title = "Presets", Box = true, BoxBorder = true, Opened = false })
-ModeCepat:Button({ Title = "🛵 SUNDAY RIDE (Safe)", Callback = function() InjectMesin(1.5, 2000, 0.9, 0.9, "Sunday Ride Active") end })
-ModeCepat:Button({ Title = "🏎️ RACING MODE (Aggressive)", Callback = function() InjectMesin(3.5, 5000, 0.75, 0.75, "Racing Mode Active") end })
-ModeCepat:Button({ Title = "🚀 GOD MODE (Max Speed)", Callback = function() InjectMesin(8, 15000, 0.45, 0.45, "God Mode Active") end })
-
-local TabCustom = Window:Tab({ Title = "Custom Tune", Icon = "sliders", Border = true })
-local TuneSendiri = TabCustom:Section({ Title = "Manual Tuning", Box = true, BoxBorder = true, Opened = false })
-local customHP, customRPM, customRatio, customFD = 2, 5000, 0.8, 0.8
-TuneSendiri:Input({ Title = "Horsepower Multiplier", Placeholder = "Example: 3", Callback = function(t) customHP = tonumber(t) or customHP end })
-TuneSendiri:Input({ Title = "RPM Adder", Placeholder = "Example: 8000", Callback = function(t) customRPM = tonumber(t) or customRPM end })
-TuneSendiri:Input({ Title = "Gear Ratio Multiplier", Placeholder = "Example: 0.6", Callback = function(t) customRatio = tonumber(t) or customRatio end })
-TuneSendiri:Input({ Title = "Final Drive Multiplier", Placeholder = "Example: 0.6", Callback = function(t) customFD = tonumber(t) or customFD end })
-TuneSendiri:Button({ Title = "⚡ INJECT CUSTOM TUNE", Callback = function() InjectMesin(customHP, customRPM, customRatio, customFD, "Custom Tune Active") end })
-
--- WINDOW OPEN BUTTON & INIT
-Window:EditOpenButton({
-    Title = "Open King Akbar", Icon = "crown",
-    CornerRadius = UDim.new(0, 12), StrokeThickness = 2,
-    Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0,   Color3.fromHex("#ffffff")),
-        ColorSequenceKeypoint.new(1,   Color3.fromHex("#0a0a0a")),
-    }),
-    Enabled = true, Draggable = true,
-})
-
-local FpsTag = Window:Tag({
-    Title = "Fps: ...",
-    Color = WindUI:Gradient({
-        [0]   = { Color = Color3.fromHex("#0a0a0a"), Transparency = 0 },
-        [100] = { Color = Color3.fromHex("#888888"), Transparency = 0 },
-    }, { Rotation = 45 }),
-})
-
-task.spawn(function()
-    while task.wait(1) do
-        pcall(function()
-            local fps  = math.floor(1 / Services.RunService.RenderStepped:Wait())
-            local ping = math.floor(Services.Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
-            if FpsTag and FpsTag.SetTitle then
-                FpsTag:SetTitle(("Fps: %d | Ping: %d"):format(fps, ping))
-            end
-        end)
-    end
-end)
-
-Window:SetIconSize(47)
-WindUI:SetTheme("dark")
-TabFarm:Select()
-
--- Auto-scan garasi saat script pertama kali dibuka
-task.spawn(function()
-    task.wait(2)
-    RefreshAllVehicleDropdowns()
-end)
-
-WindUI:Notify({
-    Title    = "👑 King Akbar Siap",
-    Content  = "Pilih motor langsung di section Kurir atau RideGO!",
-    Duration = 5,
-})
+local TabCfg = Window:Tab({ Title = "Settings", Icon = "settings", Border =
