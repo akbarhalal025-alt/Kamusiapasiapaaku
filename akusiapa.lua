@@ -1973,7 +1973,7 @@ local CourierJob = {
 }
 
 -- ============================================================================
--- // GLOBAL VEHICLE SELECTOR
+-- // GLOBAL VEHICLE SELECTOR (DIPINDAH DARI ATAS)
 -- ============================================================================
 SELECTED_CAR = "Yamahax-MioSporty"
 OwnedVehiclesList = { "Yamahax-MioSporty" }
@@ -2042,6 +2042,9 @@ function RefreshAllVehicleDropdowns()
     return cars
 end
 
+-- ============================================================================
+-- // SISA FUNGSI COURIER (TANPA PERUBAHAN BESAR)
+-- ============================================================================
 local function spawnCar()
     Services.ReplicatedStorage:WaitForChild("SpawnCarEvents"):WaitForChild("SpawnCar"):FireServer(SELECTED_CAR)
 end
@@ -2477,6 +2480,7 @@ SectionOffice:Toggle({
 local SectionCourier = TabFarm:Section({ Title = "Auto Courier", Box = true, BoxBorder = true, Opened = false })
 SectionCourier:Toggle({ Title = "Enable Auto Courier", Icon = "package", Value = false, Callback = function(on) if on then StartCourierScript() else StopCourierScript() end end })
 
+-- Dropdown + refresh untuk Courier
 VehicleDropdownCourier = SectionCourier:Dropdown({
     Title    = "Pilih Motor Kurir",
     Multi    = false,
@@ -2631,7 +2635,7 @@ local function ensureBike()
             DealershipEvents.GetInfoCarSlot:InvokeServer()
         end
         if SpawnCarEvents:FindFirstChild("SpawnCar") then
-            SpawnCarEvents.SpawnCar:FireServer(SELECTED_CAR)
+            SpawnCarEvents.SpawnCar:FireServer(SELECTED_CAR)  -- gunakan SELECTED_CAR
         end
     end)
 
@@ -3084,6 +3088,7 @@ SectionRideGO:Toggle({
     end
 })
 
+-- Dropdown + refresh untuk RideGO
 VehicleDropdownRideGO = SectionRideGO:Dropdown({
     Title    = "Pilih Kendaraan RideGO",
     Multi    = false,
@@ -3128,4 +3133,117 @@ SectionAntiLag:Toggle({ Title = "Enable Anti Lag", Desc = "Purges particles & lo
 local SectionPotato = TabPerf:Section({ Title = "Ultra Potato Mode", Box = true, BoxBorder = true, Opened = false })
 SectionPotato:Toggle({ Title = "Enable Potato Mode (EXTREME)", Desc = "Destroys terrain, meshes, lighting, sounds for MAX FPS. Mutually exclusive with Anti-Lag.", Value = false, Callback = function(on) TogglePotatoMode(on) end })
 
-local TabCfg = Window:Tab({ Title = "Settings", Icon = "settings", Border =
+local TabCfg = Window:Tab({ Title = "Settings", Icon = "settings", Border = true })
+local Konfigurasi = TabCfg:Section({ Title = "Configuration", Box = true, BoxBorder = true, Opened = false })
+Konfigurasi:Slider({ Title = "Action Delay (Seconds)", Desc = "Lower is faster, but riskier", Step = 1, Value = { Min = 1, Max = 10, Default = 5 }, Callback = function(v) State.ActionDelay = v end })
+
+local SectionFakeName = TabCfg:Section({ Title = "Spoof Name", Box = true, BoxBorder = true, Opened = false })
+SectionFakeName:Input({
+    Title = "Spoof Name (Empty = King Akbar)", Placeholder = "King Akbar",
+    Callback = function(Text)
+        local cleanText = string.gsub(Text or "", "^%s+", "")
+        cleanText = string.gsub(cleanText, "%s+$", "")
+        State.FakeName = (cleanText == "") and "King Akbar" or cleanText
+        if State.FakeNameActive then SpoofApplyNow() end
+    end
+})
+SectionFakeName:Toggle({
+    Title = "Enable Spoof Name", Desc = "Changes your display name (Client-sided)", Value = false,
+    Callback = function(on)
+        State.FakeNameActive = on
+        if on then
+            SpoofApplyNow()
+            WindUI:Notify({ Title = "🎭 Spoof Name", Content = "Name changed to: " .. State.FakeName, Duration = 3 })
+        else
+            SpoofDisableNow()
+            WindUI:Notify({ Title = "🎭 Spoof Name", Content = "Original name restored.", Duration = 3 })
+        end
+    end
+})
+
+local SectionRedeem = TabCfg:Section({ Title = "Auto Redeem", Box = true, BoxBorder = true, Opened = false })
+local redeemCodes = {
+    "DRAGDRIVESIMULATORAUGUST26",
+    "DDSSPECIALMERDEKA2026",
+    "NEWLIGHTSMODIFICATION",
+    "DELAYDIKITBARULOMBA",
+    "DDSTHX175KROADTO200KLIKES"
+}
+local function FireRedeemRemote(code)
+    pcall(function()
+        local remote = Services.ReplicatedStorage:WaitForChild("RedeemCodeEvents"):WaitForChild("Redeem")
+        if remote then remote:InvokeServer(code) end
+    end)
+end
+SectionRedeem:Button({
+    Title = "🎁 Redeem All Codes", Desc = "Automatically redeems all available codes",
+    Callback = function()
+        task.spawn(function()
+            WindUI:Notify({ Title = "🔄 Auto Redeem", Content = "Redeeming codes...", Duration = 3 })
+            for _, code in ipairs(redeemCodes) do FireRedeemRemote(code); task.wait(2) end
+            WindUI:Notify({ Title = "✅ Auto Redeem", Content = "All codes redeemed!", Duration = 5 })
+        end)
+    end
+})
+
+local TabPreset = Window:Tab({ Title = "Instant Modes", Icon = "car", Border = true })
+local ModeCepat = TabPreset:Section({ Title = "Presets", Box = true, BoxBorder = true, Opened = false })
+ModeCepat:Button({ Title = "🛵 SUNDAY RIDE (Safe)",         Callback = function() InjectMesin(1.5,  2000, 0.9,  0.9,  "Sunday Ride Active") end })
+ModeCepat:Button({ Title = "🏎️ RACING MODE (Aggressive)",  Callback = function() InjectMesin(3.5,  5000, 0.75, 0.75, "Racing Mode Active") end })
+ModeCepat:Button({ Title = "🚀 GOD MODE (Max Speed)",       Callback = function() InjectMesin(8,   15000, 0.45, 0.45, "God Mode Active") end })
+ModeCepat:Button({ Title = "🔄 RESET TO DEFAULT",           Callback = function() WindUI:Notify({ Title = "ℹ️ Info", Content = "Respawn vehicle from game menu to reset.", Duration = 5 }) end })
+
+local TabCustom = Window:Tab({ Title = "Custom Tune", Icon = "sliders", Border = true })
+local TuneSendiri = TabCustom:Section({ Title = "Manual Tuning", Box = true, BoxBorder = true, Opened = false })
+local customHP, customRPM, customRatio, customFD = 2, 5000, 0.8, 0.8
+TuneSendiri:Input({ Title = "💪 Horsepower Multiplier", Placeholder = "Example: 3",    Callback = function(Text) local val = tonumber(Text) if val then customHP    = val end end })
+TuneSendiri:Input({ Title = "🔥 RPM Adder",             Placeholder = "Example: 8000", Callback = function(Text) local val = tonumber(Text) if val then customRPM   = val end end })
+TuneSendiri:Input({ Title = "⚙️ Gear Ratio Multiplier", Placeholder = "Example: 0.6",  Callback = function(Text) local val = tonumber(Text) if val then customRatio = val end end })
+TuneSendiri:Input({ Title = "⛓️ Final Drive Multiplier", Placeholder = "Example: 0.6", Callback = function(Text) local val = tonumber(Text) if val then customFD    = val end end })
+TuneSendiri:Button({ Title = "⚡ INJECT CUSTOM TUNE", Callback = function() InjectMesin(customHP, customRPM, customRatio, customFD, "Custom Tune Active") end })
+
+Window:EditOpenButton({
+    Title = "Open King Akbar", Icon = "crown",
+    CornerRadius = UDim.new(0, 12), StrokeThickness = 2,
+    Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0,   Color3.fromHex("#ffffff")),
+        ColorSequenceKeypoint.new(1,   Color3.fromHex("#0a0a0a")),
+    }),
+    Enabled = true, Draggable = true,
+})
+
+local FpsTag = Window:Tag({
+    Title = "Fps: ...",
+    Color = WindUI:Gradient({
+        [0]   = { Color = Color3.fromHex("#0a0a0a"), Transparency = 0 },
+        [100] = { Color = Color3.fromHex("#888888"), Transparency = 0 },
+    }, { Rotation = 45 }),
+})
+
+task.spawn(function()
+    while task.wait(1) do
+        pcall(function()
+            local fps  = math.floor(1 / Services.RunService.RenderStepped:Wait())
+            local ping = math.floor(Services.Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+            if FpsTag and FpsTag.SetTitle then
+                FpsTag:SetTitle(("Fps: %d | Ping: %d"):format(fps, ping))
+            end
+        end)
+    end
+end)
+
+Window:SetIconSize(47)
+WindUI:SetTheme("dark")
+TabInfo:Select()
+
+WindUI:Notify({
+    Title    = "👑 King Akbar siap",
+    Content  = "Semuanya udah jalan, gas farming!",
+    Duration = 5,
+})
+
+-- Auto-scan kendaraan saat script pertama kali dijalankan
+task.spawn(function()
+    task.wait(2)
+    RefreshAllVehicleDropdowns()
+end)
