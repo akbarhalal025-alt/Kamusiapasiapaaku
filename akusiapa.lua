@@ -4,7 +4,7 @@
 ================================================================================
     [+] Developer   : King Akbar
     [+] Game        : Drag Drive Simulator
-    [+] Update      : + Auto RideGO Driver v10.30 (BETA)
+    [+] Update      : + Auto RideGO Driver v10.30 (BETA) + Dynamic Tracker
     [+] Fitur Baru  : + Dynamic Vehicle Selector (Scan Garasi)
 ================================================================================
 ]]--
@@ -34,7 +34,6 @@ do
     local LocalPlayer = game:GetService("Players").LocalPlayer
     local RS          = game:GetService("ReplicatedStorage")
 
-    -- Logger internal (silent)
     local function BLog(msg)  end
     local function BWarn(msg) end
 
@@ -252,6 +251,7 @@ end
 
 -- ============================================================================
 -- // 1. LOAD WINDUI (SAFE)
+-- ============================================================================
 do
     local ok, result = pcall(function()
         return loadstring(game:HttpGet(
@@ -297,7 +297,7 @@ local Services = {
     Players            = game:GetService("Players"),
     RunService         = game:GetService("RunService"),
     TweenSvc           = game:GetService("TweenService"),
-    UserInput           = game:GetService("UserInputService"),
+    UserInput          = game:GetService("UserInputService"),
     Stats              = game:GetService("Stats"),
     Workspace          = game:GetService("Workspace"),
     VirtualUser        = game:GetService("VirtualUser"),
@@ -330,7 +330,7 @@ LocalPlayer.CharacterAdded:Connect(function(newChar)
 end)
 
 -- ============================================================================
--- // SAFE INPUT SYSTEM (NO VIM - khusus Barista minigame & AFK)
+-- // SAFE INPUT SYSTEM
 -- ============================================================================
 local function SafeClick(x, y, holdTime)
     holdTime = holdTime or 0.05
@@ -1123,7 +1123,7 @@ local function StopBaristaScript(reason)
 end
 
 -- ============================================================================
--- // 13. OFFICE JOB SYSTEM
+-- // 13. OFFICE JOB SYSTEM & MONITORING
 -- ============================================================================
 local playerGui       = LocalPlayer:WaitForChild("PlayerGui")
 local ComputersFolder = workspace:WaitForChild("Computers")
@@ -1184,29 +1184,6 @@ local function getSeatFromChair(chair)
     if not chair then return nil end
     if chair:IsA("Seat") or chair:IsA("VehicleSeat") then return chair end
     return chair:FindFirstChildWhichIsA("Seat") or chair:FindFirstChildWhichIsA("VehicleSeat")
-end
-
-local function isChairOccupied(chair)
-    if not chair then return true end
-    local seat = getSeatFromChair(chair)
-    if seat then
-        if seat.Occupant and seat.Occupant ~= CharRef.Humanoid then return true end
-    end
-    local origin = chair:IsA("BasePart") and chair.Position
-        or (chair.PrimaryPart and chair.PrimaryPart.Position)
-        or (seat and seat.Position)
-    if origin then
-        for _, player in ipairs(Services.Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character then
-                local hum = player.Character:FindFirstChildOfClass("Humanoid")
-                if hum and hum.SeatPart then
-                    local dist = (hum.SeatPart.Position - origin).Magnitude
-                    if dist < 4 then return true end
-                end
-            end
-        end
-    end
-    return false
 end
 
 local function findOfficeSeat(excludeSeat)
@@ -1638,7 +1615,7 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- // MONITORING GUI
+-- // MONITORING GUI (DYNAMIC OFFICE / RIDEGO TRACKER)
 -- ============================================================================
 local CoreGui2 = (gethui and gethui()) or game:GetService("CoreGui")
 local TrackerGui = nil
@@ -1776,7 +1753,8 @@ local function buatMonitoringGUI()
     TitleLbl.TextSize = 13; TitleLbl.TextXAlignment = Enum.TextXAlignment.Left
     local SubLbl = Instance.new("TextLabel", H)
     SubLbl.Size = UDim2.new(1,-40,0,11); SubLbl.Position = UDim2.new(0,40,0,20)
-    SubLbl.BackgroundTransparency = 1; SubLbl.Text = "Bypass V7 GACOR"
+    SubLbl.BackgroundTransparency = 1
+    SubLbl.Text = State.IsRideGOActive and "RideGO Driver" or (State.IsOfficeActive and "Office Worker" or "Bypass V7 GACOR")
     SubLbl.TextColor3 = Color3.fromRGB(90,90,100); SubLbl.Font = Enum.Font.Gotham
     SubLbl.TextSize = 9; SubLbl.TextXAlignment = Enum.TextXAlignment.Left
 
@@ -1803,17 +1781,23 @@ local function buatMonitoringGUI()
             valLbl.BackgroundTransparency = 1; valLbl.Text = "—"
             valLbl.TextColor3 = Color3.fromRGB(225,225,230); valLbl.Font = Enum.Font.GothamBold
             valLbl.TextSize = 12; valLbl.TextXAlignment = Enum.TextXAlignment.Left
-            return valLbl
+            return valLbl, capLbl
         end
-        local lv = kolom(R, 0,   iconL, labelL)
-        local rv = kolom(R, 0.5, iconR, labelR)
-        return lv, rv
+        local lv, lc = kolom(R, 0,   iconL, labelL)
+        local rv, rc = kolom(R, 0.5, iconR, labelR)
+        return lv, rv, lc, rc
     end
 
-    local v_initial, v_profit  = baris("💵","Initial",  "💰","Profit",   3)
-    local v_solved,  v_prints  = baris("📝","Solved",   "🖨️","Prints",   4)
-    local v_profitH, v_ping    = baris("⚡","Profit/H", "📶","Ping",     5)
-    local v_fps,     v_uptime  = baris("🎮","FPS",      "⏱️","Uptime",   6)
+    local v_initial, v_profit = baris("💵","Initial", "💰","Profit", 3)
+    local v_stat1, v_stat2, c_stat1, c_stat2 = baris(
+        State.IsRideGOActive and "🚕" or "📝",
+        State.IsRideGOActive and "Trips" or "Solved",
+        State.IsRideGOActive and "💵" or "🖨️",
+        State.IsRideGOActive and "Fares" or "Prints",
+        4
+    )
+    local v_profitH, v_ping   = baris("⚡","Profit/H", "📶","Ping", 5)
+    local v_fps,     v_uptime = baris("🎮","FPS",      "⏱️","Uptime", 6)
 
     local CLR_WHITE  = Color3.fromRGB(225,225,230)
     local CLR_GREEN  = Color3.fromRGB(80, 210, 120)
@@ -1823,8 +1807,8 @@ local function buatMonitoringGUI()
     v_initial.Text = fmtRupiah(uangAwal)
 
     task.spawn(function()
-        local prevSolved = 0
-        local prevPrints = 0
+        local prevStat1 = 0
+        local prevStat2 = 0
         while TrackerGui and TrackerGui.Parent do
             pcall(function()
                 local currentMoney = DapatkanUangPemain()
@@ -1837,27 +1821,56 @@ local function buatMonitoringGUI()
                 local uptimeDetik = tick() - getgenv().WaktuMulai
                 local uptimeJam   = math.max(uptimeDetik / 3600, 1/3600)
                 local profitH     = profit / uptimeJam
-                local solved      = type(State) == "table" and (State.OfficeMathSolved or 0) or 0
-                local prints      = type(State) == "table" and (State.OfficePrints or 0) or 0
+
                 local pingVal, fpsVal = 0, 0
                 pcall(function() pingVal = math.floor(Services.Stats.Network.ServerStatsItem["Data Ping"]:GetValue()) end)
                 pcall(function() fpsVal  = math.floor(workspace:GetRealPhysicsFPS()) end)
 
                 animateValue(v_profit, profit, fmtProfit, CLR_GREEN, CLR_RED, nil)
 
-                if solved ~= prevSolved then
-                    prevSolved = solved
-                    v_solved.TextColor3 = CLR_YELLOW
-                    Services.TweenSvc:Create(v_solved, TweenInfo.new(0.6, Enum.EasingStyle.Quad), { TextColor3 = CLR_WHITE }):Play()
-                end
-                animateValue(v_solved, solved, function(n) return tostring(math.floor(n)) end, nil, nil, CLR_WHITE)
+                if State.IsRideGOActive then
+                    SubLbl.Text = "RideGO Driver"
+                    c_stat1.Text = "🚕 Trips"
+                    c_stat2.Text = "💵 Fares"
 
-                if prints ~= prevPrints then
-                    prevPrints = prints
-                    v_prints.TextColor3 = CLR_GREEN
-                    Services.TweenSvc:Create(v_prints, TweenInfo.new(0.6, Enum.EasingStyle.Quad), { TextColor3 = CLR_WHITE }):Play()
+                    local trips = State.RideGOTripCount or 0
+                    local fares = State.RideGOEarnings or 0
+
+                    if trips ~= prevStat1 then
+                        prevStat1 = trips
+                        v_stat1.TextColor3 = CLR_YELLOW
+                        Services.TweenSvc:Create(v_stat1, TweenInfo.new(0.6, Enum.EasingStyle.Quad), { TextColor3 = CLR_WHITE }):Play()
+                    end
+                    animateValue(v_stat1, trips, function(n) return tostring(math.floor(n)) end, nil, nil, CLR_WHITE)
+
+                    if fares ~= prevStat2 then
+                        prevStat2 = fares
+                        v_stat2.TextColor3 = CLR_GREEN
+                        Services.TweenSvc:Create(v_stat2, TweenInfo.new(0.6, Enum.EasingStyle.Quad), { TextColor3 = CLR_WHITE }):Play()
+                    end
+                    animateValue(v_stat2, fares, fmtShort, nil, nil, CLR_WHITE)
+                else
+                    SubLbl.Text = State.IsOfficeActive and "Office Worker" or "Bypass V7 GACOR"
+                    c_stat1.Text = "📝 Solved"
+                    c_stat2.Text = "🖨️ Prints"
+
+                    local solved = State.OfficeMathSolved or 0
+                    local prints = State.OfficePrints or 0
+
+                    if solved ~= prevStat1 then
+                        prevStat1 = solved
+                        v_stat1.TextColor3 = CLR_YELLOW
+                        Services.TweenSvc:Create(v_stat1, TweenInfo.new(0.6, Enum.EasingStyle.Quad), { TextColor3 = CLR_WHITE }):Play()
+                    end
+                    animateValue(v_stat1, solved, function(n) return tostring(math.floor(n)) end, nil, nil, CLR_WHITE)
+
+                    if prints ~= prevStat2 then
+                        prevStat2 = prints
+                        v_stat2.TextColor3 = CLR_GREEN
+                        Services.TweenSvc:Create(v_stat2, TweenInfo.new(0.6, Enum.EasingStyle.Quad), { TextColor3 = CLR_WHITE }):Play()
+                    end
+                    animateValue(v_stat2, prints, function(n) return tostring(math.floor(n)) end, nil, nil, CLR_WHITE)
                 end
-                animateValue(v_prints, prints, function(n) return tostring(math.floor(n)) end, nil, nil, CLR_WHITE)
 
                 animateValue(v_profitH, profitH, fmtShort, CLR_GREEN, CLR_RED, nil)
                 animateValue(v_ping, pingVal, function(n) return tostring(math.floor(n)) .. " ms" end, nil, nil, pingVal > 200 and CLR_RED or CLR_WHITE)
@@ -1876,7 +1889,7 @@ local function buatMonitoringGUI()
                     getgenv().fullAuto     = false
 
                     WindUI:Notify({
-                        Title    = "Udah nyampe nih",
+                        Title    = "Target Tercapai",
                         Content  = "Profit " .. fmtProfit(profit) .. " dari target " .. fmtRupiah(State.TargetProfit) .. ", keluar sekarang.",
                         Duration = 4,
                     })
@@ -1972,9 +1985,6 @@ local CourierJob = {
     X = -5158.57, Y = 4.41, Z = -3757.87
 }
 
--- ============================================================================
--- // GLOBAL VEHICLE SELECTOR (DIPINDAH DARI ATAS)
--- ============================================================================
 SELECTED_CAR = "Yamahax-MioSporty"
 OwnedVehiclesList = { "Yamahax-MioSporty" }
 
@@ -2042,9 +2052,6 @@ function RefreshAllVehicleDropdowns()
     return cars
 end
 
--- ============================================================================
--- // SISA FUNGSI COURIER (TANPA PERUBAHAN BESAR)
--- ============================================================================
 local function spawnCar()
     Services.ReplicatedStorage:WaitForChild("SpawnCarEvents"):WaitForChild("SpawnCar"):FireServer(SELECTED_CAR)
 end
@@ -2354,164 +2361,7 @@ local function InjectMesin(HP_Mult, RPM_Add, Ratio_Mult, FD_Mult, NamaMode)
 end
 
 -- ============================================================================
--- // 16. UI — 7 TAB
--- ============================================================================
-local wSz  = IsMobile and UDim2.fromOffset(420, 320) or UDim2.fromOffset(580, 460)
-local mnSz = IsMobile and Vector2.new(600, 300) or Vector2.new(600, 350)
-local mxSz = IsMobile and Vector2.new(650, 400) or Vector2.new(850, 560)
-
-local Window = WindUI:CreateWindow({
-    Title                       = "King Akbar - Drag Drive Simulator",
-    Icon                        = "crown",
-    Author                      = "King Akbar",
-    Folder                      = "MySuperHub",
-    Size                        = wSz,
-    MinSize                     = mnSz,
-    MaxSize                     = mxSz,
-    Transparent                 = false,
-    Background                  = "rbxassetid://127295801178451",
-    BackgroundImageTransparency = 0.5,
-    Theme                       = "Dark",
-    Resizable                   = true,
-    SideBarWidth                = 210,
-    HideSearchBar               = false,
-    ScrollBarEnabled            = true,
-})
-
-local TabInfo = Window:Tab({ Title = "Info", Icon = "info", Border = true })
-
-local memberCount = "N/A"
-local onlineCount = "N/A"
-
-local function fetchDiscordInfo()
-    local req = request or http_request or (syn and syn.request)
-    if not req then return end
-    local ok, res = pcall(function()
-        return req({
-            Url     = "https://discord.com/api/v9/invites/XmWf3YQPpZ?with_counts=true",
-            Method  = "GET",
-            Headers = { ["User-Agent"] = "Mozilla/5.0" }
-        })
-    end)
-    if ok and res and res.StatusCode == 200 then
-        local ok2, data = pcall(function() return game:GetService("HttpService"):JSONDecode(res.Body) end)
-        if ok2 and data then
-            memberCount = tostring(data.approximate_member_count   or "N/A")
-            onlineCount = tostring(data.approximate_presence_count or "N/A")
-        end
-    end
-end
-fetchDiscordInfo()
-
-local ServerInfo = TabInfo:Paragraph({
-    Title         = "King Vypers | Official",
-    Desc          = "• Member Count: " .. memberCount .. "\n• Online Count: " .. onlineCount,
-    Image         = "rbxassetid://107726435417936",
-    Thumbnail     = "rbxassetid://83197533072664",
-    ThumbnailSize = 80,
-    Buttons = {
-        {
-            Title    = "Copy Discord Invite",
-            Color    = Color3.fromHex("#5707AB"),
-            Icon     = "link",
-            Callback = function()
-                if setclipboard then setclipboard("https://discord.gg/XmWf3YQPpZ") end
-            end
-        },
-        {
-            Title    = "Update Info",
-            Icon     = "refresh-cw",
-            Callback = function()
-                fetchDiscordInfo()
-                ServerInfo:SetDesc("• Member Count: " .. memberCount .. "\n• Online Count: " .. onlineCount)
-            end
-        }
-    }
-})
-
-local TabFarm = Window:Tab({ Title = "Auto Farm", Icon = "coffee", Border = true })
-
-local SectionBarista = TabFarm:Section({ Title = "Auto Barista", Box = true, BoxBorder = true, Opened = false })
-SectionBarista:Toggle({ Title = "Enable Auto Barista", Icon = "play", Value = false, Callback = function(on) if on then StartBaristaScript() else StopBaristaScript() end end })
-
-local SectionOffice = TabFarm:Section({ Title = "Auto Office", Box = true, BoxBorder = true, Opened = false })
-SectionOffice:Toggle({ Title = "Enable Auto Office", Icon = "briefcase", Value = false, Callback = function(on) if on then StartOfficeScript() else StopOfficeScript() end end })
-
-SectionOffice:Input({
-    Title       = "Stop otomatis di profit (Rp)",
-    Desc        = "Kalau sudah nyampe, langsung keluar server. Kosongin = gak ada batas.",
-    Placeholder = "contoh: 50000000",
-    Callback    = function(Text)
-        local bersih = string.gsub(Text or "", "[^%d]", "")
-        local val = tonumber(bersih) or 0
-        State.TargetProfit = val
-        if val > 0 then
-            WindUI:Notify({
-                Title   = "Target dipasang",
-                Content = "Bakal keluar pas profit udah " .. fmtRupiah(val),
-                Duration = 3,
-            })
-        else
-            WindUI:Notify({
-                Title   = "Target dicopot",
-                Content = "Gak ada batas profit, jalan terus.",
-                Duration = 3,
-            })
-        end
-    end
-})
-
-SectionOffice:Toggle({
-    Title = "Auto keluar saat target tercapai",
-    Desc  = "Nyalain ini biar langsung keluar server kalau udah nyampe target profit.",
-    Icon  = "log-out",
-    Value = false,
-    Callback = function(on)
-        if on and State.TargetProfit == 0 then
-            WindUI:Notify({
-                Title   = "Isi target dulu",
-                Content = "Masukin angka target profit dulu sebelum nyalain ini.",
-                Duration = 3,
-            })
-        end
-    end
-})
-
-local SectionCourier = TabFarm:Section({ Title = "Auto Courier", Box = true, BoxBorder = true, Opened = false })
-SectionCourier:Toggle({ Title = "Enable Auto Courier", Icon = "package", Value = false, Callback = function(on) if on then StartCourierScript() else StopCourierScript() end end })
-
--- Dropdown + refresh untuk Courier
-VehicleDropdownCourier = SectionCourier:Dropdown({
-    Title    = "Pilih Motor Kurir",
-    Multi    = false,
-    Options  = OwnedVehiclesList,
-    Callback = function(chosen)
-        if chosen and chosen ~= "" then
-            SELECTED_CAR = chosen
-            WindUI:Notify({
-                Title    = "🚗 Kendaraan Dipilih",
-                Content  = "Menggunakan: " .. SELECTED_CAR,
-                Duration = 2
-            })
-        end
-    end
-})
-
-SectionCourier:Button({
-    Title    = "🔄 Refresh Garasi",
-    Icon     = "refresh-cw",
-    Callback = function()
-        local cars = RefreshAllVehicleDropdowns()
-        WindUI:Notify({
-            Title    = "✅ Garasi Terdeteksi",
-            Content  = "Ditemukan " .. #cars .. " kendaraan!",
-            Duration = 3
-        })
-    end
-})
-
--- ============================================================================
--- // AUTO RIDEGO DRIVER (BETA)
+-- // 16. AUTO RIDEGO DRIVER (BETA) + MONITORING HOOK
 -- ============================================================================
 local TaxiEvent = Services.ReplicatedStorage
     :WaitForChild("TaxiAssets", 10)
@@ -2635,7 +2485,7 @@ local function ensureBike()
             DealershipEvents.GetInfoCarSlot:InvokeServer()
         end
         if SpawnCarEvents:FindFirstChild("SpawnCar") then
-            SpawnCarEvents.SpawnCar:FireServer(SELECTED_CAR)  -- gunakan SELECTED_CAR
+            SpawnCarEvents.SpawnCar:FireServer(SELECTED_CAR)
         end
     end)
 
@@ -2981,7 +2831,7 @@ TaxiEvent.OnClientEvent:Connect(function(action, data)
 
     elseif action == "OrderCompleted" then
         State.RideGOTripCount += 1
-        local earned    = tonumber(d.Earned or d.FareEarned) or 0
+        local earned = tonumber(d.Earned or d.FareEarned) or 0
         State.RideGOEarnings += earned
 
         task.delay(1, function() TaxiEvent:FireServer("AckTripComplete") end)
@@ -3015,35 +2865,26 @@ task.spawn(function()
     end
 end)
 
-local function OnRideGOTeamChanged()
-    if LocalPlayer.Team and LocalPlayer.Team.Name == "RideGO Driver" then
-        if not State.IsRideGOActive then
-            State.IsRideGOActive = true
-            ensureBike()
-            if not State.RideGOIsOnline then
-                TaxiEvent:FireServer("GoOnline")
-            end
-        end
-    else
-        if State.IsRideGOActive then
-            State.IsRideGOActive  = false
-            State.RideGOTargetPos = nil
-            if State.RideGOIsOnline then
-                TaxiEvent:FireServer("GoOffline")
-            end
-        end
-    end
-end
-LocalPlayer:GetPropertyChangedSignal("Team"):Connect(OnRideGOTeamChanged)
-task.delay(1, OnRideGOTeamChanged)
-
 local function StartRideGOScript()
     if State.IsRideGOActive then return end
     State.IsRideGOActive = true
+    State.RideGOTripCount = 0
+    State.RideGOEarnings = 0
+    CachedMoneyLabel = nil
+    getgenv().UangAwalDikunci = nil
+    getgenv().WaktuMulai = tick()
+
+    buatMonitoringGUI()
+
+    ensureBike()
+    if not State.RideGOIsOnline then
+        TaxiEvent:FireServer("GoOnline")
+    end
+
     WindUI:Notify({
         Title = "🚕 RideGO Driver (Beta)",
-        Content = "Auto RideGO dimulai. Join tim 'RideGO Driver' untuk mulai.",
-        Duration = 5
+        Content = "Auto RideGO dimulai & Monitoring aktif!",
+        Duration = 4
     })
 end
 
@@ -3063,6 +2904,11 @@ local function StopRideGOScript()
             if bg then bg:Destroy() end
         end
     end
+
+    CachedMoneyLabel = nil
+    getgenv().UangAwalDikunci = nil
+    matikanMonitoring()
+
     WindUI:Notify({
         Title = "🛑 RideGO Driver (Beta)",
         Content = "Auto RideGO dihentikan.",
@@ -3070,10 +2916,180 @@ local function StopRideGOScript()
     })
 end
 
+local function OnRideGOTeamChanged()
+    if LocalPlayer.Team and LocalPlayer.Team.Name == "RideGO Driver" then
+        if not State.IsRideGOActive then
+            StartRideGOScript()
+        end
+    else
+        if State.IsRideGOActive then
+            StopRideGOScript()
+        end
+    end
+end
+LocalPlayer:GetPropertyChangedSignal("Team"):Connect(OnRideGOTeamChanged)
+task.delay(1, OnRideGOTeamChanged)
+
+-- ============================================================================
+-- // 17. UI — 7 TAB
+-- ============================================================================
+local wSz  = IsMobile and UDim2.fromOffset(420, 320) or UDim2.fromOffset(580, 460)
+local mnSz = IsMobile and Vector2.new(600, 300) or Vector2.new(600, 350)
+local mxSz = IsMobile and Vector2.new(650, 400) or Vector2.new(850, 560)
+
+local Window = WindUI:CreateWindow({
+    Title                       = "King Akbar - Drag Drive Simulator",
+    Icon                        = "crown",
+    Author                      = "King Akbar",
+    Folder                      = "MySuperHub",
+    Size                        = wSz,
+    MinSize                     = mnSz,
+    MaxSize                     = mxSz,
+    Transparent                 = false,
+    Background                  = "rbxassetid://127295801178451",
+    BackgroundImageTransparency = 0.5,
+    Theme                       = "Dark",
+    Resizable                   = true,
+    SideBarWidth                = 210,
+    HideSearchBar               = false,
+    ScrollBarEnabled            = true,
+})
+
+local TabInfo = Window:Tab({ Title = "Info", Icon = "info", Border = true })
+
+local memberCount = "N/A"
+local onlineCount = "N/A"
+
+local function fetchDiscordInfo()
+    local req = request or http_request or (syn and syn.request)
+    if not req then return end
+    local ok, res = pcall(function()
+        return req({
+            Url     = "https://discord.com/api/v9/invites/XmWf3YQPpZ?with_counts=true",
+            Method  = "GET",
+            Headers = { ["User-Agent"] = "Mozilla/5.0" }
+        })
+    end)
+    if ok and res and res.StatusCode == 200 then
+        local ok2, data = pcall(function() return game:GetService("HttpService"):JSONDecode(res.Body) end)
+        if ok2 and data then
+            memberCount = tostring(data.approximate_member_count   or "N/A")
+            onlineCount = tostring(data.approximate_presence_count or "N/A")
+        end
+    end
+end
+fetchDiscordInfo()
+
+local ServerInfo = TabInfo:Paragraph({
+    Title         = "King Vypers | Official",
+    Desc          = "• Member Count: " .. memberCount .. "\n• Online Count: " .. onlineCount,
+    Image         = "rbxassetid://107726435417936",
+    Thumbnail     = "rbxassetid://83197533072664",
+    ThumbnailSize = 80,
+    Buttons = {
+        {
+            Title    = "Copy Discord Invite",
+            Color    = Color3.fromHex("#5707AB"),
+            Icon     = "link",
+            Callback = function()
+                if setclipboard then setclipboard("https://discord.gg/XmWf3YQPpZ") end
+            end
+        },
+        {
+            Title    = "Update Info",
+            Icon     = "refresh-cw",
+            Callback = function()
+                fetchDiscordInfo()
+                ServerInfo:SetDesc("• Member Count: " .. memberCount .. "\n• Online Count: " .. onlineCount)
+            end
+        }
+    }
+})
+
+local TabFarm = Window:Tab({ Title = "Auto Farm", Icon = "coffee", Border = true })
+
+local SectionBarista = TabFarm:Section({ Title = "Auto Barista", Box = true, BoxBorder = true, Opened = false })
+SectionBarista:Toggle({ Title = "Enable Auto Barista", Icon = "play", Value = false, Callback = function(on) if on then StartBaristaScript() else StopBaristaScript() end end })
+
+local SectionOffice = TabFarm:Section({ Title = "Auto Office", Box = true, BoxBorder = true, Opened = false })
+SectionOffice:Toggle({ Title = "Enable Auto Office", Icon = "briefcase", Value = false, Callback = function(on) if on then StartOfficeScript() else StopOfficeScript() end end })
+
+SectionOffice:Input({
+    Title       = "Stop otomatis di profit (Rp)",
+    Desc        = "Kalau sudah nyampe, langsung keluar server. Kosongin = gak ada batas.",
+    Placeholder = "contoh: 50000000",
+    Callback    = function(Text)
+        local bersih = string.gsub(Text or "", "[^%d]", "")
+        local val = tonumber(bersih) or 0
+        State.TargetProfit = val
+        if val > 0 then
+            WindUI:Notify({
+                Title   = "Target dipasang",
+                Content = "Bakal keluar pas profit udah " .. fmtRupiah(val),
+                Duration = 3,
+            })
+        else
+            WindUI:Notify({
+                Title   = "Target dicopot",
+                Content = "Gak ada batas profit, jalan terus.",
+                Duration = 3,
+            })
+        end
+    end
+})
+
+SectionOffice:Toggle({
+    Title = "Auto keluar saat target tercapai",
+    Desc  = "Nyalain ini biar langsung keluar server kalau udah nyampe target profit.",
+    Icon  = "log-out",
+    Value = false,
+    Callback = function(on)
+        if on and State.TargetProfit == 0 then
+            WindUI:Notify({
+                Title   = "Isi target dulu",
+                Content = "Masukin angka target profit dulu sebelum nyalain ini.",
+                Duration = 3,
+            })
+        end
+    end
+})
+
+local SectionCourier = TabFarm:Section({ Title = "Auto Courier", Box = true, BoxBorder = true, Opened = false })
+SectionCourier:Toggle({ Title = "Enable Auto Courier", Icon = "package", Value = false, Callback = function(on) if on then StartCourierScript() else StopCourierScript() end end })
+
+VehicleDropdownCourier = SectionCourier:Dropdown({
+    Title    = "Pilih Motor Kurir",
+    Multi    = false,
+    Options  = OwnedVehiclesList,
+    Callback = function(chosen)
+        if chosen and chosen ~= "" then
+            SELECTED_CAR = chosen
+            WindUI:Notify({
+                Title    = "🚗 Kendaraan Dipilih",
+                Content  = "Menggunakan: " .. SELECTED_CAR,
+                Duration = 2
+            })
+        end
+    end
+})
+
+SectionCourier:Button({
+    Title    = "🔄 Refresh Garasi",
+    Icon     = "refresh-cw",
+    Callback = function()
+        local cars = RefreshAllVehicleDropdowns()
+        WindUI:Notify({
+            Title    = "✅ Garasi Terdeteksi",
+            Content  = "Ditemukan " .. #cars .. " kendaraan!",
+            Duration = 3
+        })
+    end
+})
+
 local SectionRideGO = TabFarm:Section({ Title = "Auto RideGO Driver (BETA)", Box = true, BoxBorder = true, Opened = false })
 SectionRideGO:Paragraph({
     Title = "Status: BETA",
-    Desc = "Fitur baru. Gunakan dengan hati-hati.",
+    Desc = "Fitur baru dengan monitoring profit & total trip otomatis.",
 })
 SectionRideGO:Toggle({
     Title = "Enable Auto RideGO (Beta)",
@@ -3088,7 +3104,6 @@ SectionRideGO:Toggle({
     end
 })
 
--- Dropdown + refresh untuk RideGO
 VehicleDropdownRideGO = SectionRideGO:Dropdown({
     Title    = "Pilih Kendaraan RideGO",
     Multi    = false,
@@ -3242,7 +3257,6 @@ WindUI:Notify({
     Duration = 5,
 })
 
--- Auto-scan kendaraan saat script pertama kali dijalankan
 task.spawn(function()
     task.wait(2)
     RefreshAllVehicleDropdowns()
