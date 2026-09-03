@@ -1,11 +1,10 @@
-
 --[[
 ================================================================================
   👑 KING AKBAR - ULTIMATE AUTO FARM SCRIPT 👑
 ================================================================================
     [+] Developer   : King Akbar
     [+] Game        : Drag Drive Simulator
-    [+] Bypass      : V7 GACOR + Enhanced Layer V2
+    [+] Update      : + Auto RideGO Driver v10.30 (BETA)
 ================================================================================
 ]]--
 
@@ -34,6 +33,7 @@ do
     local LocalPlayer = game:GetService("Players").LocalPlayer
     local RS          = game:GetService("ReplicatedStorage")
 
+    -- Logger internal (silent)
     local function BLog(msg)  end
     local function BWarn(msg) end
 
@@ -81,30 +81,35 @@ do
         if not oldNamecall then return end
         if not pcall(setreadonly, mt, false) then return end
 
+        -- Remote DDS berbahaya (hasil scan) — HANYA nama spesifik, bukan keyword lebar
         local BLOCK_FIRE = {
-            ["admin"]              = true,
-            ["reportmessageevent"] = true,
-            ["0bde16ec-a0df-43fe-ba4b-b1fca4f092ee"] = true,
+            ["admin"]              = true,   -- ReplicatedStorage.Admin.Admin
+            ["reportmessageevent"] = true,   -- ReplicatedStorage.ReportMessageEvent
+            ["0bde16ec-a0df-43fe-ba4b-b1fca4f092ee"] = true,  -- UUID AC tersembunyi
         }
+        -- Remote function yang di-spoof
         local SPOOF_INVOKE = {
-            ["requestadminstatus"] = false,
+            ["requestadminstatus"] = false,  -- bukan admin → server tidak curiga
         }
 
         setreadonly(mt, false)
         mt.__namecall = newcclosure(function(self, ...)
             local method = getnamecallmethod and getnamecallmethod() or ""
 
+            -- Anti-Kick & Disconnect LocalPlayer
             if (method == "Kick" or method == "kick" or method == "Disconnect")
                 and tostring(self) == tostring(LocalPlayer)
             then
+                -- Izinkan kick kalau dari script sendiri (target profit)
                 if getgenv().allowSelfKick then
                     getgenv().allowSelfKick = false
                     return oldNamecall(self, ...)
                 end
                 BWarn("Kick diblokir!")
-                return
+                return  -- return biasa, tidak wait(9e9) yg bikin hang
             end
 
+            -- Blokir FireServer ke remote AC DDS
             if method == "FireServer" then
                 local ok, name = pcall(function()
                     return string.lower(tostring(self.Name))
@@ -115,6 +120,7 @@ do
                 end
             end
 
+            -- Spoof InvokeServer
             if method == "InvokeServer" then
                 local ok, name = pcall(function()
                     return string.lower(tostring(self.Name))
@@ -207,14 +213,17 @@ do
         gethui and gethui() or game:GetService("CoreGui"),
     }
 
+    -- Scan pertama
     for _, svc in ipairs(gui_services) do pcall(killAC, svc) end
 
+    -- Loop tiap 3 detik
     task.spawn(function()
         while task.wait(3) do
             for _, svc in ipairs(gui_services) do pcall(killAC, svc) end
         end
     end)
 
+    -- ChildAdded monitor (real-time)
     for _, svc in ipairs(gui_services) do
         pcall(function()
             svc.ChildAdded:Connect(function(child)
@@ -250,265 +259,7 @@ do
 end
 
 -- ============================================================================
--- // 0B. ENHANCED BYPASS LAYER V2 — TAMBAHAN OP
--- ============================================================================
-do
-    local LocalPlayer = game:GetService("Players").LocalPlayer
-
-    -- ── [8] ENVIRONMENT SPOOFER ───────────────────────────────────────
-    pcall(function()
-        if not hookfunction or not newcclosure then return end
-
-        local realGetfenv = getfenv
-
-        local BANNED_KEYS = {
-            "syn", "fluxus", "KRNL_LOADED", "DELTA_LOADED", "getgc",
-            "hookfunction", "newcclosure", "setreadonly", "getrawmetatable",
-            "checkcaller", "isexecutorclosure", "filtergc", "cloneref",
-            "decompile", "getscriptclosure", "loadstring", "http_request",
-            "mouse1press", "mouse1release", "mouse1click", "mousemover",
-            "setclipboard", "getconnections", "getsenv", "getscriptenv",
-            "EXECUTOR_NAME", "identifyexecutor", "getexecutorname",
-        }
-
-        local function cleanEnv(env)
-            if type(env) ~= "table" then return env end
-            local cleaned = {}
-            for k, v in pairs(env) do
-                local skip = false
-                for _, bk in ipairs(BANNED_KEYS) do
-                    if tostring(k):lower():find(bk:lower(), 1, true) then
-                        skip = true; break
-                    end
-                end
-                if not skip then cleaned[k] = v end
-            end
-            return cleaned
-        end
-
-        hookfunction(realGetfenv, newcclosure(function(fn)
-            local env = realGetfenv(fn or 1)
-            if not checkcaller or not checkcaller() then
-                return cleanEnv(env)
-            end
-            return env
-        end))
-    end)
-
-    -- ── [9] CHECKCALLER SPOOF ─────────────────────────────────────────
-    pcall(function()
-        if not checkcaller or not hookfunction or not newcclosure then return end
-        hookfunction(checkcaller, newcclosure(function()
-            return false
-        end))
-    end)
-
-    -- ── [10] ISEXECUTORCLOSURE / IDENTIFYEXECUTOR BLOCKER ────────────
-    pcall(function()
-        if isexecutorclosure and hookfunction and newcclosure then
-            hookfunction(isexecutorclosure, newcclosure(function(fn)
-                return false
-            end))
-        end
-        if identifyexecutor and hookfunction and newcclosure then
-            hookfunction(identifyexecutor, newcclosure(function()
-                return "Roblox", "N/A"
-            end))
-        end
-    end)
-
-    -- ── [11] CLONEREF WRAPPER ─────────────────────────────────────────
-    pcall(function()
-        if not cloneref then return end
-        local realCloneRef = cloneref
-        local _wrapped = newcclosure and newcclosure(function(inst)
-            local ok, result = pcall(realCloneRef, inst)
-            return ok and result or inst
-        end) or function(inst)
-            local ok, result = pcall(realCloneRef, inst)
-            return ok and result or inst
-        end
-        getgenv().__safeRef = _wrapped
-    end)
-
-    -- ── [12] MEMORY SCAN SPOOFER (getgc filter) ───────────────────────
-    pcall(function()
-        if not getgc or not hookfunction or not newcclosure then return end
-
-        local realGetgc = getgc
-        local HIDE_MARKERS = {
-            "King Akbar", "BaristaFarmLoop", "StartMinigameAI",
-            "ghostGlideMotor", "StartOfficeScript", "KingAkbarTracker",
-            "startCourierLoop", "InjectMesin",
-        }
-
-        local function containsMarker(s)
-            if type(s) ~= "string" then return false end
-            for _, m in ipairs(HIDE_MARKERS) do
-                if s:find(m, 1, true) then return true end
-            end
-            return false
-        end
-
-        hookfunction(getgc, newcclosure(function(includeDead)
-            local raw = realGetgc(includeDead)
-            if type(raw) ~= "table" then return raw end
-            local filtered = {}
-            for _, v in ipairs(raw) do
-                local skip = false
-                if type(v) == "function" then
-                    local ok, info = pcall(debug.getinfo, v, "S")
-                    if ok and info and containsMarker(info.source or "") then
-                        skip = true
-                    end
-                elseif type(v) == "table" then
-                    local ok, s = pcall(tostring, v)
-                    if ok and containsMarker(s) then skip = true end
-                end
-                if not skip then table.insert(filtered, v) end
-            end
-            return filtered
-        end))
-    end)
-
-    -- ── [13] REMOTE PATTERN RANDOMIZER ───────────────────────────────
-    pcall(function()
-        local mt = getrawmetatable(game)
-        if not mt then return end
-        local prevHook = rawget(mt, "__namecall")
-        if not prevHook then return end
-        pcall(setreadonly, mt, false)
-
-        local lastFireTime = {}
-        local MIN_INTERVAL = 0.05
-
-        mt.__namecall = newcclosure(function(self, ...)
-            local method = getnamecallmethod and getnamecallmethod() or ""
-            if method == "FireServer" or method == "InvokeServer" then
-                local remoteId = tostring(self)
-                local now = tick()
-                local last = lastFireTime[remoteId] or 0
-                if now - last < MIN_INTERVAL then
-                    task.wait(math.random(3, 12) / 100)
-                end
-                lastFireTime[remoteId] = tick()
-            end
-            return prevHook(self, ...)
-        end)
-        pcall(setreadonly, mt, true)
-    end)
-
-    -- ── [14] LOCALSCRIPT SIGNATURE MASKER ────────────────────────────
-    pcall(function()
-        if not getscripts then return end
-        task.spawn(function()
-            task.wait(2)
-            local OUR_MARKERS = {
-                "king akbar", "baristasplash", "kingakbartracker",
-                "kingvypers", "bypass v7", "ultimate auto farm"
-            }
-            local function isOurs(scr)
-                local name = string.lower(scr.Name or "")
-                for _, m in ipairs(OUR_MARKERS) do
-                    if name:find(m, 1, true) then return true end
-                end
-                return false
-            end
-            for _, scr in ipairs(getscripts()) do
-                pcall(function()
-                    if isOurs(scr) then
-                        scr.Name = "RbxCharacterSounds_" .. math.random(1000, 9999)
-                    end
-                end)
-            end
-        end)
-    end)
-
-    -- ── [15] AC HEARTBEAT KILLER V2 (AGGRESSIVE) ─────────────────────
-    local AC_KW_V2 = {
-        "anticheat", "anti_cheat", "ac_", "_ac", "bancheck",
-        "exploitdetect", "injectioncheck", "hackdetect", "cheatengine",
-        "coredetect", "securitymodule", "trustcheck", "integritycheck",
-        "cheatscan", "clientcheck", "anticopy", "anticlient",
-    }
-    local killedV2 = {}
-
-    local function isAC_V2(name)
-        local low = string.lower(name)
-        for _, kw in ipairs(AC_KW_V2) do
-            if low:find(kw, 1, true) then return true end
-        end
-        return false
-    end
-
-    local function deepKillAC(parent)
-        if not parent then return end
-        pcall(function()
-            for _, v in pairs(parent:GetDescendants()) do
-                pcall(function()
-                    if not killedV2[v] and isAC_V2(v.Name) then
-                        if v:IsA("LocalScript") or v:IsA("ModuleScript") or v:IsA("Script") then
-                            v.Disabled = true
-                        end
-                        killedV2[v] = true
-                        safeDestroy(v)
-                    end
-                end)
-            end
-        end)
-    end
-
-    local extraScanTargets = {
-        game:GetService("CoreGui"),
-        LocalPlayer:FindFirstChild("PlayerScripts"),
-        LocalPlayer:FindFirstChild("PlayerGui"),
-        game:GetService("ReplicatedStorage"),
-    }
-
-    task.spawn(function()
-        while task.wait(5) do
-            for _, target in ipairs(extraScanTargets) do
-                pcall(deepKillAC, target)
-            end
-        end
-    end)
-
-    pcall(function()
-        game:GetService("CoreGui").DescendantAdded:Connect(function(child)
-            if isAC_V2(child.Name) then
-                pcall(function()
-                    if child:IsA("LocalScript") or child:IsA("Script") then
-                        child.Disabled = true
-                    end
-                end)
-                safeDestroy(child)
-            end
-        end)
-    end)
-
-    -- ── [16] DEBUGGER / BREAKPOINT BLOCKER ───────────────────────────
-    pcall(function()
-        if debug and debug.sethook then
-            debug.sethook()
-        end
-    end)
-
-    -- ── [17] SELF-HEALING LOOP ────────────────────────────────────────
-    task.spawn(function()
-        while task.wait(30) do
-            pcall(function()
-                if debug and debug.sethook then debug.sethook() end
-            end)
-            for _, target in ipairs(extraScanTargets) do
-                pcall(deepKillAC, target)
-            end
-        end
-    end)
-end
-
--- ============================================================================
 -- // 1. LOAD WINDUI (SAFE)
--- ============================================================================
 do
     local ok, result = pcall(function()
         return loadstring(game:HttpGet(
@@ -562,6 +313,7 @@ local Services = {
     PathfindingService = game:GetService("PathfindingService"),
     ReplicatedStorage  = game:GetService("ReplicatedStorage"),
     StarterGui         = game:GetService("StarterGui"),
+    VirtualInputManager = game:GetService("VirtualInputManager"),
 }
 
 local LocalPlayer = Services.Players.LocalPlayer
@@ -585,7 +337,7 @@ LocalPlayer.CharacterAdded:Connect(function(newChar)
 end)
 
 -- ============================================================================
--- // SAFE INPUT SYSTEM
+-- // SAFE INPUT SYSTEM (NO VIM - khusus Barista minigame & AFK)
 -- ============================================================================
 local function SafeClick(x, y, holdTime)
     holdTime = holdTime or 0.05
@@ -614,6 +366,7 @@ local State = {
     IsBaristaActive    = false,
     IsOfficeActive     = false,
     IsCourierActive    = false,
+    IsRideGOActive     = false,   -- NEW: RideGO state
     AiThread           = nil,
     StatusText         = "Idling...",
     OrderCount         = 0,
@@ -630,7 +383,14 @@ local State = {
     CourierDelivered   = 0,
     FakeNameActive     = false,
     FakeName           = "King Akbar",
-    TargetProfit       = 0,
+    TargetProfit       = 0,  -- 0 = tidak ada batas, isi angka = auto kick saat profit tercapai
+    -- RideGO fields
+    RideGOIsOnline     = false,
+    RideGOPhase        = "idle",
+    RideGOToken        = nil,
+    RideGOTargetPos    = nil,
+    RideGOTripCount    = 0,
+    RideGOEarnings     = 0,
 }
 
 LocalPlayer.Idled:Connect(function()
@@ -1657,9 +1417,12 @@ GenerateQuestion.OnClientEvent:Connect(function(questionText, answerData, sessio
     end
 
     if correctButton then
+        -- Hanya pakai pressButton (getconnections handler asli game)
+        -- JANGAN pakai FireServer langsung — diblokir checkcaller game
         pressButton(correctButton)
         unhighlightLater(correctButton, 0.4)
     else
+        -- Tombol tidak ketemu sama sekali, skip
         clearHighlights()
     end
 
@@ -1668,7 +1431,12 @@ end)
 
 -- ============================================================================
 -- // OFFICE STABILITY ENGINE
+-- // 1. Heartbeat seat monitor — re-duduk kalau tiba-tiba berdiri
+-- // 2. Respawn recovery — join ulang tim & duduk kalau mati
+-- // 3. Periodic team rejoin — pastikan tim tidak reset sendiri
 -- ============================================================================
+
+-- [1] Heartbeat: cek tiap 2 detik, kalau tidak duduk & tidak ke printer → dudukkan lagi
 task.spawn(function()
     while true do
         task.wait(2)
@@ -1678,11 +1446,13 @@ task.spawn(function()
         local hum = CharRef.Humanoid
         if not hum then continue end
 
+        -- Kalau tidak duduk padahal harusnya duduk
         if not hum.SeatPart then
             pcall(function()
                 local seat = findOfficeSeat(nil)
                 if seat then
                     myChair = seat
+                    -- Jalan ke kursi dulu baru duduk
                     jalanKe(seat.CFrame.Position + Vector3.new(0, 2, 0))
                     task.wait(0.3)
                     if CharRef.Humanoid then seat:Sit(CharRef.Humanoid) end
@@ -1692,15 +1462,18 @@ task.spawn(function()
     end
 end)
 
+-- [2] Respawn recovery — kalau mati, otomatis join ulang & duduk
 LocalPlayer.CharacterAdded:Connect(function(newChar)
     if not State.IsOfficeActive then return end
+    -- Update referensi karakter
     CharRef.Character = newChar
     CharRef.Humanoid  = newChar:WaitForChild("Humanoid")
     CharRef.Root      = newChar:WaitForChild("HumanoidRootPart")
 
-    task.wait(3)
+    task.wait(3) -- tunggu karakter spawn sempurna
     if not State.IsOfficeActive then return end
 
+    -- Duduk ke kursi - jalan biasa
     local seat = findOfficeSeat(nil)
     if seat then
         myChair = seat
@@ -1713,6 +1486,7 @@ LocalPlayer.CharacterAdded:Connect(function(newChar)
     lastActivityTime = tick()
 end)
 
+-- Anti-stuck + idle chair switch
 local isSwitching = false
 local IDLE_SWITCH_TIME = 60
 
@@ -1765,9 +1539,10 @@ local ClearPrintJob  = JobEvents:WaitForChild("ClearPrintJob")
 local activePrinterName = nil
 local printerRetryCount = 0
 local MAX_PRINTER_RETRY = 3
-local printerCooldownUntil = 0
+local printerCooldownUntil = 0  -- timestamp, blokir job baru sampai waktu ini
 
 AssignPrintJob.OnClientEvent:Connect(function(printerName)
+    -- Abaikan job baru kalau masih dalam cooldown
     if tick() < printerCooldownUntil then return end
     activePrinterName = printerName
     printerRetryCount = 0
@@ -1784,6 +1559,7 @@ task.spawn(function()
         if not State.IsOfficeActive then continue end
 
         if activePrinterName and not getgenv().isGoingToPrinter then
+            -- Lewati kalau sudah retry terlalu banyak
             if printerRetryCount >= MAX_PRINTER_RETRY then
                 activePrinterName = nil
                 printerRetryCount = 0
@@ -1801,6 +1577,7 @@ task.spawn(function()
             pcall(function()
                 task.wait(math.random(3,7)/10)
 
+                -- Keluar kursi dulu
                 local hum = CharRef.Humanoid
                 if hum then
                     hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
@@ -1814,6 +1591,7 @@ task.spawn(function()
                 local targetPrompt = nil
                 local currentPrinterName = activePrinterName
 
+                -- Cari printer, max 10 coba
                 for i = 1, 10 do
                     if not activePrinterName or activePrinterName ~= currentPrinterName then break end
                     local printerModel = ComputersFolder:FindFirstChild(activePrinterName)
@@ -1830,13 +1608,16 @@ task.spawn(function()
                 if printerPart and targetPrompt and activePrinterName then
                     targetPrompt.Enabled = true
 
+                    -- Jalan ke printer
                     jalanKe(printerPart.Position + Vector3.new(0, 0, 2.5))
 
+                    -- Hadapkan ke printer
                     if CharRef.Root then
                         local look = Vector3.new(printerPart.Position.X, CharRef.Root.Position.Y, printerPart.Position.Z)
                         CharRef.Root.CFrame = CFrame.lookAt(CharRef.Root.Position, look)
                     end
 
+                    -- Lock kamera
                     local cam = workspace.CurrentCamera
                     local prevType = cam.CameraType
                     pcall(function()
@@ -1853,15 +1634,18 @@ task.spawn(function()
 
                     pcall(function() cam.CameraType = prevType end)
 
+                    -- Tunggu ClearPrintJob atau timeout 12 detik
                     local t = 0
                     while activePrinterName == currentPrinterName and t < 12 do
                         task.wait(0.5); t = t + 0.5
                     end
 
+                    -- Sukses, reset retry
                     printerRetryCount = 0
                 end
             end)
 
+            -- Kembali duduk setelah printer selesai - jalan biasa, bukan TP
             pcall(function()
                 local hum = CharRef.Humanoid
                 if hum then hum:SetStateEnabled(Enum.HumanoidStateType.Seated, true) end
@@ -1869,6 +1653,7 @@ task.spawn(function()
                 local seat = findOfficeSeat(nil)
                 if seat then
                     myChair = seat
+                    -- Jalan ke kursi dulu baru duduk
                     jalanKe(seat.CFrame.Position + Vector3.new(0, 2, 0))
                     task.wait(0.3)
                     if CharRef.Humanoid then seat:Sit(CharRef.Humanoid) end
@@ -1880,6 +1665,7 @@ task.spawn(function()
             getgenv().printWatchdog = nil
             lastActivityTime = tick()
 
+            -- Cooldown 8 detik — biar duduk dulu stabil sebelum terima job print baru
             printerCooldownUntil = tick() + 8
         end
     end
@@ -2024,7 +1810,7 @@ local function buatMonitoringGUI()
     TitleLbl.TextSize = 13; TitleLbl.TextXAlignment = Enum.TextXAlignment.Left
     local SubLbl = Instance.new("TextLabel", H)
     SubLbl.Size = UDim2.new(1,-40,0,11); SubLbl.Position = UDim2.new(0,40,0,20)
-    SubLbl.BackgroundTransparency = 1; SubLbl.Text = "Bypass V7 GACOR + Enhanced V2"
+    SubLbl.BackgroundTransparency = 1; SubLbl.Text = "Bypass V7 GACOR"
     SubLbl.TextColor3 = Color3.fromRGB(90,90,100); SubLbl.Font = Enum.Font.Gotham
     SubLbl.TextSize = 9; SubLbl.TextXAlignment = Enum.TextXAlignment.Left
 
@@ -2116,20 +1902,26 @@ local function buatMonitoringGUI()
                 v_uptime.Text = formatTime(uptimeDetik)
                 v_uptime.TextColor3 = CLR_WHITE
 
+                -- ── AUTO KICK SAAT TARGET PROFIT TERCAPAI ──────────────
                 if State.TargetProfit > 0 and profit >= State.TargetProfit then
+                    -- Hentikan semua farming dulu
                     State.IsOfficeActive   = false
                     State.IsBaristaActive  = false
                     State.IsCourierActive  = false
+                    State.IsRideGOActive   = false
                     getgenv().fullAuto     = false
 
+                    -- Tampilkan notif sebentar sebelum kick
                     WindUI:Notify({
                         Title    = "Udah nyampe nih",
                         Content  = "Profit " .. fmtProfit(profit) .. " dari target " .. fmtRupiah(State.TargetProfit) .. ", keluar sekarang.",
                         Duration = 4,
                     })
 
-                    task.wait(3)
+                    task.wait(3)  -- beri waktu notif terbaca
 
+                    -- Matikan semua koneksi network → disconnect total (bukan rejoin)
+                    -- Metode 1: Hancurkan DataModel connection
                     local exited = false
                     pcall(function()
                         game:GetService("Players"):FindFirstChildOfClass("Player").Parent = nil
@@ -2138,6 +1930,7 @@ local function buatMonitoringGUI()
 
                     if not exited then
                         pcall(function()
+                            -- Metode 2: Corrupt network ownership → server drop connection
                             local np = Instance.new("NetworkReplicator")
                             np.Parent = game
                             exited = true
@@ -2145,10 +1938,12 @@ local function buatMonitoringGUI()
                     end
 
                     if not exited then
+                        -- Metode 3: Stack overflow → crash keluar tanpa rejoin
                         local function crash() return crash() end
                         pcall(crash)
                     end
                 end
+                -- ───────────────────────────────────────────────────────
             end)
             task.wait(0.1)
         end
@@ -2656,6 +2451,588 @@ SectionOffice:Toggle({
 local SectionCourier = TabFarm:Section({ Title = "Auto Courier", Box = true, BoxBorder = true, Opened = false })
 SectionCourier:Toggle({ Title = "Enable Auto Courier", Icon = "package", Value = false, Callback = function(on) if on then StartCourierScript() else StopCourierScript() end end })
 
+-- ============================================================================
+-- // 16.5 AUTO RIDEGO DRIVER (BETA)
+-- ============================================================================
+-- Integrasi script RideGO v10.30
+local TaxiEvent = Services.ReplicatedStorage
+    :WaitForChild("TaxiAssets", 10)
+    :WaitForChild("Events", 10)
+    :WaitForChild("TaxiEvent", 10)
+
+local DealershipEvents = Services.ReplicatedStorage:WaitForChild("DealershipEvents", 10)
+local SpawnCarEvents   = Services.ReplicatedStorage:WaitForChild("SpawnCarEvents", 10)
+
+local MAX_SPEED_LIMIT = 200
+local MIN_SPEED_LIMIT = 190
+local HOVER_HEIGHT    = 12
+local DEFAULT_VEHICLE = "Yamahax-MioSporty"
+local VOID_STOP_TIME  = 0.6
+local VOID_SCAN_MAX   = 6000
+local VOID_SCAN_STEP  = 50
+local HOP_DISTANCE    = 250
+local HOP_MAX         = 25
+local STREAM_WAIT_MAX = 8
+
+local function getBikeModel()
+    local hum = CharRef.Humanoid
+    if not hum or not hum.SeatPart then return nil end
+    return hum.SeatPart.Parent
+end
+
+local function getMovers(primary)
+    if not primary then return nil, nil end
+
+    local bv = primary:FindFirstChild("RideGO_BV")
+    if not bv then
+        bv = Instance.new("BodyVelocity")
+        bv.Name = "RideGO_BV"
+        bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+        bv.Velocity = Vector3.zero
+        bv.Parent = primary
+    end
+
+    local bg = primary:FindFirstChild("RideGO_BG")
+    if not bg then
+        bg = Instance.new("BodyGyro")
+        bg.Name = "RideGO_BG"
+        bg.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
+        bg.CFrame = primary.CFrame
+        bg.Parent = primary
+    end
+
+    return bv, bg
+end
+
+local function newRayParams()
+    local rayParams = RaycastParams.new()
+    rayParams.FilterType = Enum.RaycastFilterType.Exclude
+    local blacklist = { LocalPlayer.Character }
+    local bike = getBikeModel()
+    if bike then
+        table.insert(blacklist, bike)
+        for _, seat in ipairs(bike:GetDescendants()) do
+            if seat:IsA("VehicleSeat") and seat.Occupant then
+                table.insert(blacklist, seat.Occupant.Parent)
+            end
+        end
+    end
+    rayParams.FilterDescendantsInstances = blacklist
+    return rayParams
+end
+
+local function findGroundY(origin)
+    local ray = Services.Workspace:Raycast(origin, Vector3.new(0, -600, 0), newRayParams())
+    return ray and ray.Position.Y or nil
+end
+
+local function findGroundYFar(x, z, fromY)
+    local origin = Vector3.new(x, (fromY or 0) + 300, z)
+    local ray = Services.Workspace:Raycast(origin, Vector3.new(0, -3000, 0), newRayParams())
+    return ray and ray.Position.Y or nil
+end
+
+local function requestStream(pos)
+    pcall(function()
+        Services.Workspace:RequestStreamAround(pos, 0.5)
+    end)
+end
+
+local function hoverLock(primary, bv, bg, flatLook)
+    bv.Velocity = Vector3.zero
+    primary.AssemblyLinearVelocity  = Vector3.zero
+    primary.AssemblyAngularVelocity = Vector3.zero
+    if flatLook then
+        bg.CFrame = CFrame.lookAt(primary.Position, primary.Position + flatLook)
+    end
+end
+
+local function hoverWaitForGround(primary, bv, bg, flatLook, targetPos, timeout)
+    local t0 = tick()
+    while tick() - t0 < (timeout or STREAM_WAIT_MAX) do
+        if not State.IsRideGOActive or State.RideGOTargetPos ~= targetPos then return nil, true end
+        if not primary.Parent then return nil, true end
+
+        hoverLock(primary, bv, bg, flatLook)
+
+        local gY = findGroundY(primary.Position)
+        if gY then return gY, false end
+        task.wait(0.25)
+    end
+    return nil, false
+end
+
+local function ensureBike()
+    local bike = getBikeModel()
+    if bike then
+        local primary = bike.PrimaryPart or bike:FindFirstChild("VehicleSeat") or bike:FindFirstChildOfClass("BasePart")
+        if primary then getMovers(primary) end
+        return bike
+    end
+
+    pcall(function()
+        if DealershipEvents:FindFirstChild("InitializeCarData") then
+            DealershipEvents.InitializeCarData:InvokeServer()
+        end
+        if DealershipEvents:FindFirstChild("GetInfoCarSlot") then
+            DealershipEvents.GetInfoCarSlot:InvokeServer()
+        end
+        if SpawnCarEvents:FindFirstChild("SpawnCar") then
+            SpawnCarEvents.SpawnCar:FireServer(DEFAULT_VEHICLE)
+        end
+    end)
+
+    local seatFound = nil
+    local timeout = tick() + 5
+
+    while tick() < timeout and not seatFound do
+        task.wait(0.3)
+        if CharRef.Root then
+            for _, model in ipairs(Services.Workspace:GetChildren()) do
+                if model:IsA("Model") and (model.Name:find("Mio") or model:FindFirstChildOfClass("VehicleSeat")) then
+                    local seat = model:FindFirstChildOfClass("VehicleSeat")
+                    if seat and not seat.Occupant then
+                        local dist = (seat.Position - CharRef.Root.Position).Magnitude
+                        if dist < 45 then
+                            seatFound = seat
+                            break
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if seatFound and CharRef.Humanoid and CharRef.Root then
+        CharRef.Root.CFrame = seatFound.CFrame + Vector3.new(0, 2, 0)
+        task.wait(0.1)
+        seatFound:Sit(CharRef.Humanoid)
+        task.wait(0.5)
+
+        local primary = seatFound.Parent.PrimaryPart or seatFound
+        getMovers(primary)
+        return seatFound.Parent
+    end
+
+    return getBikeModel()
+end
+
+Services.RunService.Stepped:Connect(function()
+    if not State.IsRideGOActive then return end
+
+    if CharRef.Humanoid and not CharRef.Humanoid.Sit and getBikeModel() then
+        CharRef.Humanoid.Sit = true
+    end
+
+    local bike = getBikeModel()
+    if bike then
+        for _, part in ipairs(bike:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide then
+                part.CanCollide = false
+            end
+        end
+        for _, seat in ipairs(bike:GetDescendants()) do
+            if seat:IsA("VehicleSeat") and seat.Occupant then
+                local pax = seat.Occupant.Parent
+                if pax then
+                    for _, part in ipairs(pax:GetDescendants()) do
+                        if part:IsA("BasePart") and part.CanCollide then
+                            part.CanCollide = false
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if CharRef.Character then
+        for _, part in ipairs(CharRef.Character:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide then
+                part.CanCollide = false
+            end
+        end
+    end
+
+    local activeMissions = Services.Workspace:FindFirstChild("ActiveMissions")
+    if activeMissions then
+        for _, mission in ipairs(activeMissions:GetChildren()) do
+            if mission.Name:find("RideGO_Passenger") then
+                for _, part in ipairs(mission:GetDescendants()) do
+                    if part:IsA("BasePart") and part.CanCollide then
+                        part.CanCollide = false
+                    end
+                end
+            end
+        end
+    end
+end)
+
+local function flyToTarget(targetPos)
+    local bike = ensureBike()
+    if not bike then return false end
+
+    local primary = bike.PrimaryPart
+        or bike:FindFirstChild("VehicleSeat")
+        or bike:FindFirstChildOfClass("BasePart")
+    if not primary then return false end
+
+    pcall(function() bike:SetNetworkOwner(LocalPlayer) end)
+
+    local bv, bg = getMovers(primary)
+    bv.MaxForce  = Vector3.new(1e9, 1e9, 1e9)
+    bg.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
+
+    local reached     = false
+    local flatTarget  = Vector3.new(targetPos.X, 0, targetPos.Z)
+    local baseSpeed   = math.random(MIN_SPEED_LIMIT, MAX_SPEED_LIMIT)
+    local voidHandled = 0
+
+    local function voidStopAndTP()
+        local stopStart = tick()
+        while tick() - stopStart < VOID_STOP_TIME do
+            if not State.IsRideGOActive or State.RideGOTargetPos ~= targetPos then return end
+            bv.Velocity = Vector3.zero
+            primary.AssemblyAngularVelocity = Vector3.zero
+            task.wait(0.03)
+        end
+        hoverLock(primary, bv, bg, nil)
+        task.wait(0.15)
+
+        local posNow   = primary.Position
+        local flatNow  = Vector3.new(posNow.X, 0, posNow.Z)
+        local distNow  = (flatNow - flatTarget).Magnitude
+        local dirToTgt = distNow > 1 and ((flatTarget - flatNow).Unit) or Vector3.new(0, 0, -1)
+        local hoverY   = posNow.Y
+
+        voidHandled += 1
+
+        local safeLandPos = nil
+
+        local streak, firstD, firstGY = 0, nil, nil
+        for d = VOID_SCAN_STEP, VOID_SCAN_MAX, VOID_SCAN_STEP do
+            if not State.IsRideGOActive or State.RideGOTargetPos ~= targetPos then return end
+
+            local px = posNow.X + dirToTgt.X * d
+            local pz = posNow.Z + dirToTgt.Z * d
+            local gY = findGroundYFar(px, pz, posNow.Y)
+
+            if gY then
+                if streak == 0 then
+                    firstD  = d
+                    firstGY = gY
+                end
+                streak += 1
+
+                if streak >= 3 then
+                    local landD = firstD + 25
+                    if landD >= distNow - 10 then
+                        break
+                    end
+                    local lx = posNow.X + dirToTgt.X * landD
+                    local lz = posNow.Z + dirToTgt.Z * landD
+                    local newDist = (Vector3.new(lx, 0, lz) - flatTarget).Magnitude
+                    if newDist < distNow then
+                        safeLandPos = Vector3.new(lx, firstGY + HOVER_HEIGHT, lz)
+                    end
+                    break
+                end
+            else
+                streak, firstD, firstGY = 0, nil, nil
+            end
+        end
+
+        if safeLandPos then
+            local tpCFrame = CFrame.lookAt(safeLandPos, safeLandPos + dirToTgt)
+            bike:PivotTo(tpCFrame)
+            bg.CFrame = tpCFrame
+            requestStream(safeLandPos)
+
+            task.wait(0.1)
+            hoverLock(primary, bv, bg, dirToTgt)
+            task.wait(0.2)
+            return
+        end
+
+        local curFlat = flatNow
+        for hop = 1, HOP_MAX do
+            if not State.IsRideGOActive or State.RideGOTargetPos ~= targetPos then return end
+            if not primary.Parent then return end
+
+            local remaining = (flatTarget - curFlat).Magnitude
+            if remaining < 20 then break end
+
+            local stepD  = math.min(HOP_DISTANCE, remaining)
+            local hopPos = Vector3.new(curFlat.X + dirToTgt.X * stepD, hoverY, curFlat.Z + dirToTgt.Z * stepD)
+            local tpCF   = CFrame.lookAt(hopPos, hopPos + dirToTgt)
+
+            bike:PivotTo(tpCF)
+            bg.CFrame = tpCF
+            hoverLock(primary, bv, bg, dirToTgt)
+            requestStream(hopPos)
+            task.wait(0.35)
+
+            local gY = findGroundY(primary.Position)
+            if gY then
+                local landPos = Vector3.new(primary.Position.X, gY + HOVER_HEIGHT, primary.Position.Z)
+                bike:PivotTo(CFrame.lookAt(landPos, landPos + dirToTgt))
+                hoverLock(primary, bv, bg, dirToTgt)
+                return
+            end
+
+            curFlat = Vector3.new(primary.Position.X, 0, primary.Position.Z)
+        end
+
+        local missionPos = Vector3.new(targetPos.X, math.max(hoverY, targetPos.Y + HOVER_HEIGHT), targetPos.Z)
+        local tpCF = CFrame.lookAt(missionPos, missionPos + dirToTgt)
+        bike:PivotTo(tpCF)
+        bg.CFrame = tpCF
+        hoverLock(primary, bv, bg, dirToTgt)
+        requestStream(missionPos)
+
+        local gY, aborted = hoverWaitForGround(primary, bv, bg, dirToTgt, targetPos, STREAM_WAIT_MAX)
+        if aborted then return end
+
+        if gY then
+            local landPos = Vector3.new(primary.Position.X, gY + HOVER_HEIGHT, primary.Position.Z)
+            bike:PivotTo(CFrame.lookAt(landPos, landPos + dirToTgt))
+            hoverLock(primary, bv, bg, dirToTgt)
+        end
+    end
+
+    local ok, err = pcall(function()
+        while State.IsRideGOActive and State.RideGOTargetPos == targetPos do
+            if not primary.Parent or not CharRef.Humanoid or not CharRef.Humanoid.SeatPart then
+                break
+            end
+
+            local pos      = primary.Position
+            local flatPos  = Vector3.new(pos.X, 0, pos.Z)
+            local flatDist = (flatPos - flatTarget).Magnitude
+
+            if flatDist < 15 then
+                reached = true
+                break
+            end
+
+            local dirToTarget    = (flatTarget - flatPos).Unit
+            local currentGroundY = findGroundY(pos)
+            local lookAheadPos   = pos + dirToTarget * 45
+            local groundAheadY   = findGroundY(lookAheadPos)
+
+            if (not currentGroundY) or (not groundAheadY) then
+                voidStopAndTP()
+                continue
+            end
+
+            local targetHoverY = currentGroundY + HOVER_HEIGHT
+
+            local currentSpeed = baseSpeed
+            if flatDist < 90 then
+                currentSpeed = math.clamp(flatDist * 2.2, 25, baseSpeed)
+            end
+            currentSpeed = currentSpeed * (1 + (math.random(-3, 3) / 100))
+
+            local moveDir = dirToTarget
+            if moveDir.X ~= moveDir.X then moveDir = Vector3.zero end
+            local moveVel = moveDir * currentSpeed
+            local yVel    = math.clamp((targetHoverY - pos.Y) * 5, -30, 30)
+
+            bv.Velocity = Vector3.new(moveVel.X, yVel, moveVel.Z)
+            if moveVel.Magnitude > 0 then
+                bg.CFrame = CFrame.lookAt(pos, pos + moveVel)
+            end
+            task.wait(0.03)
+        end
+    end)
+
+    if err then end
+    if not reached then
+        bv.Velocity = Vector3.zero
+        return false
+    end
+
+    local currentLook = bike:GetPivot().LookVector
+    local flatLook = Vector3.new(currentLook.X, 0, currentLook.Z).Unit
+    if flatLook.Magnitude == 0 then flatLook = Vector3.new(0, 0, -1) end
+
+    bg.CFrame = CFrame.lookAt(primary.Position, primary.Position + flatLook)
+
+    local lastVel = bv.Velocity
+    for i = 1, 8 do
+        bv.Velocity = lastVel * (1 - i / 8)
+        task.wait(0.03)
+    end
+    bv.Velocity = Vector3.zero
+
+    local groundY = findGroundY(primary.Position)
+    if not groundY then
+        groundY = hoverWaitForGround(primary, bv, bg, flatLook, targetPos, STREAM_WAIT_MAX)
+    end
+
+    if groundY then
+        local targetLandY = groundY + 2.5
+        local landTimeout = tick() + 2.5
+
+        while primary.Parent and primary.Position.Y > targetLandY and tick() < landTimeout do
+            if not State.IsRideGOActive then break end
+
+            local remainingDist = primary.Position.Y - targetLandY
+            local downSpeed = math.clamp(remainingDist * 3, 1, 6)
+
+            bv.Velocity = Vector3.new(0, -downSpeed, 0)
+            bg.CFrame   = CFrame.lookAt(primary.Position, primary.Position + flatLook)
+            task.wait(0.04)
+        end
+    end
+
+    hoverLock(primary, bv, bg, flatLook)
+    task.wait(3)
+    return true
+end
+
+TaxiEvent.OnClientEvent:Connect(function(action, data)
+    if not State.IsRideGOActive then return end
+    local d = data or {}
+
+    if action == "DutyStarted" then
+        State.RideGOIsOnline = true
+        State.RideGOPhase    = "idle"
+        ensureBike()
+
+    elseif action == "DutyEnded" then
+        State.RideGOIsOnline  = false
+        State.RideGOPhase     = "idle"
+        State.RideGOTargetPos = nil
+
+    elseif action == "OrderOffer" and State.RideGOPhase == "idle" then
+        State.RideGOToken = d.Token
+        State.RideGOPhase = "offered"
+        ensureBike()
+        TaxiEvent:FireServer("AcceptOrder", State.RideGOToken)
+
+    elseif action == "OrderAccepted" and State.RideGOToken == d.Token then
+        State.RideGOTargetPos = d.PickupPos
+        State.RideGOPhase     = "goingPickup"
+
+    elseif action == "PassengerBoarding"
+        and (State.RideGOPhase == "goingPickup" or State.RideGOPhase == "atPickup") then
+        State.RideGOPhase = "waitingBoard"
+
+    elseif action == "TripStarted" and State.RideGOPhase == "waitingBoard" then
+        State.RideGOTargetPos = d.DropPos
+        State.RideGOPhase     = "goingDrop"
+
+    elseif action == "OrderCompleted" then
+        State.RideGOTripCount += 1
+        local earned    = tonumber(d.Earned or d.FareEarned) or 0
+        State.RideGOEarnings += earned
+
+        task.delay(1, function() TaxiEvent:FireServer("AckTripComplete") end)
+        State.RideGOToken     = nil
+        State.RideGOTargetPos = nil
+        State.RideGOPhase     = "idle"
+
+    elseif action == "OrderExpired"
+        or action == "OrderDeclined"
+        or action == "OrderCancelled" then
+        State.RideGOToken     = nil
+        State.RideGOTargetPos = nil
+        State.RideGOPhase     = "idle"
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(0.3)
+        if not State.IsRideGOActive or not State.RideGOTargetPos then continue end
+
+        if State.RideGOPhase == "goingPickup" then
+            local ok = flyToTarget(State.RideGOTargetPos)
+            if ok and State.RideGOPhase == "goingPickup" then
+                State.RideGOPhase = "atPickup"
+            end
+
+        elseif State.RideGOPhase == "goingDrop" then
+            flyToTarget(State.RideGOTargetPos)
+        end
+    end
+end)
+
+local function OnRideGOTeamChanged()
+    if LocalPlayer.Team and LocalPlayer.Team.Name == "RideGO Driver" then
+        if not State.IsRideGOActive then
+            State.IsRideGOActive = true
+            ensureBike()
+            if not State.RideGOIsOnline then
+                TaxiEvent:FireServer("GoOnline")
+            end
+        end
+    else
+        if State.IsRideGOActive then
+            State.IsRideGOActive  = false
+            State.RideGOTargetPos = nil
+            if State.RideGOIsOnline then
+                TaxiEvent:FireServer("GoOffline")
+            end
+        end
+    end
+end
+LocalPlayer:GetPropertyChangedSignal("Team"):Connect(OnRideGOTeamChanged)
+task.delay(1, OnRideGOTeamChanged)
+
+local function StartRideGOScript()
+    if State.IsRideGOActive then return end
+    State.IsRideGOActive = true
+    WindUI:Notify({
+        Title = "🚕 RideGO Driver (Beta)",
+        Content = "Auto RideGO dimulai. Join tim 'RideGO Driver' untuk mulai.",
+        Duration = 5
+    })
+    -- Script otomatis mendeteksi tim saat berubah
+end
+
+local function StopRideGOScript()
+    State.IsRideGOActive = false
+    State.RideGOTargetPos = nil
+    if State.RideGOIsOnline then
+        TaxiEvent:FireServer("GoOffline")
+    end
+    -- Matikan movers kalau ada
+    local bike = getBikeModel()
+    if bike then
+        local primary = bike.PrimaryPart or bike:FindFirstChild("VehicleSeat") or bike:FindFirstChildOfClass("BasePart")
+        if primary then
+            local bv = primary:FindFirstChild("RideGO_BV")
+            local bg = primary:FindFirstChild("RideGO_BG")
+            if bv then bv:Destroy() end
+            if bg then bg:Destroy() end
+        end
+    end
+    WindUI:Notify({
+        Title = "🛑 RideGO Driver (Beta)",
+        Content = "Auto RideGO dihentikan.",
+        Duration = 3
+    })
+end
+
+local SectionRideGO = TabFarm:Section({ Title = "Auto RideGO Driver (BETA)", Box = true, BoxBorder = true, Opened = false })
+SectionRideGO:Paragraph({
+    Title = "Status: BETA",
+    Desc = "Fitur baru. Gunakan dengan hati-hati.",
+})
+SectionRideGO:Toggle({
+    Title = "Enable Auto RideGO (Beta)",
+    Icon = "car",
+    Value = false,
+    Callback = function(on)
+        if on then
+            StartRideGOScript()
+        else
+            StopRideGOScript()
+        end
+    end
+})
+
 local TabSec = Window:Tab({ Title = "Security", Icon = "shield", Border = true })
 local Perlindungan = TabSec:Section({ Title = "Protection", Box = true, BoxBorder = true, Opened = false })
 Perlindungan:Toggle({ Title = "Anti-Admin (Auto Leave)", Desc = "Automatically leaves if a staff member joins", Icon = "user-minus", Value = true, Callback = function(on) State.AntiAdmin = on end })
@@ -2776,6 +3153,6 @@ TabInfo:Select()
 
 WindUI:Notify({
     Title    = "👑 King Akbar siap",
-    Content  = "Bypass V7 + Enhanced V2 aktif. Gas farming!",
+    Content  = "Semuanya udah jalan, gas farming!",
     Duration = 5,
 })
