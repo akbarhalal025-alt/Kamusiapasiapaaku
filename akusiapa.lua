@@ -4,11 +4,12 @@
 ================================================================================
     [+] Developer   : King Akbar
     [+] Game        : Drag Drive Simulator
-    [+] Update      : + Auto RideGO Driver (Void Gate Ultra + Anti-Kick Stabil)
-    [+] Fitur       : + Anti-Kick 3 Lapis (Hook + Random Keypress + Heartbeat F15)
+    [+] Fitur       : + Auto RideGO Driver (Void Gate Ultra + Anti-Kick Stabil)
+                      + Anti-Kick 3 Lapis (Hook + Random Keypress + Heartbeat F15)
                       + Auto-Recovery Respawn Karakter
                       + Dynamic Vehicle Selector (Scan Garasi)
                       + Dynamic Tracker Monitoring (Office / RideGO)
+                      + Full Manual Activation (No Auto-Start)
 ================================================================================
 ]]--
 
@@ -333,7 +334,7 @@ local function UpdateCharRef()
 end
 UpdateCharRef()
 
-LocalPlayer.CharacterAdded:Connect(function(newChar)
+LocalPlayer.CharacterAdded:Connect(function()
     task.wait(0.3)
     UpdateCharRef()
 end)
@@ -2988,19 +2989,18 @@ local function StopRideGOScript()
     })
 end
 
+-- ==================== TEAM DETECTOR (SAFETY ONLY) ====================
 local function OnRideGOTeamChanged()
-    if LocalPlayer.Team and LocalPlayer.Team.Name == "RideGO Driver" then
-        if not State.IsRideGOActive then
-            StartRideGOScript()
-        end
-    else
-        if State.IsRideGOActive then
-            StopRideGOScript()
-        end
+    if State.IsRideGOActive and LocalPlayer.Team and LocalPlayer.Team.Name ~= "RideGO Driver" then
+        StopRideGOScript()
+        WindUI:Notify({
+            Title    = "⚠️ RideGO Driver",
+            Content  = "Keluar dari tim driver, bot dimatikan otomatis.",
+            Duration = 3
+        })
     end
 end
 LocalPlayer:GetPropertyChangedSignal("Team"):Connect(OnRideGOTeamChanged)
-task.delay(1, OnRideGOTeamChanged)
 
 -- ============================================================================
 -- // 17. UI — 7 TAB
@@ -3161,7 +3161,7 @@ SectionCourier:Button({
 local SectionRideGO = TabFarm:Section({ Title = "Auto RideGO Driver", Box = true, BoxBorder = true, Opened = false })
 SectionRideGO:Paragraph({
     Title = "Status: Stabil",
-    Desc = "Anti-Kick 3 lapis, Auto-Recovery Respawn, & Void Gate Ultra.",
+    Desc = ".",
 })
 SectionRideGO:Toggle({
     Title = "Enable Auto RideGO",
@@ -3325,7 +3325,7 @@ TabInfo:Select()
 
 WindUI:Notify({
     Title    = "👑 King Akbar Siap",
-    Content  = "Auto RideGO Driver telah dimuat!",
+    Content  = "Auto Farm Drag Drive Simulator telah dimuat!",
     Duration = 5,
 })
 
