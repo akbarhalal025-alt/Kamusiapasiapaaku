@@ -4,8 +4,11 @@
 ================================================================================
     [+] Developer   : King Akbar
     [+] Game        : Drag Drive Simulator
-    [+] Update      : + Auto RideGO Driver v10.30 (BETA) + Dynamic Tracker
-    [+] Fitur Baru  : + Dynamic Vehicle Selector (Scan Garasi)
+    [+] Update      : + Auto RideGO Driver (Void Gate Ultra + Anti-Kick Stabil)
+    [+] Fitur       : + Anti-Kick 3 Lapis (Hook + Random Keypress + Heartbeat F15)
+                      + Auto-Recovery Respawn Karakter
+                      + Dynamic Vehicle Selector (Scan Garasi)
+                      + Dynamic Tracker Monitoring (Office / RideGO)
 ================================================================================
 ]]--
 
@@ -28,7 +31,7 @@ local function safeDestroy(obj)
 end
 
 -- ============================================================================
--- // 0. ULTIMATE BYPASS V7.0 "GACOR" — DDS TARGETED
+-- // 0. ULTIMATE BYPASS "GACOR" — DDS TARGETED
 -- ============================================================================
 do
     local LocalPlayer = game:GetService("Players").LocalPlayer
@@ -94,7 +97,7 @@ do
         mt.__namecall = newcclosure(function(self, ...)
             local method = getnamecallmethod and getnamecallmethod() or ""
 
-            if (method == "Kick" or method == "kick" or method == "Disconnect")
+            if (method:lower() == "kick" or method == "Disconnect")
                 and tostring(self) == tostring(LocalPlayer)
             then
                 if getgenv().allowSelfKick then
@@ -102,7 +105,7 @@ do
                     return oldNamecall(self, ...)
                 end
                 BWarn("Kick diblokir!")
-                return
+                return nil
             end
 
             if method == "FireServer" then
@@ -294,18 +297,18 @@ end
 -- // 2. SERVICES & REFERENCES
 -- ============================================================================
 local Services = {
-    Players            = game:GetService("Players"),
-    RunService         = game:GetService("RunService"),
-    TweenSvc           = game:GetService("TweenService"),
-    UserInput          = game:GetService("UserInputService"),
-    Stats              = game:GetService("Stats"),
-    Workspace          = game:GetService("Workspace"),
-    VirtualUser        = game:GetService("VirtualUser"),
-    HttpService        = game:GetService("HttpService"),
-    GuiService         = game:GetService("GuiService"),
-    PathfindingService = game:GetService("PathfindingService"),
-    ReplicatedStorage  = game:GetService("ReplicatedStorage"),
-    StarterGui         = game:GetService("StarterGui"),
+    Players             = game:GetService("Players"),
+    RunService          = game:GetService("RunService"),
+    TweenSvc            = game:GetService("TweenService"),
+    UserInput           = game:GetService("UserInputService"),
+    Stats               = game:GetService("Stats"),
+    Workspace           = game:GetService("Workspace"),
+    VirtualUser         = game:GetService("VirtualUser"),
+    HttpService         = game:GetService("HttpService"),
+    GuiService          = game:GetService("GuiService"),
+    PathfindingService  = game:GetService("PathfindingService"),
+    ReplicatedStorage   = game:GetService("ReplicatedStorage"),
+    StarterGui          = game:GetService("StarterGui"),
     VirtualInputManager = game:GetService("VirtualInputManager"),
 }
 
@@ -316,17 +319,23 @@ local IsMobile = Services.UserInput.TouchEnabled
     and not Services.UserInput.MouseEnabled
 
 local CharRef = {
-    Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait(),
+    Character = nil,
     Humanoid  = nil,
     Root      = nil,
 }
-CharRef.Humanoid = CharRef.Character:WaitForChild("Humanoid")
-CharRef.Root     = CharRef.Character:WaitForChild("HumanoidRootPart")
+
+local function UpdateCharRef()
+    CharRef.Character = LocalPlayer.Character
+    if CharRef.Character then
+        CharRef.Humanoid = CharRef.Character:WaitForChild("Humanoid", 5)
+        CharRef.Root     = CharRef.Character:WaitForChild("HumanoidRootPart", 5)
+    end
+end
+UpdateCharRef()
 
 LocalPlayer.CharacterAdded:Connect(function(newChar)
-    CharRef.Character = newChar
-    CharRef.Humanoid  = newChar:WaitForChild("Humanoid")
-    CharRef.Root      = newChar:WaitForChild("HumanoidRootPart")
+    task.wait(0.3)
+    UpdateCharRef()
 end)
 
 -- ============================================================================
@@ -385,14 +394,68 @@ local State = {
     RideGOEarnings     = 0,
 }
 
+-- ============================================================================
+-- // ANTI-KICK & KEEPALIVE 3 LAPIS (SUPER STABIL)
+-- ============================================================================
+pcall(function()
+    if not hookmetamethod or not newcclosure or not getnamecallmethod then return end
+    local _origNamecall
+    _origNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+        if self == LocalPlayer and getnamecallmethod():lower() == "kick" then
+            if getgenv().allowSelfKick then
+                getgenv().allowSelfKick = false
+                return _origNamecall(self, ...)
+            end
+            return nil
+        end
+        return _origNamecall(self, ...)
+    end))
+end)
+
 LocalPlayer.Idled:Connect(function()
     if State.AntiAFK then
         pcall(function()
             Services.VirtualUser:CaptureController()
             Services.VirtualUser:ClickButton2(Vector2.new())
+            Services.VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+            task.wait(0.1)
+            Services.VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
         end)
     end
 end)
+
+task.spawn(function()
+    local _keyPool = {
+        Enum.KeyCode.W, Enum.KeyCode.A, Enum.KeyCode.S, Enum.KeyCode.D,
+        Enum.KeyCode.Space, Enum.KeyCode.LeftShift, Enum.KeyCode.E,
+    }
+    while true do
+        task.wait(math.random(50, 80))
+        if State.AntiAFK then
+            pcall(function()
+                local k = _keyPool[math.random(1, #_keyPool)]
+                Services.VirtualInputManager:SendKeyEvent(true, k, false, game)
+                task.wait(0.04 + math.random() * 0.06)
+                Services.VirtualInputManager:SendKeyEvent(false, k, false, game)
+            end)
+        end
+    end
+end)
+
+do
+    local _lastKA = tick()
+    Services.RunService.Heartbeat:Connect(function()
+        if tick() - _lastKA < 30 then return end
+        _lastKA = tick()
+        task.spawn(function()
+            pcall(function()
+                Services.VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F15, false, game)
+                task.wait(0.02)
+                Services.VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F15, false, game)
+            end)
+        end)
+    end)
+end
 
 -- ============================================================================
 -- // 3.5 FAKE NAME SYSTEM
@@ -535,6 +598,7 @@ local function CheckForAdmin(player)
     if isStaff then
         State.LastStopReason = "Admin detected: " .. player.Name
         rWait(0.2, 0.5)
+        getgenv().allowSelfKick = true
         LocalPlayer:Kick("🚨 " .. player.Name .. " (Admin) joined! Leaving for safety.")
     end
 end
@@ -554,6 +618,7 @@ pcall(function()
                 if text:find("%[admin%]") or text:find("%[mod%]") or text:find("%[owner%]") or text:find("%[staff%]") then
                     State.LastStopReason = "Admin chat detected: " .. player.Name
                     rWait(0.2, 0.5)
+                    getgenv().allowSelfKick = true
                     LocalPlayer:Kick("🚨 Admin chatting detected! Leaving server!")
                 end
             end
@@ -1016,9 +1081,7 @@ local function BaristaFarmLoop()
     local isAtCashier = false
     while State.IsBaristaActive do
         if not CharRef.Character or not CharRef.Character.Parent then
-            CharRef.Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-            CharRef.Humanoid  = CharRef.Character:WaitForChild("Humanoid")
-            CharRef.Root      = CharRef.Character:WaitForChild("HumanoidRootPart")
+            UpdateCharRef()
         end
 
         if not HasJob() then
@@ -1423,10 +1486,6 @@ end)
 
 LocalPlayer.CharacterAdded:Connect(function(newChar)
     if not State.IsOfficeActive then return end
-    CharRef.Character = newChar
-    CharRef.Humanoid  = newChar:WaitForChild("Humanoid")
-    CharRef.Root      = newChar:WaitForChild("HumanoidRootPart")
-
     task.wait(3)
     if not State.IsOfficeActive then return end
 
@@ -1637,9 +1696,9 @@ local function formatTime(seconds)
 end
 
 local function CariLabelUang()
-    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
-    if not playerGui then return nil end
-    for _, guiObject in ipairs(playerGui:GetDescendants()) do
+    local pGui = LocalPlayer:FindFirstChild("PlayerGui")
+    if not pGui then return nil end
+    for _, guiObject in ipairs(pGui:GetDescendants()) do
         if guiObject:IsA("TextLabel") or guiObject:IsA("TextButton") then
             local text = guiObject.Text
             if text and string.find(text, "Rp%.") and string.match(text, "%d+") then
@@ -1754,7 +1813,7 @@ local function buatMonitoringGUI()
     local SubLbl = Instance.new("TextLabel", H)
     SubLbl.Size = UDim2.new(1,-40,0,11); SubLbl.Position = UDim2.new(0,40,0,20)
     SubLbl.BackgroundTransparency = 1
-    SubLbl.Text = State.IsRideGOActive and "RideGO Driver" or (State.IsOfficeActive and "Office Worker" or "Bypass V7 GACOR")
+    SubLbl.Text = State.IsRideGOActive and "RideGO Driver" or (State.IsOfficeActive and "Office Worker" or "Bypass GACOR")
     SubLbl.TextColor3 = Color3.fromRGB(90,90,100); SubLbl.Font = Enum.Font.Gotham
     SubLbl.TextSize = 9; SubLbl.TextXAlignment = Enum.TextXAlignment.Left
 
@@ -1850,7 +1909,7 @@ local function buatMonitoringGUI()
                     end
                     animateValue(v_stat2, fares, fmtShort, nil, nil, CLR_WHITE)
                 else
-                    SubLbl.Text = State.IsOfficeActive and "Office Worker" or "Bypass V7 GACOR"
+                    SubLbl.Text = State.IsOfficeActive and "Office Worker" or "Bypass GACOR"
                     c_stat1.Text = "📝 Solved"
                     c_stat2.Text = "🖨️ Prints"
 
@@ -2361,7 +2420,7 @@ local function InjectMesin(HP_Mult, RPM_Add, Ratio_Mult, FD_Mult, NamaMode)
 end
 
 -- ============================================================================
--- // 16. AUTO RIDEGO DRIVER (BETA) + MONITORING HOOK
+-- // 16. AUTO RIDEGO DRIVER (VOID GATE ULTRA + AUTO RECOVERY)
 -- ============================================================================
 local TaxiEvent = Services.ReplicatedStorage
     :WaitForChild("TaxiAssets", 10)
@@ -2485,7 +2544,7 @@ local function ensureBike()
             DealershipEvents.GetInfoCarSlot:InvokeServer()
         end
         if SpawnCarEvents:FindFirstChild("SpawnCar") then
-            SpawnCarEvents.SpawnCar:FireServer(SELECTED_CAR)
+            SpawnCarEvents.SpawnCar:FireServer(SELECTED_CAR or "Yamahax-MioSporty")
         end
     end)
 
@@ -2496,7 +2555,7 @@ local function ensureBike()
         task.wait(0.3)
         if CharRef.Root then
             for _, model in ipairs(Services.Workspace:GetChildren()) do
-                if model:IsA("Model") then
+                if model:IsA("Model") and (model.Name:find("Mio") or model:FindFirstChildOfClass("VehicleSeat")) then
                     local seat = model:FindFirstChildOfClass("VehicleSeat")
                     if seat and not seat.Occupant then
                         local dist = (seat.Position - CharRef.Root.Position).Magnitude
@@ -2523,6 +2582,19 @@ local function ensureBike()
 
     return getBikeModel()
 end
+
+-- [AUTO-RECOVERY RESPAWN HANDLER]
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(0.5)
+    if not State.IsRideGOActive then return end
+
+    task.wait(1.5)
+    pcall(ensureBike)
+
+    if not State.RideGOTargetPos and State.RideGOPhase ~= "idle" then
+        State.RideGOPhase = "idle"
+    end
+end)
 
 Services.RunService.Stepped:Connect(function()
     if not State.IsRideGOActive then return end
@@ -2830,9 +2902,9 @@ TaxiEvent.OnClientEvent:Connect(function(action, data)
         State.RideGOPhase     = "goingDrop"
 
     elseif action == "OrderCompleted" then
-        State.RideGOTripCount += 1
+        State.RideGOTripCount = (State.RideGOTripCount or 0) + 1
         local earned = tonumber(d.Earned or d.FareEarned) or 0
-        State.RideGOEarnings += earned
+        State.RideGOEarnings = (State.RideGOEarnings or 0) + earned
 
         task.delay(1, function() TaxiEvent:FireServer("AckTripComplete") end)
         State.RideGOToken     = nil
@@ -2882,8 +2954,8 @@ local function StartRideGOScript()
     end
 
     WindUI:Notify({
-        Title = "🚕 RideGO Driver (Beta)",
-        Content = "Auto RideGO dimulai & Monitoring aktif!",
+        Title = "🚕 RideGO Driver",
+        Content = "Auto RideGO & Monitoring Aktif!",
         Duration = 4
     })
 end
@@ -2910,7 +2982,7 @@ local function StopRideGOScript()
     matikanMonitoring()
 
     WindUI:Notify({
-        Title = "🛑 RideGO Driver (Beta)",
+        Title = "🛑 RideGO Driver",
         Content = "Auto RideGO dihentikan.",
         Duration = 3
     })
@@ -3086,13 +3158,13 @@ SectionCourier:Button({
     end
 })
 
-local SectionRideGO = TabFarm:Section({ Title = "Auto RideGO Driver (BETA)", Box = true, BoxBorder = true, Opened = false })
+local SectionRideGO = TabFarm:Section({ Title = "Auto RideGO Driver", Box = true, BoxBorder = true, Opened = false })
 SectionRideGO:Paragraph({
-    Title = "Status: BETA",
-    Desc = "Fitur baru dengan monitoring profit & total trip otomatis.",
+    Title = "Status: Stabil",
+    Desc = "Anti-Kick 3 lapis, Auto-Recovery Respawn, & Void Gate Ultra.",
 })
 SectionRideGO:Toggle({
-    Title = "Enable Auto RideGO (Beta)",
+    Title = "Enable Auto RideGO",
     Icon = "car",
     Value = false,
     Callback = function(on)
@@ -3252,8 +3324,8 @@ WindUI:SetTheme("dark")
 TabInfo:Select()
 
 WindUI:Notify({
-    Title    = "👑 King Akbar siap",
-    Content  = "Semuanya udah jalan, gas farming!",
+    Title    = "👑 King Akbar Siap",
+    Content  = "Auto RideGO Driver telah dimuat!",
     Duration = 5,
 })
 
