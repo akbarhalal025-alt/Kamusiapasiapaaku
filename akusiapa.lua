@@ -2434,7 +2434,7 @@ local SpawnCarEvents   = Services.ReplicatedStorage:WaitForChild("SpawnCarEvents
 local MAX_SPEED_LIMIT = 200
 local MIN_SPEED_LIMIT = 190
 local HOVER_HEIGHT    = 12
-local VOID_STOP_TIME  = 0.6
+local VOID_STOP_TIME  = 0.8
 local VOID_SCAN_MAX   = 6000
 local VOID_SCAN_STEP  = 50
 local HOP_DISTANCE    = 250
@@ -2749,7 +2749,7 @@ local function flyToTarget(targetPos)
             bg.CFrame = tpCF
             hoverLock(primary, bv, bg, dirToTgt)
             requestStream(hopPos)
-            task.wait(0.35)
+            task.wait(0.05)
 
             local gY = findGroundY(primary.Position)
             if gY then
