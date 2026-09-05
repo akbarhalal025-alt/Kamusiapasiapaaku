@@ -2933,7 +2933,40 @@ task.spawn(function()
             end
 
         elseif State.RideGOPhase == "goingDrop" then
-            flyToTarget(State.RideGOTargetPos)
+            local ok = flyToTarget(State.RideGOTargetPos)
+            
+            -- Cek apakah berhasil sampai tapi status nyangkut di goingDrop
+            if ok and State.RideGOPhase == "goingDrop" then
+                local waitTime = 0
+                
+                -- Beri waktu 15 detik untuk game memverifikasi rute
+                while State.RideGOPhase == "goingDrop" and waitTime < 15 do
+                    task.wait(1)
+                    waitTime += 1
+                end
+
+                -- Jika masih nyangkut setelah 15 detik, eksekusi pemaksaan reset
+                if State.IsRideGOActive and State.RideGOPhase == "goingDrop" then
+                    -- 1. Hancurkan motor secara paksa agar penumpang hilang
+                    local bike = getBikeModel()
+                    if bike then 
+                        pcall(function() bike:Destroy() end) 
+                    end
+                    
+                    -- 2. Kembalikan state ke idle agar auto-spawn motor baru bekerja
+                    State.RideGOPhase = "idle"
+                    State.RideGOTargetPos = nil
+                    State.RideGOToken = nil
+                    
+                    -- 3. Kirim sinyal batal dan refresh status online ke server
+                    pcall(function()
+                        TaxiEvent:FireServer("CancelOrder")
+                        TaxiEvent:FireServer("GoOffline")
+                        task.wait(0.5)
+                        TaxiEvent:FireServer("GoOnline")
+                    end)
+                end
+            end
         end
     end
 end)
