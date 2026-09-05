@@ -2431,8 +2431,8 @@ local TaxiEvent = Services.ReplicatedStorage
 local DealershipEvents = Services.ReplicatedStorage:WaitForChild("DealershipEvents", 10)
 local SpawnCarEvents   = Services.ReplicatedStorage:WaitForChild("SpawnCarEvents", 10)
 
-local MAX_SPEED_LIMIT = 200
-local MIN_SPEED_LIMIT = 190
+local MAX_SPEED_LIMIT = 250
+local MIN_SPEED_LIMIT = 230
 local HOVER_HEIGHT    = 12
 local VOID_STOP_TIME  = 0.8
 local VOID_SCAN_MAX   = 6000
