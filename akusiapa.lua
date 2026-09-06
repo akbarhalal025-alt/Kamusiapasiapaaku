@@ -10,6 +10,7 @@
                       + Dynamic Vehicle Selector (Scan Garasi)
                       + Dynamic Tracker Monitoring (Office / RideGO)
                       + Full Manual Activation (No Auto-Start)
+    [+] Update      : Void TP dipercepat (VOID_STOP_TIME 0.08, HOP 600, jeda 0.05)
 ================================================================================
 ]]--
 
@@ -2431,13 +2432,15 @@ local TaxiEvent = Services.ReplicatedStorage
 local DealershipEvents = Services.ReplicatedStorage:WaitForChild("DealershipEvents", 10)
 local SpawnCarEvents   = Services.ReplicatedStorage:WaitForChild("SpawnCarEvents", 10)
 
-local MAX_SPEED_LIMIT = 250
-local MIN_SPEED_LIMIT = 230
+local MAX_SPEED_LIMIT = 200
+local MIN_SPEED_LIMIT = 190
 local HOVER_HEIGHT    = 12
-local VOID_STOP_TIME  = 0.8
+-- ★ VOID DIPERCEPAT: stop sebelum scan hanya 0.08 detik (sebelumnya 0.6)
+local VOID_STOP_TIME  = 0.08
 local VOID_SCAN_MAX   = 6000
 local VOID_SCAN_STEP  = 50
-local HOP_DISTANCE    = 1000
+-- ★ Tiap lompatan void lebih jauh 600 stud (sebelumnya 250)
+local HOP_DISTANCE    = 600
 local HOP_MAX         = 25
 local STREAM_WAIT_MAX = 8
 
@@ -2668,6 +2671,7 @@ local function flyToTarget(targetPos)
     local voidHandled = 0
 
     local function voidStopAndTP()
+        -- ★ Stop singkat 0.08 detik sebelum scan void (lebih cepat dari 0.6)
         local stopStart = tick()
         while tick() - stopStart < VOID_STOP_TIME do
             if not State.IsRideGOActive or State.RideGOTargetPos ~= targetPos then return end
@@ -2676,7 +2680,7 @@ local function flyToTarget(targetPos)
             task.wait(0.03)
         end
         hoverLock(primary, bv, bg, nil)
-        task.wait(0.15)
+        task.wait(0.05) -- ★ Jeda setelah hover lock (sebelumnya 0.15)
 
         local posNow   = primary.Position
         local flatNow  = Vector3.new(posNow.X, 0, posNow.Z)
@@ -2727,9 +2731,10 @@ local function flyToTarget(targetPos)
             bg.CFrame = tpCFrame
             requestStream(safeLandPos)
 
-            task.wait(0.1)
+            -- ★ Jeda lebih singkat setelah safe land TP (0.05 + 0.05 vs 0.1 + 0.2)
+            task.wait(0.05)
             hoverLock(primary, bv, bg, dirToTgt)
-            task.wait(0.2)
+            task.wait(0.05)
             return
         end
 
@@ -2741,6 +2746,7 @@ local function flyToTarget(targetPos)
             local remaining = (flatTarget - curFlat).Magnitude
             if remaining < 20 then break end
 
+            -- ★ Hop lebih jauh 600 stud per lompatan (sebelumnya 250)
             local stepD  = math.min(HOP_DISTANCE, remaining)
             local hopPos = Vector3.new(curFlat.X + dirToTgt.X * stepD, hoverY, curFlat.Z + dirToTgt.Z * stepD)
             local tpCF   = CFrame.lookAt(hopPos, hopPos + dirToTgt)
@@ -2749,7 +2755,8 @@ local function flyToTarget(targetPos)
             bg.CFrame = tpCF
             hoverLock(primary, bv, bg, dirToTgt)
             requestStream(hopPos)
-            task.wait(0.59)
+            -- ★ Jeda antar hop jauh lebih singkat (0.05 vs 0.35)
+            task.wait(0.05)
 
             local gY = findGroundY(primary.Position)
             if gY then
@@ -3160,8 +3167,8 @@ SectionCourier:Button({
 
 local SectionRideGO = TabFarm:Section({ Title = "Auto RideGO Driver", Box = true, BoxBorder = true, Opened = false })
 SectionRideGO:Paragraph({
-    Title = "Status: Stabil",
-    Desc = ".",
+    Title = "Status: Stabil + Void Cepat",
+    Desc = "Void TP dipercepat: stop 0.08s, hop 600 stud.",
 })
 SectionRideGO:Toggle({
     Title = "Enable Auto RideGO",
