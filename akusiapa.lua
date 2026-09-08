@@ -2319,7 +2319,7 @@ Services.RunService.Stepped:Connect(function()
 end)
 
 -- ============================================================================
--- // CORE GO-JEK ENGINE: SPAWN, DESPAWN & NAIK MOTOR
+-- // CORE GO-JEK ENGINE: SPAWN, DESPAWN & NAIK MOTOR (VERSI DIPERBAIKI)
 -- ============================================================================
 local DealershipEvents = Services.ReplicatedStorage:WaitForChild("DealershipEvents", 10)
 local SpawnCarEvents   = Services.ReplicatedStorage:WaitForChild("SpawnCarEvents", 10)
@@ -2328,6 +2328,7 @@ local function spawnAndMountBike()
     if not SELECTED_CAR then FetchOwnedVehicles() end
     if not SELECTED_CAR then return nil end
 
+    -- Despawn motor lama
     pcall(function()
         if SpawnCarEvents:FindFirstChild("DespawnCar") then
             SpawnCarEvents.DespawnCar:FireServer()
@@ -2337,6 +2338,7 @@ local function spawnAndMountBike()
     end)
     task.wait(0.8)
 
+    -- Panggil remote untuk spawn
     pcall(function()
         if DealershipEvents:FindFirstChild("InitializeCarData") then
             DealershipEvents.InitializeCarData:InvokeServer()
@@ -2349,8 +2351,9 @@ local function spawnAndMountBike()
         end
     end)
 
+    -- Tunggu seat muncul (jarak 100)
     local seatFound = nil
-    local timeout = tick() + 6
+    local timeout = tick() + 8
     while tick() < timeout and not seatFound do
         task.wait(0.2)
         if CharRef.Root then
@@ -2359,7 +2362,7 @@ local function spawnAndMountBike()
                     local seat = model:FindFirstChildOfClass("VehicleSeat") or model:FindFirstChild("DriveSeat", true)
                     if seat and (not seat.Occupant or seat.Occupant == CharRef.Humanoid) then
                         local dist = (seat.Position - CharRef.Root.Position).Magnitude
-                        if dist < 60 then
+                        if dist < 100 then
                             seatFound = seat
                             break
                         end
@@ -2369,14 +2372,25 @@ local function spawnAndMountBike()
         end
     end
 
+    -- Langsung duduk di jok (CFrame seat persis, bukan offset)
     if seatFound and CharRef.Humanoid and CharRef.Root then
-        CharRef.Root.CFrame = seatFound.CFrame + Vector3.new(0, 1.5, 0)
+        CharRef.Root.CFrame = seatFound.CFrame
         task.wait(0.1)
         seatFound:Sit(CharRef.Humanoid)
-        task.wait(0.4)
+        task.wait(0.5)
 
+        -- Verifikasi duduk, ulangi jika gagal
+        if CharRef.Humanoid.SeatPart ~= seatFound then
+            CharRef.Root.CFrame = seatFound.CFrame
+            task.wait(0.1)
+            seatFound:Sit(CharRef.Humanoid)
+            task.wait(0.5)
+        end
+
+        -- Stabilkan motor
         local primary = seatFound.Parent.PrimaryPart or seatFound
         getMovers(primary)
+
         return seatFound.Parent
     end
 
@@ -2392,6 +2406,7 @@ local function ensureBike()
         end
     end
 
+    -- Jika sudah duduk di motor milik sendiri, langsung return
     local bike = getBikeModel()
     if bike and isVehicleMine(bike) and CharRef.Humanoid and CharRef.Humanoid.SeatPart then
         local primary = bike.PrimaryPart or bike:FindFirstChild("VehicleSeat") or bike:FindFirstChildOfClass("BasePart")
@@ -2399,16 +2414,17 @@ local function ensureBike()
         return bike
     end
 
+    -- Cari motor yang sudah ada di dekat
     local existing = findMyMotor()
     if existing and CharRef.Root and CharRef.Humanoid then
         local seat = existing:FindFirstChildOfClass("VehicleSeat") or existing:FindFirstChild("DriveSeat", true)
         if seat and (not seat.Occupant or seat.Occupant == CharRef.Humanoid) then
             local dist = (seat.Position - CharRef.Root.Position).Magnitude
-            if dist < 20 then
-                CharRef.Root.CFrame = seat.CFrame + Vector3.new(0, 1.5, 0)
+            if dist < 100 then
+                CharRef.Root.CFrame = seat.CFrame
                 task.wait(0.1)
                 seat:Sit(CharRef.Humanoid)
-                task.wait(0.4)
+                task.wait(0.5)
                 local primary = existing.PrimaryPart or seat
                 getMovers(primary)
                 return existing
@@ -2416,11 +2432,30 @@ local function ensureBike()
         end
     end
 
+    -- Kalau tidak ada, spawn baru
     return spawnAndMountBike()
 end
 
 local function resetMotorDanNaik()
     forceDismount()
+    task.wait(0.3)
+
+    -- Coba duduk ke motor yang sudah ada
+    local existing = findMyMotor()
+    if existing and CharRef.Root and CharRef.Humanoid then
+        local seat = existing:FindFirstChildOfClass("VehicleSeat") or existing:FindFirstChild("DriveSeat", true)
+        if seat and (not seat.Occupant or seat.Occupant == CharRef.Humanoid) then
+            CharRef.Root.CFrame = seat.CFrame
+            task.wait(0.1)
+            seat:Sit(CharRef.Humanoid)
+            task.wait(0.5)
+            local primary = existing.PrimaryPart or seat
+            getMovers(primary)
+            return existing
+        end
+    end
+
+    -- Jika tidak ada, spawn ulang
     return spawnAndMountBike()
 end
 
