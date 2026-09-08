@@ -2595,8 +2595,33 @@ local function flyToTarget(targetPos)
 
     pcall(function()
         while isFlightAllowed() do
-            if not primary.Parent or not CharRef.Humanoid or not CharRef.Humanoid.SeatPart then
+            if not primary.Parent or not CharRef.Humanoid then
                 break
+            end
+
+            -- [MODIFIED] Jatuh dari motor? Jangan break! Cari motor di tempat, naiki lagi, lanjut tanpa TP.
+            if not CharRef.Humanoid.SeatPart then
+                bv.Velocity = Vector3.zero
+                primary.AssemblyLinearVelocity = Vector3.zero
+
+                local bike2 = findMyMotor()
+                if not bike2 then
+                    bike2 = spawnAndMountBike() -- spawn di posisi jatuh, bukan tujuan
+                end
+                if bike2 then
+                    local primary2 = bike2.PrimaryPart or bike2:FindFirstChild("VehicleSeat")
+                    if primary2 and CharRef.Root then
+                        CharRef.Root.CFrame = primary2.CFrame + Vector3.new(0, 1.5, 0)
+                        task.wait(0.1)
+                        local seat = bike2:FindFirstChildOfClass("VehicleSeat") or bike2:FindFirstChild("DriveSeat", true)
+                        if seat then seat:Sit(CharRef.Humanoid) end
+                        task.wait(0.5)
+                        bv, bg = getMovers(primary2)
+                        primary = primary2
+                        bike = bike2
+                        continue
+                    end
+                end
             end
 
             local pos      = primary.Position
@@ -2903,6 +2928,34 @@ local function startCourierLoop()
                 activePackageLoc = nil
                 activePackageNum = nil
                 State.CourierPhase = "Terkirim!"
+
+                -- [MODIFIED] Jangan langsung kembali ke depot! Tunggu paket baru di tempat.
+                State.CourierPhase = "Menunggu Paket Baru"
+                local waitTimeout = tick() + 60
+                while State.IsCourierActive and tick() < waitTimeout do
+                    task.wait(1)
+                    if livrasonFolder then
+                        pcall(function()
+                            local locFolder = livrasonFolder:FindFirstChild("Location")
+                            if locFolder then
+                                for _, folder in ipairs(locFolder:GetChildren()) do
+                                    local block = folder:FindFirstChild("Block") or folder:FindFirstChildWhichIsA("BasePart")
+                                    if block then
+                                        local prompt = block:FindFirstChildOfClass("ProximityPrompt")
+                                        if prompt and prompt.Enabled then
+                                            activePackageLoc = block.Position
+                                            activePackageNum = folder.Name
+                                            break
+                                        end
+                                    end
+                                end
+                            end
+                        end)
+                    end
+                    -- Jika ada paket baru, keluar dari loop menunggu
+                    if activePackageLoc then break end
+                end
+                -- Jika tidak ada paket baru dalam 60 detik, tetap diam (tidak balik ke depot)
                 task.wait(1)
             else
                 activePackageLoc = nil
@@ -2913,6 +2966,8 @@ local function startCourierLoop()
 
         -- FASE 2: AMBIL PAKET KE DEPOT (JIKA BELUM MEMILIKI KOTAK)
         else
+            -- [MODIFIED] Hanya balik ke depot jika benar-benar tidak ada paket baru dan tidak memegang kotak.
+            -- Di sini kita langsung pergi ke depot untuk ambil paket (karena memang tidak ada)
             State.CourierPhase = "Ke Depot"
             spawnAndMountBike()
             task.wait(0.4)
