@@ -5,13 +5,15 @@
     [+] Developer   : King Akbar
     [+] Game        : Drag Drive Simulator
     [+] Fitur       : + Auto RideGO Driver (Void Gate Ultra + Anti-Kick Stabil)
-                      + Watchdog 30s: Auto Reset Motor jika Rute Gagal / Penumpang Macet
-                      + Instant Drop-Off (Langsung lanjut jika penumpang normal turun)
+                      + Auto Courier (100% Fix Drop Paket & Auto Delivered +1)
+                      + Instant Respawn & Auto-Seat Motor Setiap Ambil & Drop Paket
+                      + Permanent Noclip (Tembus Tembok Fisika Stepped)
+                      + Watchdog 30s: Auto Reset Motor jika Rute Gagal
                       + Anti-Kick 3 Lapis (Hook + Random Keypress + Heartbeat F15)
                       + Auto-Recovery Respawn Karakter
                       + Tri-Layer Garage Scanner (Remote + Upvalues + GC Engine)
                       + Strict Vehicle Ownership Verification (Anti-Motor Orang)
-                      + Dynamic Tracker Monitoring (Office / RideGO)
+                      + Dynamic Tracker Monitoring (Office / RideGO / Courier)
                       + Full Manual Activation (No Auto-Start)
 ================================================================================
 ]]--
@@ -382,6 +384,7 @@ local State = {
     OfficeMathSolved   = 0,
     OfficePrints       = 0,
     CourierDelivered   = 0,
+    CourierPhase       = "Idle",
     FakeNameActive     = false,
     FakeName           = "King Akbar",
     TargetProfit       = 0,
@@ -535,14 +538,108 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- // 4. HUMANIZATION (RNG WAIT)
+-- // 4. HUMANIZATION & SAFE CAMERA FOCUS ZOOM SYSTEM
 -- ============================================================================
 local function rWait(minSec, maxSec)
     task.wait(math.random((minSec or 0.5) * 1000, (maxSec or 1.5) * 1000) / 1000)
 end
 
+local function focusCameraZoom(enable, targetPart)
+    local cam = workspace.CurrentCamera
+    if not cam then return end
+    pcall(function()
+        if enable then
+            cam.CameraType = Enum.CameraType.Scriptable
+            local targetPos = nil
+            if targetPart and targetPart:IsA("BasePart") then
+                targetPos = targetPart.Position
+            elseif CharRef.Root then
+                targetPos = CharRef.Root.Position
+            end
+
+            if targetPos then
+                local forward = (CharRef.Root and CharRef.Root.CFrame.LookVector) or Vector3.new(0, 0, -1)
+                local camPos = targetPos - (forward * 3.2) + Vector3.new(0, 1.3, 0)
+                cam.CFrame = CFrame.lookAt(camPos, targetPos)
+            end
+        else
+            cam.CameraType = Enum.CameraType.Custom
+            if CharRef.Humanoid then
+                cam.CameraSubject = CharRef.Humanoid
+            end
+        end
+    end)
+end
+
+local function DoHold(prompt, targetPart)
+    if not prompt or not prompt.Parent then return false end
+    local ok = false
+    pcall(function()
+        prompt.Enabled = true
+        pcall(function()
+            prompt.RequiresLineOfSight = false
+            if (prompt.MaxActivationDistance or 0) < 30 then
+                prompt.MaxActivationDistance = 30
+            end
+        end)
+
+        local part = targetPart or (prompt.Parent:IsA("BasePart") and prompt.Parent) or CharRef.Root
+        focusCameraZoom(true, part)
+        task.wait(0.05)
+
+        prompt:InputHoldBegin()
+        local duration = (prompt.HoldDuration or 1) + 0.3
+        task.wait(duration)
+        prompt:InputHoldEnd()
+        ok = true
+    end)
+    focusCameraZoom(false)
+    rWait(0.12, 0.25)
+    return ok
+end
+
+local function DoTap(prompt, targetPart)
+    if not prompt or not prompt.Parent then return false end
+    local ok = false
+    pcall(function()
+        prompt.Enabled = true
+        pcall(function()
+            prompt.RequiresLineOfSight = false
+            if (prompt.MaxActivationDistance or 0) < 30 then
+                prompt.MaxActivationDistance = 30
+            end
+        end)
+
+        local part = targetPart or (prompt.Parent:IsA("BasePart") and prompt.Parent) or CharRef.Root
+        focusCameraZoom(true, part)
+        task.wait(0.05)
+
+        prompt:InputHoldBegin()
+        task.wait(0.12)
+        prompt:InputHoldEnd()
+        ok = true
+    end)
+    focusCameraZoom(false)
+    rWait(0.12, 0.25)
+    return ok
+end
+
+local function forceDismount()
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not char or not hum then return end
+    hum.Sit = false
+    hum.Jump = true
+    task.wait(0.1)
+    if hum.SeatPart then
+        char:PivotTo(char:GetPivot() * CFrame.new(0, 3, 0))
+        hum:ChangeState(Enum.HumanoidStateType.Jumping)
+    end
+    task.wait(0.2)
+end
+
 -- ============================================================================
--- // 5. GetPlayerMoney
+-- // 5. GET PLAYER MONEY
 -- ============================================================================
 local function GetPlayerMoney()
     local money = 0
@@ -944,24 +1041,6 @@ local function FindPrompt(kw, maxD, origin)
     return found
 end
 
-local function DoHold(prompt)
-    if not prompt then return false end
-    pcall(function()
-        prompt:InputHoldBegin()
-        rWait((prompt.HoldDuration or 1) + 0.2, (prompt.HoldDuration or 1) + 0.6)
-        prompt:InputHoldEnd()
-    end)
-    rWait(0.1, 0.3); return true
-end
-
-local function DoTap(prompt)
-    if not prompt then return false end
-    pcall(function()
-        prompt:InputHoldBegin(); rWait(0.08, 0.18); prompt:InputHoldEnd()
-    end)
-    rWait(0.2, 0.4); return true
-end
-
 local function IsMachineBroken()
     for _, gui in pairs(LocalPlayer.PlayerGui:GetChildren()) do
         for _, v in pairs(gui:GetDescendants()) do
@@ -1071,7 +1150,7 @@ local function TakeJob()
     local sp = FindPrompt("start shift", 30) or FindPrompt("shift", 30)
     if sp and sp.ActionText:lower():find("start") then
         State.StatusText = "💼 Shift started!"
-        DoTap(sp); rWait(0.8, 1.5)
+        DoTap(sp, sp.Parent); rWait(0.8, 1.5)
     end
 end
 
@@ -1108,12 +1187,12 @@ local function BaristaFarmLoop()
             if isAtCashier then FollowPath(Paths.CASHIER_TO_MACHINE); isAtCashier = false end
             FollowPath(Paths.MACHINE_TO_FIX); rWait(0.4, 0.8)
             local fix = FindPrompt("fix",20) or FindPrompt("repair",20) or FindPrompt("clean",20) or FindPrompt("maintain",20)
-            if fix then DoHold(fix)
+            if fix then DoHold(fix, fix.Parent)
             else
                 for _, v in pairs(Services.Workspace:GetDescendants()) do
                     if v:IsA("ProximityPrompt") and v.Enabled then
                         local p = v.Parent
-                        if p and p:IsA("BasePart") and (p.Position - CharRef.Root.Position).Magnitude < 15 then DoHold(v) end
+                        if p and p:IsA("BasePart") and (p.Position - CharRef.Root.Position).Magnitude < 15 then DoHold(v, p) end
                     end
                 end
             end
@@ -1132,7 +1211,7 @@ local function BaristaFarmLoop()
             local mp = Paths.START_TO_MACHINE[#Paths.START_TO_MACHINE]
             local bp = FindPrompt("brewing",30,mp) or FindPrompt("brew",30,mp) or FindPrompt("make",30,mp)
             if bp then
-                State.StatusText = "Brewing coffee..."; DoTap(bp); rWait(0.8, 1.2)
+                State.StatusText = "Brewing coffee..."; DoTap(bp, bp.Parent); rWait(0.8, 1.2)
                 while State.IsBaristaActive do
                     local g = LocalPlayer.PlayerGui:FindFirstChild("BaristaGUI")
                     local m = g and g:FindFirstChild("MinigameFrame", true)
@@ -1142,7 +1221,7 @@ local function BaristaFarmLoop()
             rWait(0.8, 1.5)
 
             local dp = FindPrompt("take",25,mp) or FindPrompt("grab",25,mp)
-            if dp then DoTap(dp) end; rWait(0.3, 0.7)
+            if dp then DoTap(dp, dp.Parent) end; rWait(0.3, 0.7)
 
             local tool = LocalPlayer.Backpack:FindFirstChildOfClass("Tool") or CharRef.Character:FindFirstChildOfClass("Tool")
             if tool then CharRef.Humanoid:EquipTool(tool) end
@@ -1153,7 +1232,7 @@ local function BaristaFarmLoop()
             local attempt = 0
             while CharRef.Character:FindFirstChildOfClass("Tool") and State.IsBaristaActive and attempt < 5 do
                 local sp2 = FindPrompt("serve",25) or FindPrompt("deliver",25)
-                if sp2 then DoHold(sp2) else break end
+                if sp2 then DoHold(sp2, sp2.Parent) else break end
                 attempt += 1; rWait(0.4, 0.7)
             end
 
@@ -1196,7 +1275,7 @@ local ComputersFolder = workspace:WaitForChild("Computers")
 
 local function eksekusiPromptTahan(pp)
     if not pp then return end
-    if (pp.HoldDuration or 0) > 0 then DoHold(pp) else DoTap(pp) end
+    if (pp.HoldDuration or 0) > 0 then DoHold(pp, pp.Parent) else DoTap(pp, pp.Parent) end
 end
 
 local myChair = nil
@@ -1648,7 +1727,7 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- // MONITORING GUI
+-- // MONITORING GUI (RAPIH & MULTI-JOB)
 -- ============================================================================
 local CoreGui2 = (gethui and gethui()) or game:GetService("CoreGui")
 local TrackerGui = nil
@@ -1719,6 +1798,7 @@ local function fmtShort(num)
 end
 
 local function animateValue(label, targetNum, formatter, colorPos, colorNeg, colorNeutral)
+    targetNum = tonumber(targetNum) or 0
     local key = label
     if DisplayedValues[key] == nil then DisplayedValues[key] = targetNum end
     local cur = DisplayedValues[key]
@@ -1753,11 +1833,11 @@ local function buatMonitoringGUI()
     TrackerGui.Parent = CoreGui2
 
     local Frame = Instance.new("Frame")
-    Frame.Size        = UDim2.new(0, 228, 0, 0)
+    Frame.Size        = UDim2.new(0, 230, 0, 0)
     Frame.Position    = UDim2.new(1, -16, 0.5, 0)
     Frame.AnchorPoint = Vector2.new(1, 0.5)
     Frame.BackgroundColor3       = Color3.fromRGB(18, 18, 22)
-    Frame.BackgroundTransparency = 0.18
+    Frame.BackgroundTransparency = 0.15
     Frame.BorderSizePixel = 0
     Frame.Active   = true
     Frame.Draggable = true
@@ -1787,7 +1867,7 @@ local function buatMonitoringGUI()
     local SubLbl = Instance.new("TextLabel", H)
     SubLbl.Size = UDim2.new(1,-40,0,11); SubLbl.Position = UDim2.new(0,40,0,20)
     SubLbl.BackgroundTransparency = 1
-    SubLbl.Text = State.IsRideGOActive and "RideGO Driver" or (State.IsOfficeActive and "Office Worker" or "Bypass GACOR")
+    SubLbl.Text = State.IsRideGOActive and "RideGO Driver" or (State.IsCourierActive and "Courier Express" or (State.IsOfficeActive and "Office Worker" or "Bypass GACOR"))
     SubLbl.TextColor3 = Color3.fromRGB(90,90,100); SubLbl.Font = Enum.Font.Gotham
     SubLbl.TextSize = 9; SubLbl.TextXAlignment = Enum.TextXAlignment.Left
 
@@ -1813,7 +1893,7 @@ local function buatMonitoringGUI()
             valLbl.Size = UDim2.new(1,-6,0,14); valLbl.Position = UDim2.new(0,6,1,-18)
             valLbl.BackgroundTransparency = 1; valLbl.Text = "—"
             valLbl.TextColor3 = Color3.fromRGB(225,225,230); valLbl.Font = Enum.Font.GothamBold
-            valLbl.TextSize = 12; valLbl.TextXAlignment = Enum.TextXAlignment.Left
+            valLbl.TextSize = 11; valLbl.TextXAlignment = Enum.TextXAlignment.Left
             return valLbl, capLbl
         end
         local lv, lc = kolom(R, 0,   iconL, labelL)
@@ -1823,10 +1903,10 @@ local function buatMonitoringGUI()
 
     local v_initial, v_profit = baris("💵","Initial", "💰","Profit", 3)
     local v_stat1, v_stat2, c_stat1, c_stat2 = baris(
-        State.IsRideGOActive and "🚕" or "📝",
-        State.IsRideGOActive and "Trips" or "Solved",
-        State.IsRideGOActive and "💵" or "🖨️",
-        State.IsRideGOActive and "Fares" or "Prints",
+        State.IsRideGOActive and "🚕" or (State.IsCourierActive and "📦" or "📝"),
+        State.IsRideGOActive and "Trips" or (State.IsCourierActive and "Delivered" or "Solved"),
+        State.IsRideGOActive and "💵" or (State.IsCourierActive and "🔄" or "🖨️"),
+        State.IsRideGOActive and "Fares" or (State.IsCourierActive and "Status" or "Prints"),
         4
     )
     local v_profitH, v_ping   = baris("⚡","Profit/H", "📶","Ping", 5)
@@ -1840,8 +1920,6 @@ local function buatMonitoringGUI()
     v_initial.Text = fmtRupiah(uangAwal)
 
     task.spawn(function()
-        local prevStat1 = 0
-        local prevStat2 = 0
         while TrackerGui and TrackerGui.Parent do
             pcall(function()
                 local currentMoney = DapatkanUangPemain()
@@ -1865,43 +1943,25 @@ local function buatMonitoringGUI()
                     SubLbl.Text = "RideGO Driver"
                     c_stat1.Text = "🚕 Trips"
                     c_stat2.Text = "💵 Fares"
-
                     local trips = State.RideGOTripCount or 0
                     local fares = State.RideGOEarnings or 0
-
-                    if trips ~= prevStat1 then
-                        prevStat1 = trips
-                        v_stat1.TextColor3 = CLR_YELLOW
-                        Services.TweenSvc:Create(v_stat1, TweenInfo.new(0.6, Enum.EasingStyle.Quad), { TextColor3 = CLR_WHITE }):Play()
-                    end
                     animateValue(v_stat1, trips, function(n) return tostring(math.floor(n)) end, nil, nil, CLR_WHITE)
-
-                    if fares ~= prevStat2 then
-                        prevStat2 = fares
-                        v_stat2.TextColor3 = CLR_GREEN
-                        Services.TweenSvc:Create(v_stat2, TweenInfo.new(0.6, Enum.EasingStyle.Quad), { TextColor3 = CLR_WHITE }):Play()
-                    end
                     animateValue(v_stat2, fares, fmtShort, nil, nil, CLR_WHITE)
+                elseif State.IsCourierActive then
+                    SubLbl.Text = "Courier Express"
+                    c_stat1.Text = "📦 Delivered"
+                    c_stat2.Text = "🔄 Status"
+                    local delivered = State.CourierDelivered or 0
+                    animateValue(v_stat1, delivered, function(n) return tostring(math.floor(n)) end, nil, nil, CLR_WHITE)
+                    v_stat2.Text = State.CourierPhase or "Idle"
+                    v_stat2.TextColor3 = CLR_GREEN
                 else
                     SubLbl.Text = State.IsOfficeActive and "Office Worker" or "Bypass GACOR"
                     c_stat1.Text = "📝 Solved"
                     c_stat2.Text = "🖨️ Prints"
-
                     local solved = State.OfficeMathSolved or 0
                     local prints = State.OfficePrints or 0
-
-                    if solved ~= prevStat1 then
-                        prevStat1 = solved
-                        v_stat1.TextColor3 = CLR_YELLOW
-                        Services.TweenSvc:Create(v_stat1, TweenInfo.new(0.6, Enum.EasingStyle.Quad), { TextColor3 = CLR_WHITE }):Play()
-                    end
                     animateValue(v_stat1, solved, function(n) return tostring(math.floor(n)) end, nil, nil, CLR_WHITE)
-
-                    if prints ~= prevStat2 then
-                        prevStat2 = prints
-                        v_stat2.TextColor3 = CLR_GREEN
-                        Services.TweenSvc:Create(v_stat2, TweenInfo.new(0.6, Enum.EasingStyle.Quad), { TextColor3 = CLR_WHITE }):Play()
-                    end
                     animateValue(v_stat2, prints, function(n) return tostring(math.floor(n)) end, nil, nil, CLR_WHITE)
                 end
 
@@ -1929,24 +1989,9 @@ local function buatMonitoringGUI()
 
                     task.wait(3)
 
-                    local exited = false
                     pcall(function()
                         game:GetService("Players"):FindFirstChildOfClass("Player").Parent = nil
-                        exited = true
                     end)
-
-                    if not exited then
-                        pcall(function()
-                            local np = Instance.new("NetworkReplicator")
-                            np.Parent = game
-                            exited = true
-                        end)
-                    end
-
-                    if not exited then
-                        local function crash() return crash() end
-                        pcall(crash)
-                    end
                 end
             end)
             task.wait(0.2)
@@ -2011,13 +2056,8 @@ local function StopOfficeScript()
 end
 
 -- ============================================================================
--- // 14. AUTO COURIER & TRI-LAYER VEHICLE SCANNER
+-- // SHARED VEHICLE SCANNER & STRICT OWNERSHIP SYSTEM
 -- ============================================================================
-local CourierJob = {
-    Name = "Courier", TeamId = 11378976,
-    X = -5158.57, Y = 4.41, Z = -3757.87
-}
-
 SELECTED_CAR = nil
 OwnedVehiclesList = {}
 
@@ -2047,60 +2087,46 @@ function FetchOwnedVehicles()
     local RS = game:GetService("ReplicatedStorage")
     local DealershipEvents = RS:FindFirstChild("DealershipEvents")
 
-    -- ── [METODE 1: DIRECT REMOTE CAPTURE] ──────────────────────────
     if DealershipEvents then
-        -- A. InitializeCarData: Menampung array data motor utama DDS
         if DealershipEvents:FindFirstChild("InitializeCarData") then
             pcall(function()
                 local res = DealershipEvents.InitializeCarData:InvokeServer()
                 if type(res) == "table" then
-                    for _, entry in pairs(res) do
-                        parseVehicleCandidate(entry, foundMap)
-                    end
+                    for _, entry in pairs(res) do parseVehicleCandidate(entry, foundMap) end
                 end
             end)
         end
 
-        -- B. GetInfoCarSlot: Menampung data slot
         if DealershipEvents:FindFirstChild("GetInfoCarSlot") then
             pcall(function()
                 local slotRes = DealershipEvents.GetInfoCarSlot:InvokeServer()
                 if type(slotRes) == "table" then
-                    for _, entry in pairs(slotRes) do
-                        parseVehicleCandidate(entry, foundMap)
-                    end
+                    for _, entry in pairs(slotRes) do parseVehicleCandidate(entry, foundMap) end
                 end
             end)
             for i = 1, 30 do
                 pcall(function()
                     local slotRes = DealershipEvents.GetInfoCarSlot:InvokeServer(i)
-                    if type(slotRes) == "table" then
-                        parseVehicleCandidate(slotRes, foundMap)
-                    end
+                    if type(slotRes) == "table" then parseVehicleCandidate(slotRes, foundMap) end
                 end)
             end
         end
     end
 
-    -- ── [METODE 2: GC SCAN ENGINE (DDS CarData Structure)] ─────────
     pcall(function()
         if not getgc then return end
         for _, tbl in pairs(getgc(true)) do
             if type(tbl) == "table" and rawget(tbl, 1) and type(rawget(tbl, 1)) == "table" then
                 local first = rawget(tbl, 1)
-                -- Pattern signature CarData dari dump: Horsepower + Name + FinalDrive + BrakeForce
                 if rawget(first, "Horsepower") and rawget(first, "Name") and rawget(first, "FinalDrive") then
                     for _, carData in ipairs(tbl) do
-                        if type(carData) == "table" and carData.Name then
-                            foundMap[carData.Name] = true
-                        end
+                        if type(carData) == "table" and carData.Name then foundMap[carData.Name] = true end
                     end
                 end
             end
         end
     end)
 
-    -- ── [METODE 3: UPVALUES SCAN DARI MainClient] ──────────────────
     pcall(function()
         if not (getgc and getupvalues) then return end
         for _, fn in pairs(getgc()) do
@@ -2112,9 +2138,7 @@ function FetchOwnedVehicles()
                             local sample = up[1]
                             if type(sample) == "table" and sample.Name and sample.Horsepower then
                                 for _, c in ipairs(up) do
-                                    if type(c) == "table" and c.Name then
-                                        foundMap[c.Name] = true
-                                    end
+                                    if type(c) == "table" and c.Name then foundMap[c.Name] = true end
                                 end
                             end
                         end
@@ -2124,7 +2148,6 @@ function FetchOwnedVehicles()
         end
     end)
 
-    -- ── [METODE 4: LOCAL DATA FOLDERS] ─────────────────────────────
     pcall(function()
         for _, fName in ipairs({"Data", "Cars", "Garage", "Vehicles", "OwnedCars"}) do
             local folder = LocalPlayer:FindFirstChild(fName)
@@ -2150,9 +2173,7 @@ function FetchOwnedVehicles()
 
     if #unique > 0 then
         OwnedVehiclesList = unique
-        if not foundMap[SELECTED_CAR] then
-            SELECTED_CAR = OwnedVehiclesList[1]
-        end
+        if not foundMap[SELECTED_CAR] then SELECTED_CAR = OwnedVehiclesList[1] end
     else
         OwnedVehiclesList = { "Tidak ada kendaraan terdeteksi" }
         SELECTED_CAR = nil
@@ -2164,38 +2185,19 @@ end
 function RefreshAllVehicleDropdowns()
     local cars = FetchOwnedVehicles()
     local validCars = (cars[1] ~= "Tidak ada kendaraan terdeteksi") and cars or {}
-    
     pcall(function()
         if VehicleDropdownCourier then
-            if VehicleDropdownCourier.Refresh then
-                VehicleDropdownCourier:Refresh(validCars)
-            elseif VehicleDropdownCourier.SetValues then
-                VehicleDropdownCourier:SetValues(validCars)
-            end
+            if VehicleDropdownCourier.Refresh then VehicleDropdownCourier:Refresh(validCars)
+            elseif VehicleDropdownCourier.SetValues then VehicleDropdownCourier:SetValues(validCars) end
         end
         if VehicleDropdownRideGO then
-            if VehicleDropdownRideGO.Refresh then
-                VehicleDropdownRideGO:Refresh(validCars)
-            elseif VehicleDropdownRideGO.SetValues then
-                VehicleDropdownRideGO:SetValues(validCars)
-            end
+            if VehicleDropdownRideGO.Refresh then VehicleDropdownRideGO:Refresh(validCars)
+            elseif VehicleDropdownRideGO.SetValues then VehicleDropdownRideGO:SetValues(validCars) end
         end
     end)
     return cars
 end
 
-local function spawnCar()
-    if not SELECTED_CAR then FetchOwnedVehicles() end
-    if SELECTED_CAR then
-        pcall(function()
-            Services.ReplicatedStorage:WaitForChild("SpawnCarEvents"):WaitForChild("SpawnCar"):FireServer(SELECTED_CAR)
-        end)
-    end
-end
-
--- ============================================================================
--- // STRICT VEHICLE OWNERSHIP VERIFICATION (ANTI-SALAH NAIK MOTOR ORANG)
--- ============================================================================
 local function isVehicleMine(v)
     if not (v and v:IsA("Model")) then return false end
     local myName = LocalPlayer.Name
@@ -2208,9 +2210,7 @@ local function isVehicleMine(v)
 
     local ownerVal = v:FindFirstChild("Owner") or v:FindFirstChild("Player")
     if ownerVal and (ownerVal:IsA("StringValue") or ownerVal:IsA("ObjectValue")) then
-        if tostring(ownerVal.Value) == myName or ownerVal.Value == LocalPlayer then
-            return true
-        end
+        if tostring(ownerVal.Value) == myName or ownerVal.Value == LocalPlayer then return true end
     end
 
     local seat = v:FindFirstChildOfClass("VehicleSeat") or v:FindFirstChild("DriveSeat", true)
@@ -2218,19 +2218,14 @@ local function isVehicleMine(v)
         return true
     end
 
-    if vName:find(myName, 1, true) then
-        return true
-    end
+    if vName:find(myName, 1, true) then return true end
 
     if SELECTED_CAR and vName:find(SELECTED_CAR, 1, true) then
         for _, plr in ipairs(Services.Players:GetPlayers()) do
-            if plr ~= LocalPlayer and vName:find(plr.Name, 1, true) then
-                return false
-            end
+            if plr ~= LocalPlayer and vName:find(plr.Name, 1, true) then return false end
         end
         return true
     end
-
     return false
 end
 
@@ -2240,7 +2235,6 @@ local function findMyMotor()
             return v
         end
     end
-
     local vFolder = workspace:FindFirstChild("Cars") or workspace:FindFirstChild("Vehicles")
     if vFolder then
         for _, v in pairs(vFolder:GetChildren()) do
@@ -2250,163 +2244,498 @@ local function findMyMotor()
     return nil
 end
 
-local function walkToCourier(point, timeout)
-    timeout = timeout or 10
+local function getBikeModel()
     local hum = CharRef.Humanoid
-    if not hum then return end
-    local t = tick()
-    while tick() - t < timeout and State.IsCourierActive do
-        local hrp = CharRef.Root
-        if hrp and (hrp.Position - point).Magnitude < 5 then break end
-        hum:MoveTo(point); task.wait(0.5)
-    end
+    if not hum or not hum.SeatPart then return nil end
+    return hum.SeatPart:FindFirstAncestorOfClass("Model")
 end
 
-local function setJob(job)
-    pcall(function()
-        Services.ReplicatedStorage:WaitForChild("JobEvents"):WaitForChild("TeamChangeRequest")
-            :FireServer(job.Name, job.TeamId, 1, 0, "Detector")
-    end)
+local function getMovers(primary)
+    if not primary then return nil, nil end
+
+    local bv = primary:FindFirstChild("RideGO_BV")
+    if not bv then
+        bv = Instance.new("BodyVelocity")
+        bv.Name = "RideGO_BV"
+        bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+        bv.Velocity = Vector3.zero
+        bv.Parent = primary
+    end
+
+    local bg = primary:FindFirstChild("RideGO_BG")
+    if not bg then
+        bg = Instance.new("BodyGyro")
+        bg.Name = "RideGO_BG"
+        bg.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
+        bg.CFrame = primary.CFrame
+        bg.Parent = primary
+    end
+
+    return bv, bg
 end
 
-local function exitMotor()
-    local motor = findMyMotor()
-    if not motor then return false end
-    local char = LocalPlayer.Character
-    if not char then return false end
-    local anims = motor:FindFirstChild("Anims")
-    if anims then
-        pcall(function() anims:FireServer("RemovePlayer", char, nil) end)
-        task.wait(0.3)
-    end
-    local driveSeat = motor:FindFirstChild("DriveSeat", true) or motor:FindFirstChildOfClass("VehicleSeat")
-    if driveSeat then pcall(function() driveSeat:Sit(nil) end); task.wait(0.3) end
-    local humanoid = char:FindFirstChildOfClass("Humanoid")
-    if humanoid then pcall(function() humanoid.Jump = true end) end
-    return true
-end
-
-local function rideMotor()
-    local motor = findMyMotor()
-    if not motor then return false end
-    local char = LocalPlayer.Character
-    if not char then return false end
-    local anims = motor:FindFirstChild("Anims")
-    if anims then
-        pcall(function() anims:FireServer("CreatePlayer", char) end); task.wait(0.2)
-        pcall(function() anims:FireServer("RegisterPlayer", char) end); task.wait(0.2)
-    end
-    local kickstand = motor:FindFirstChild("Kickstand")
-    if kickstand then pcall(function() kickstand:FireServer("StandUp", 0, 0, 0, 0, false) end); task.wait(0.2) end
-    local driveSeat = motor:FindFirstChild("DriveSeat", true) or motor:FindFirstChildOfClass("VehicleSeat")
-    if driveSeat then
+-- ============================================================================
+-- // PERMANENT NOCLIP (TEMBUS TEMBOK STEPPED — TIDAK BISA MATI)
+-- ============================================================================
+Services.RunService.Stepped:Connect(function()
+    if State.IsRideGOActive or State.IsCourierActive then
         pcall(function()
-            local hrp = char:FindFirstChild("HumanoidRootPart")
-            if hrp then hrp.CFrame = driveSeat.CFrame end
-            driveSeat:Sit(char:FindFirstChildOfClass("Humanoid"))
+            if CharRef.Character then
+                for _, part in ipairs(CharRef.Character:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
+                    end
+                end
+            end
+            local bike = getBikeModel() or findMyMotor()
+            if bike then
+                for _, part in ipairs(bike:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
+                    end
+                end
+            end
         end)
     end
-    return true
-end
+end)
 
-local function forceDismount()
-    local char = LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if not char or not hum then return end
-    hum.Jump = true; task.wait(0.1)
-    if hum.SeatPart then
-        char:PivotTo(char:GetPivot() * CFrame.new(0, 2, 0))
-        hum:ChangeState(Enum.HumanoidStateType.Jumping)
-    end
-    task.wait(0.2)
-end
+-- ============================================================================
+-- // CORE GO-JEK ENGINE: SPAWN, DESPAWN & NAIK MOTOR
+-- ============================================================================
+local DealershipEvents = Services.ReplicatedStorage:WaitForChild("DealershipEvents", 10)
+local SpawnCarEvents   = Services.ReplicatedStorage:WaitForChild("SpawnCarEvents", 10)
 
-local function ghostGlideMotor(targetPos)
-    local char = LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    local seat = hum and hum.SeatPart
-    local vehicle = seat and seat:FindFirstAncestorOfClass("Model")
-    if not (vehicle and vehicle.PrimaryPart) then return end
-    local pp = vehicle.PrimaryPart
-    local speed = 140
-    local glideHeight = targetPos.Y + 3
-    local posTujuan = Vector3.new(targetPos.X, glideHeight, targetPos.Z)
-    local virtualAnchor = Instance.new("BodyVelocity")
-    virtualAnchor.MaxForce = Vector3.new(1e9, 1e9, 1e9)
-    virtualAnchor.Velocity = Vector3.new(0, 0, 0)
-    virtualAnchor.Parent = pp
-    local virtualGyro = Instance.new("BodyGyro")
-    virtualGyro.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
-    virtualGyro.P = 100000
-    virtualGyro.Parent = pp
+local function spawnAndMountBike()
+    if not SELECTED_CAR then FetchOwnedVehicles() end
+    if not SELECTED_CAR then return nil end
 
-    local noclipActive = true
-    task.spawn(function()
-        while noclipActive and State.IsCourierActive do
-            pcall(function()
-                for _, v in pairs(vehicle:GetDescendants()) do
-                    if v:IsA("BasePart") then v.CanCollide = false end
-                end
-                for _, v in pairs(char:GetDescendants()) do
-                    if v:IsA("BasePart") then v.CanCollide = false end
-                end
-            end)
-            task.wait(0.5)
+    pcall(function()
+        if SpawnCarEvents:FindFirstChild("DespawnCar") then
+            SpawnCarEvents.DespawnCar:FireServer()
+        elseif SpawnCarEvents:FindFirstChild("RemoveCar") then
+            SpawnCarEvents.RemoveCar:FireServer()
+        end
+    end)
+    task.wait(0.8)
+
+    pcall(function()
+        if DealershipEvents:FindFirstChild("InitializeCarData") then
+            DealershipEvents.InitializeCarData:InvokeServer()
+        end
+        if DealershipEvents:FindFirstChild("GetInfoCarSlot") then
+            DealershipEvents.GetInfoCarSlot:InvokeServer()
+        end
+        if SpawnCarEvents:FindFirstChild("SpawnCar") then
+            SpawnCarEvents.SpawnCar:FireServer(SELECTED_CAR)
         end
     end)
 
-    local _, currentYRot, _ = pp.CFrame:ToEulerAnglesYXZ()
-    local function glideTo(targetVector, faceForward)
-        if not State.IsCourierActive then return end
-        local dist = (pp.Position - targetVector).Magnitude
-        local timeToMove = dist / speed
-        if timeToMove > 0 then
-            local startTime = tick()
-            while tick() - startTime < timeToMove and State.IsCourierActive do
-                if not hum.SeatPart then break end
-                local alpha = (tick() - startTime) / timeToMove
-                local currentPos = pp.Position:Lerp(targetVector, alpha)
-                if faceForward then
-                    local dir = (targetVector - pp.Position).Unit
-                    local flatDir = Vector3.new(dir.X, 0, dir.Z).Unit
-                    if flatDir.Magnitude > 0.001 then
-                        local newCF = CFrame.lookAt(currentPos, currentPos + flatDir)
-                        virtualGyro.CFrame = newCF; vehicle:PivotTo(newCF)
+    local seatFound = nil
+    local timeout = tick() + 6
+    while tick() < timeout and not seatFound do
+        task.wait(0.2)
+        if CharRef.Root then
+            for _, model in ipairs(Services.Workspace:GetChildren()) do
+                if model:IsA("Model") and isVehicleMine(model) then
+                    local seat = model:FindFirstChildOfClass("VehicleSeat") or model:FindFirstChild("DriveSeat", true)
+                    if seat and (not seat.Occupant or seat.Occupant == CharRef.Humanoid) then
+                        local dist = (seat.Position - CharRef.Root.Position).Magnitude
+                        if dist < 60 then
+                            seatFound = seat
+                            break
+                        end
                     end
-                else
-                    local newCF = CFrame.new(currentPos) * CFrame.Angles(0, currentYRot, 0)
-                    virtualGyro.CFrame = newCF; vehicle:PivotTo(newCF)
                 end
-                Services.RunService.Heartbeat:Wait()
             end
         end
     end
-    glideTo(posTujuan, true)
-    local finalSafeY = targetPos.Y + 3
-    local timeout = tick() + 6
-    while tick() < timeout and State.IsCourierActive do
-        local rayResult = workspace:Raycast(
-            Vector3.new(targetPos.X, glideHeight + 5, targetPos.Z),
-            Vector3.new(0, -100, 0)
-        )
-        if rayResult and rayResult.Instance then
-            finalSafeY = rayResult.Position.Y + 1.5; break
-        else task.wait(0.8) end
+
+    if seatFound and CharRef.Humanoid and CharRef.Root then
+        CharRef.Root.CFrame = seatFound.CFrame + Vector3.new(0, 1.5, 0)
+        task.wait(0.1)
+        seatFound:Sit(CharRef.Humanoid)
+        task.wait(0.4)
+
+        local primary = seatFound.Parent.PrimaryPart or seatFound
+        getMovers(primary)
+        return seatFound.Parent
     end
-    glideTo(Vector3.new(targetPos.X, finalSafeY, targetPos.Z), false)
-    noclipActive = false
-    virtualAnchor:Destroy(); virtualGyro:Destroy()
-    pp.AssemblyLinearVelocity = Vector3.new(0,0,0)
-    pp.AssemblyAngularVelocity = Vector3.new(0,0,0)
-    forceDismount()
+
+    return getBikeModel()
 end
+
+local function ensureBike()
+    if not SELECTED_CAR then
+        FetchOwnedVehicles()
+        if not SELECTED_CAR then
+            WindUI:Notify({ Title = "⚠️ Garasi Kosong", Content = "Pilih kendaraan di garasi terlebih dahulu!", Duration = 4 })
+            return nil
+        end
+    end
+
+    local bike = getBikeModel()
+    if bike and isVehicleMine(bike) and CharRef.Humanoid and CharRef.Humanoid.SeatPart then
+        local primary = bike.PrimaryPart or bike:FindFirstChild("VehicleSeat") or bike:FindFirstChildOfClass("BasePart")
+        if primary then getMovers(primary) end
+        return bike
+    end
+
+    local existing = findMyMotor()
+    if existing and CharRef.Root and CharRef.Humanoid then
+        local seat = existing:FindFirstChildOfClass("VehicleSeat") or existing:FindFirstChild("DriveSeat", true)
+        if seat and (not seat.Occupant or seat.Occupant == CharRef.Humanoid) then
+            local dist = (seat.Position - CharRef.Root.Position).Magnitude
+            if dist < 20 then
+                CharRef.Root.CFrame = seat.CFrame + Vector3.new(0, 1.5, 0)
+                task.wait(0.1)
+                seat:Sit(CharRef.Humanoid)
+                task.wait(0.4)
+                local primary = existing.PrimaryPart or seat
+                getMovers(primary)
+                return existing
+            end
+        end
+    end
+
+    return spawnAndMountBike()
+end
+
+local function resetMotorDanNaik()
+    forceDismount()
+    return spawnAndMountBike()
+end
+
+-- ============================================================================
+-- // GLOBAL FLIGHT ENGINE (VOID GATE & HOVER TERBANG TEMBUS TEMBOK)
+-- ============================================================================
+local MAX_SPEED_LIMIT = 250
+local MIN_SPEED_LIMIT = 200
+local HOVER_HEIGHT    = 12
+local VOID_STOP_TIME  = 0.08
+local VOID_SCAN_MAX   = 4000
+local VOID_SCAN_STEP  = 60
+local HOP_DISTANCE    = 700
+local HOP_MAX         = 20
+local STREAM_WAIT_MAX = 4
+
+local function newRayParams()
+    local rayParams = RaycastParams.new()
+    rayParams.FilterType = Enum.RaycastFilterType.Exclude
+    local blacklist = { LocalPlayer.Character }
+    local bike = getBikeModel()
+    if bike then
+        table.insert(blacklist, bike)
+        for _, seat in ipairs(bike:GetDescendants()) do
+            if seat:IsA("VehicleSeat") and seat.Occupant then
+                table.insert(blacklist, seat.Occupant.Parent)
+            end
+        end
+    end
+    rayParams.FilterDescendantsInstances = blacklist
+    return rayParams
+end
+
+local function findGroundY(origin)
+    local ray = Services.Workspace:Raycast(origin, Vector3.new(0, -600, 0), newRayParams())
+    return ray and ray.Position.Y or nil
+end
+
+local function findGroundYFar(x, z, fromY)
+    local origin = Vector3.new(x, (fromY or 0) + 300, z)
+    local ray = Services.Workspace:Raycast(origin, Vector3.new(0, -3000, 0), newRayParams())
+    return ray and ray.Position.Y or nil
+end
+
+local function requestStream(pos)
+    pcall(function() Services.Workspace:RequestStreamAround(pos, 0.4) end)
+end
+
+local function hoverLock(primary, bv, bg, flatLook)
+    bv.Velocity = Vector3.zero
+    primary.AssemblyLinearVelocity  = Vector3.zero
+    primary.AssemblyAngularVelocity = Vector3.zero
+    if flatLook then
+        bg.CFrame = CFrame.lookAt(primary.Position, primary.Position + flatLook)
+    end
+end
+
+local function isFlightAllowed()
+    return State.IsRideGOActive or State.IsCourierActive
+end
+
+local function hoverWaitForGround(primary, bv, bg, flatLook, targetPos, timeout)
+    local t0 = tick()
+    while tick() - t0 < (timeout or STREAM_WAIT_MAX) do
+        if not isFlightAllowed() then return nil, true end
+        if not primary.Parent then return nil, true end
+
+        hoverLock(primary, bv, bg, flatLook)
+
+        local gY = findGroundY(primary.Position)
+        if gY then return gY, false end
+        task.wait(0.3)
+    end
+    return nil, false
+end
+
+local function flyToTarget(targetPos)
+    local bike = ensureBike()
+    if not bike then return false end
+
+    local primary = bike.PrimaryPart
+        or bike:FindFirstChild("VehicleSeat")
+        or bike:FindFirstChildOfClass("BasePart")
+    if not primary then return false end
+
+    pcall(function() bike:SetNetworkOwner(LocalPlayer) end)
+
+    local bv, bg = getMovers(primary)
+    bv.MaxForce  = Vector3.new(1e9, 1e9, 1e9)
+    bg.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
+
+    local reached     = false
+    local flatTarget  = Vector3.new(targetPos.X, 0, targetPos.Z)
+    local baseSpeed   = math.random(MIN_SPEED_LIMIT, MAX_SPEED_LIMIT)
+
+    local function voidStopAndTP()
+        local stopStart = tick()
+        while tick() - stopStart < VOID_STOP_TIME do
+            if not isFlightAllowed() then return end
+            bv.Velocity = Vector3.zero
+            primary.AssemblyAngularVelocity = Vector3.zero
+            task.wait(0.03)
+        end
+        hoverLock(primary, bv, bg, nil)
+        task.wait(0.05)
+
+        local posNow   = primary.Position
+        local flatNow  = Vector3.new(posNow.X, 0, posNow.Z)
+        local distNow  = (flatNow - flatTarget).Magnitude
+        local dirToTgt = distNow > 1 and ((flatTarget - flatNow).Unit) or Vector3.new(0, 0, -1)
+        local hoverY   = posNow.Y
+
+        local safeLandPos = nil
+        local streak, firstD, firstGY = 0, nil, nil
+        for d = VOID_SCAN_STEP, VOID_SCAN_MAX, VOID_SCAN_STEP do
+            if not isFlightAllowed() then return end
+
+            local px = posNow.X + dirToTgt.X * d
+            local pz = posNow.Z + dirToTgt.Z * d
+            local gY = findGroundYFar(px, pz, posNow.Y)
+
+            if gY then
+                if streak == 0 then firstD = d; firstGY = gY end
+                streak += 1
+                if streak >= 3 then
+                    local landD = firstD + 25
+                    if landD >= distNow - 10 then break end
+                    local lx = posNow.X + dirToTgt.X * landD
+                    local lz = posNow.Z + dirToTgt.Z * landD
+                    local newDist = (Vector3.new(lx, 0, lz) - flatTarget).Magnitude
+                    if newDist < distNow then safeLandPos = Vector3.new(lx, firstGY + HOVER_HEIGHT, lz) end
+                    break
+                end
+            else
+                streak, firstD, firstGY = 0, nil, nil
+            end
+        end
+
+        if safeLandPos then
+            local tpCFrame = CFrame.lookAt(safeLandPos, safeLandPos + dirToTgt)
+            bike:PivotTo(tpCFrame)
+            bg.CFrame = tpCFrame
+            requestStream(safeLandPos)
+            task.wait(0.05)
+            hoverLock(primary, bv, bg, dirToTgt)
+            task.wait(0.05)
+            return
+        end
+
+        local curFlat = flatNow
+        for hop = 1, HOP_MAX do
+            if not isFlightAllowed() or not primary.Parent then return end
+            local remaining = (flatTarget - curFlat).Magnitude
+            if remaining < 20 then break end
+
+            local stepD  = math.min(HOP_DISTANCE, remaining)
+            local hopPos = Vector3.new(curFlat.X + dirToTgt.X * stepD, hoverY, curFlat.Z + dirToTgt.Z * stepD)
+            local tpCF   = CFrame.lookAt(hopPos, hopPos + dirToTgt)
+
+            bike:PivotTo(tpCF)
+            bg.CFrame = tpCF
+            hoverLock(primary, bv, bg, dirToTgt)
+            requestStream(hopPos)
+            task.wait(0.05)
+
+            local gY = findGroundY(primary.Position)
+            if gY then
+                local landPos = Vector3.new(primary.Position.X, gY + HOVER_HEIGHT, primary.Position.Z)
+                bike:PivotTo(CFrame.lookAt(landPos, landPos + dirToTgt))
+                hoverLock(primary, bv, bg, dirToTgt)
+                return
+            end
+            curFlat = Vector3.new(primary.Position.X, 0, primary.Position.Z)
+        end
+
+        local missionPos = Vector3.new(targetPos.X, math.max(hoverY, targetPos.Y + HOVER_HEIGHT), targetPos.Z)
+        local tpCF = CFrame.lookAt(missionPos, missionPos + dirToTgt)
+        bike:PivotTo(tpCF)
+        bg.CFrame = tpCF
+        hoverLock(primary, bv, bg, dirToTgt)
+        requestStream(missionPos)
+
+        local gY, aborted = hoverWaitForGround(primary, bv, bg, dirToTgt, targetPos, STREAM_WAIT_MAX)
+        if aborted then return end
+        if gY then
+            local landPos = Vector3.new(primary.Position.X, gY + HOVER_HEIGHT, primary.Position.Z)
+            bike:PivotTo(CFrame.lookAt(landPos, landPos + dirToTgt))
+            hoverLock(primary, bv, bg, dirToTgt)
+        end
+    end
+
+    pcall(function()
+        while isFlightAllowed() do
+            if not primary.Parent or not CharRef.Humanoid or not CharRef.Humanoid.SeatPart then
+                break
+            end
+
+            local pos      = primary.Position
+            local flatPos  = Vector3.new(pos.X, 0, pos.Z)
+            local flatDist = (flatPos - flatTarget).Magnitude
+
+            if flatDist < 15 then
+                reached = true
+                break
+            end
+
+            local dirToTarget    = (flatTarget - flatPos).Unit
+            local currentGroundY = findGroundY(pos)
+            local lookAheadPos   = pos + dirToTarget * 40
+            local groundAheadY   = findGroundY(lookAheadPos)
+
+            if (not currentGroundY) or (not groundAheadY) then
+                voidStopAndTP()
+                continue
+            end
+
+            local targetHoverY = currentGroundY + HOVER_HEIGHT
+            local currentSpeed = baseSpeed
+            if flatDist < 90 then
+                currentSpeed = math.clamp(flatDist * 2.0, 25, baseSpeed)
+            end
+            currentSpeed = currentSpeed * (1 + (math.random(-2, 2) / 100))
+
+            local moveDir = dirToTarget
+            if moveDir.X ~= moveDir.X then moveDir = Vector3.zero end
+            local moveVel = moveDir * currentSpeed
+            local yVel    = math.clamp((targetHoverY - pos.Y) * 4.5, -25, 25)
+
+            bv.Velocity = Vector3.new(moveVel.X, yVel, moveVel.Z)
+            if moveVel.Magnitude > 0 then
+                bg.CFrame = CFrame.lookAt(pos, pos + moveVel)
+            end
+            task.wait(0.03)
+        end
+    end)
+
+    if not reached then
+        bv.Velocity = Vector3.zero
+        return false
+    end
+
+    local currentLook = bike:GetPivot().LookVector
+    local flatLook = Vector3.new(currentLook.X, 0, currentLook.Z).Unit
+    if flatLook.Magnitude == 0 then flatLook = Vector3.new(0, 0, -1) end
+
+    bg.CFrame = CFrame.lookAt(primary.Position, primary.Position + flatLook)
+
+    local lastVel = bv.Velocity
+    for i = 1, 8 do
+        bv.Velocity = lastVel * (1 - i / 8)
+        task.wait(0.03)
+    end
+    bv.Velocity = Vector3.zero
+
+    local groundY = findGroundY(primary.Position)
+    if not groundY then
+        groundY = hoverWaitForGround(primary, bv, bg, flatLook, targetPos, STREAM_WAIT_MAX)
+    end
+
+    if groundY then
+        local targetLandY = groundY + 2.5
+        local landTimeout = tick() + 2.5
+        while primary.Parent and primary.Position.Y > targetLandY and tick() < landTimeout do
+            if not isFlightAllowed() then break end
+            local remainingDist = primary.Position.Y - targetLandY
+            local downSpeed = math.clamp(remainingDist * 3, 1, 6)
+            bv.Velocity = Vector3.new(0, -downSpeed, 0)
+            bg.CFrame   = CFrame.lookAt(primary.Position, primary.Position + flatLook)
+            task.wait(0.04)
+        end
+    end
+
+    hoverLock(primary, bv, bg, flatLook)
+    task.wait(0.4)
+    return true
+end
+
+-- ============================================================================
+-- // 14. AUTO COURIER (SEMPURNA: VERIFIKASI DROP MANDIRI & AUTO DELIVERED +1)
+-- ============================================================================
+local CourierJob = {
+    Name = "Courier", TeamId = 11378976,
+    DepotPos = Vector3.new(-5109.06, 5.18, -3758.69)
+}
 
 local ServiceEventConn = nil
 
-local function startCourierLoop()
-    if not SELECTED_CAR then
-        FetchOwnedVehicles()
+local function setJobCourier()
+    pcall(function()
+        Services.ReplicatedStorage:WaitForChild("JobEvents"):WaitForChild("TeamChangeRequest")
+            :FireServer(CourierJob.Name, CourierJob.TeamId, 1, 0, "Detector")
+    end)
+end
+
+-- Helper: Cek apakah pemain memegang / punya paket Kotak
+local function getKotakTool()
+    local bp = LocalPlayer:FindFirstChild("Backpack")
+    local ch = LocalPlayer.Character or CharRef.Character
+    if ch then
+        for _, t in ipairs(ch:GetChildren()) do
+            if t:IsA("Tool") and (t.Name:lower():find("kotak") or t.Name:lower():find("package") or t.Name:lower():find("box")) then
+                return t, true
+            end
+        end
     end
+    if bp then
+        for _, t in ipairs(bp:GetChildren()) do
+            if t:IsA("Tool") and (t.Name:lower():find("kotak") or t.Name:lower():find("package") or t.Name:lower():find("box")) then
+                return t, false
+            end
+        end
+    end
+    return nil, false
+end
+
+-- Helper: Pasang Tool Kotak ke Tangan
+local function equipKotak()
+    local tool, isEquipped = getKotakTool()
+    if isEquipped then return tool end
+    if tool and CharRef.Humanoid then
+        CharRef.Humanoid:EquipTool(tool)
+        local t0 = tick()
+        while tick() - t0 < 1.5 do
+            task.wait(0.1)
+            local _, equippedNow = getKotakTool()
+            if equippedNow then break end
+        end
+        return tool
+    end
+    return nil
+end
+
+local function startCourierLoop()
+    if not SELECTED_CAR then FetchOwnedVehicles() end
     if not SELECTED_CAR then
         WindUI:Notify({ Title = "⚠️ Auto Courier", Content = "Pilih kendaraan di garasi terlebih dahulu!", Duration = 4 })
         State.IsCourierActive = false
@@ -2415,85 +2744,219 @@ local function startCourierLoop()
 
     local activePackageLoc = nil
     local activePackageNum = nil
+    local DeliverySettings = nil
 
-    local serviceEvent = Services.ReplicatedStorage:FindFirstChild("ServiceEvent", true)
-    if serviceEvent then
-        ServiceEventConn = serviceEvent.OnClientEvent:Connect(function(eventName, action, paketNum)
+    pcall(function()
+        DeliverySettings = require(Services.ReplicatedStorage:WaitForChild("Delivery System", 5):WaitForChild("Settings", 5))
+    end)
+
+    local courierRemote = (DeliverySettings and DeliverySettings.RemoteEvent) or Services.ReplicatedStorage:FindFirstChild("ServiceEvent", true)
+    local livrasonFolder = (DeliverySettings and DeliverySettings.Folder) or workspace:FindFirstChild("Livrason")
+
+    -- Multi-Pattern Listener Event
+    if courierRemote then
+        ServiceEventConn = courierRemote.OnClientEvent:Connect(function(...)
             if not State.IsCourierActive then return end
-            if action == "Create" then
-                local Location = workspace:FindFirstChild("Livrason") and workspace.Livrason:FindFirstChild("Location")
-                if Location then
-                    local paket = Location:FindFirstChild(tostring(paketNum))
-                    if paket then
-                        local block = paket:FindFirstChild("Block")
-                        if block then activePackageLoc = block.Position; activePackageNum = paketNum end
+            local args = {...}
+            local a1 = tostring(args[1] or ""):lower()
+            local a2 = tostring(args[2] or ""):lower()
+            local pNum = args[3] or args[2]
+
+            if a1 == "serviceevent" then
+                if a2 == "create" and pNum then
+                    local locFolder = livrasonFolder and livrasonFolder:FindFirstChild("Location")
+                    if locFolder then
+                        local paket = locFolder:WaitForChild(tostring(pNum), 5)
+                        local block = paket and paket:FindFirstChild("Block")
+                        if block then
+                            activePackageLoc = block.Position
+                            activePackageNum = tostring(pNum)
+                        end
+                    end
+                elseif a2 == "remove" or a2 == "delete" or a2 == "clear" or a2 == "finish" then
+                    activePackageLoc = nil
+                    activePackageNum = nil
+                end
+            elseif a1 == "create" and pNum then
+                local locFolder = livrasonFolder and livrasonFolder:FindFirstChild("Location")
+                if locFolder then
+                    local paket = locFolder:WaitForChild(tostring(pNum), 5)
+                    local block = paket and paket:FindFirstChild("Block")
+                    if block then
+                        activePackageLoc = block.Position
+                        activePackageNum = tostring(pNum)
                     end
                 end
-            elseif action == "Remove" then
-                if activePackageNum == paketNum then activePackageLoc = nil; activePackageNum = nil end
+            elseif a1 == "remove" or a1 == "delete" or a1 == "clear" or a1 == "finish" then
+                activePackageLoc = nil
+                activePackageNum = nil
             end
         end)
     end
 
-    setJob(CourierJob); task.wait(1.5)
-    spawnCar(); task.wait(6)
-    rideMotor(); task.wait(3.5)
-
-    local char = LocalPlayer.Character
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    local motor = findMyMotor()
-    if not (motor and hrp and State.IsCourierActive) then return end
-
-    local target = CFrame.new(CourierJob.X, CourierJob.Y, CourierJob.Z)
-    pcall(function()
-        motor:SetPrimaryPartCFrame(target); task.wait(0.3)
-        hrp.CFrame = target * CFrame.new(0, 2, 0)
-    end)
-
-    task.wait(3.5); exitMotor(); task.wait(1.5)
-    walkToCourier(Vector3.new(-5109.06, 5.18, -3758.69), 10); task.wait(1.5)
-
-    pcall(function()
-        local prompt = workspace.Livrason.Take1.Take.ProximityPrompt
-        if prompt then
-            prompt:InputHoldBegin(); task.wait(prompt.HoldDuration + 0.2); prompt:InputHoldEnd()
-        end
-    end)
+    setJobCourier()
     task.wait(1.5)
 
+    pcall(function()
+        if courierRemote then courierRemote:FireServer("RequestJobUpdate") end
+    end)
+
     while State.IsCourierActive do
-        local t = tick()
-        while State.IsCourierActive and not activePackageLoc and tick() - t < 20 do task.wait(0.4) end
-        if not State.IsCourierActive then break end
-        if not activePackageLoc then break end
+        local hasBox = getKotakTool() ~= nil
 
-        spawnCar(); task.wait(4); rideMotor(); task.wait(3.5)
-        ghostGlideMotor(activePackageLoc); task.wait(1)
-        walkToCourier(activePackageLoc, 20); task.wait(2.0)
-
-        local targetNum = activePackageNum
-        pcall(function()
-            local LocationFolder = workspace.Livrason.Location
-            local paketModel = LocationFolder:FindFirstChild(tostring(targetNum))
-            if paketModel then
-                local block = paketModel:FindFirstChild("Block")
-                local prompt = block and block:FindFirstChild("ProximityPrompt")
-                if prompt and prompt.Enabled then
-                    local box = LocalPlayer.Backpack:FindFirstChild("Box")
-                        or LocalPlayer.Character:FindFirstChild("Box")
-                        or LocalPlayer.Character:FindFirstChildWhichIsA("Tool")
-                    if box and CharRef.Humanoid then
-                        CharRef.Humanoid:EquipTool(box); task.wait(1.0)
+        -- Deteksi titik antar secara visual jika RemoteEvent terlewat
+        if hasBox and not activePackageLoc and livrasonFolder then
+            pcall(function()
+                local locFolder = livrasonFolder:FindFirstChild("Location")
+                if locFolder then
+                    for _, folder in ipairs(locFolder:GetChildren()) do
+                        local block = folder:FindFirstChild("Block") or folder:FindFirstChildWhichIsA("BasePart")
+                        if block then
+                            local prompt = block:FindFirstChildOfClass("ProximityPrompt")
+                            if prompt and prompt.Enabled then
+                                activePackageLoc = block.Position
+                                activePackageNum = folder.Name
+                                break
+                            end
+                        end
                     end
-                    prompt:InputHoldBegin(); task.wait(prompt.HoldDuration + 0.2); prompt:InputHoldEnd()
-                    State.CourierDelivered = (State.CourierDelivered or 0) + 1
-                    task.wait(2.5)
+                end
+            end)
+        end
+
+        -- FASE 1: ANTAR PAKET (JIKA MEMILIKI KOTAK DAN TUJUAN)
+        if hasBox and activePackageLoc then
+            State.CourierPhase = "Antar Paket"
+            spawnAndMountBike()
+            task.wait(0.4)
+
+            flyToTarget(activePackageLoc)
+            if not State.IsCourierActive then break end
+
+            State.CourierPhase = "Drop Paket"
+            forceDismount()
+            task.wait(0.3)
+
+            local moneyBefore = GetPlayerMoney()
+            local successDrop = false
+
+            for attempt = 1, 3 do
+                if not State.IsCourierActive then break end
+
+                if CharRef.Root then
+                    CharRef.Root.CFrame = CFrame.new(activePackageLoc + Vector3.new(0, 1.2, 0))
+                end
+                task.wait(0.3)
+
+                equipKotak()
+                task.wait(0.2)
+
+                local targetPrompt = nil
+                local targetBlock  = nil
+
+                pcall(function()
+                    local locFolder = livrasonFolder and livrasonFolder:FindFirstChild("Location")
+                    local paket = locFolder and locFolder:FindFirstChild(tostring(activePackageNum))
+                    if paket then
+                        targetBlock  = paket:FindFirstChild("Block") or paket:FindFirstChildWhichIsA("BasePart")
+                        targetPrompt = targetBlock and targetBlock:FindFirstChildOfClass("ProximityPrompt")
+                    end
+                end)
+
+                if not targetPrompt and livrasonFolder then
+                    pcall(function()
+                        local locFolder = livrasonFolder:FindFirstChild("Location")
+                        if locFolder then
+                            for _, f in ipairs(locFolder:GetChildren()) do
+                                local blk = f:FindFirstChild("Block") or f:FindFirstChildWhichIsA("BasePart")
+                                if blk and (blk.Position - CharRef.Root.Position).Magnitude < 15 then
+                                    local pr = blk:FindFirstChildOfClass("ProximityPrompt")
+                                    if pr and pr.Enabled then
+                                        targetBlock  = blk
+                                        targetPrompt = pr
+                                        break
+                                    end
+                                end
+                            end
+                        end
+                    end)
+                end
+
+                if targetPrompt and targetBlock then
+                    DoHold(targetPrompt, targetBlock)
+                end
+
+                task.wait(0.8)
+
+                -- Verifikasi Mandiri: Kotak lenyap dari inventori atau saldo bertambah
+                local stillHasBox = getKotakTool() ~= nil
+                local moneyNow = GetPlayerMoney()
+                if not stillHasBox or moneyNow > moneyBefore then
+                    successDrop = true
+                    break
                 end
             end
-        end)
-        task.wait(2.0)
+
+            -- Reset Status & Update Counter Delivered
+            if successDrop or (getKotakTool() == nil) then
+                State.CourierDelivered = (State.CourierDelivered or 0) + 1
+                activePackageLoc = nil
+                activePackageNum = nil
+                State.CourierPhase = "Terkirim!"
+                task.wait(1)
+            else
+                activePackageLoc = nil
+                activePackageNum = nil
+                State.CourierPhase = "Reset Rute"
+                task.wait(0.5)
+            end
+
+        -- FASE 2: AMBIL PAKET KE DEPOT (JIKA BELUM MEMILIKI KOTAK)
+        else
+            State.CourierPhase = "Ke Depot"
+            spawnAndMountBike()
+            task.wait(0.4)
+
+            flyToTarget(CourierJob.DepotPos)
+            if not State.IsCourierActive then break end
+
+            State.CourierPhase = "Ambil Paket"
+            forceDismount()
+            task.wait(0.3)
+            if CharRef.Root then
+                CharRef.Root.CFrame = CFrame.new(CourierJob.DepotPos + Vector3.new(0, 1.5, 0))
+            end
+            task.wait(0.4)
+
+            local pBox = nil
+            local pPart = nil
+            pcall(function()
+                local takeFolder = livrasonFolder and (livrasonFolder:FindFirstChild("Take1") or livrasonFolder:FindFirstChild("Take"))
+                if takeFolder then
+                    pPart = takeFolder:FindFirstChild("Take") or takeFolder:FindFirstChild("Part") or takeFolder:FindFirstChildWhichIsA("BasePart")
+                    if pPart then pBox = pPart:FindFirstChildOfClass("ProximityPrompt") end
+                end
+            end)
+
+            if pBox and pPart then
+                DoHold(pBox, pPart)
+            end
+
+            State.CourierPhase = "Menunggu..."
+            local tWait = tick()
+            while State.IsCourierActive and not activePackageLoc and (getKotakTool() == nil) do
+                if tick() - tWait > 6 then
+                    pcall(function()
+                        if courierRemote then courierRemote:FireServer("RequestJobUpdate") end
+                    end)
+                    tWait = tick()
+                end
+                task.wait(0.4)
+            end
+        end
     end
 
+    focusCameraZoom(false)
     if ServiceEventConn then ServiceEventConn:Disconnect(); ServiceEventConn = nil end
 end
 
@@ -2501,12 +2964,29 @@ local function StartCourierScript()
     if State.IsCourierActive then return end
     State.IsCourierActive = true
     State.CourierDelivered = 0
+    State.CourierPhase = "Standby"
+    buatMonitoringGUI()
     task.spawn(startCourierLoop)
+    WindUI:Notify({ Title = "📦 Auto Courier", Content = "Auto Courier (RideGO Engine) Aktif!", Duration = 3 })
 end
 
 local function StopCourierScript()
     State.IsCourierActive = false
+    State.CourierPhase = "Idle"
     if ServiceEventConn then ServiceEventConn:Disconnect(); ServiceEventConn = nil end
+    local bike = getBikeModel() or findMyMotor()
+    if bike then
+        local primary = bike.PrimaryPart or bike:FindFirstChild("VehicleSeat") or bike:FindFirstChildOfClass("BasePart")
+        if primary then
+            local bv = primary:FindFirstChild("RideGO_BV")
+            local bg = primary:FindFirstChild("RideGO_BG")
+            if bv then bv:Destroy() end
+            if bg then bg:Destroy() end
+        end
+    end
+    focusCameraZoom(false)
+    matikanMonitoring()
+    WindUI:Notify({ Title = "🛑 Auto Courier", Content = "Auto Courier Dihentikan.", Duration = 3 })
 end
 
 -- ============================================================================
@@ -2571,512 +3051,15 @@ local TaxiEvent = Services.ReplicatedStorage
     :WaitForChild("Events", 10)
     :WaitForChild("TaxiEvent", 10)
 
-local DealershipEvents = Services.ReplicatedStorage:WaitForChild("DealershipEvents", 10)
-local SpawnCarEvents   = Services.ReplicatedStorage:WaitForChild("SpawnCarEvents", 10)
-
-local MAX_SPEED_LIMIT = 250
-local MIN_SPEED_LIMIT = 200
-local HOVER_HEIGHT    = 12
-local VOID_STOP_TIME  = 0.08
-local VOID_SCAN_MAX   = 4000
-local VOID_SCAN_STEP  = 60
-local HOP_DISTANCE    = 700
-local HOP_MAX         = 20
-local STREAM_WAIT_MAX = 4
-
-local function getBikeModel()
-    local hum = CharRef.Humanoid
-    if not hum or not hum.SeatPart then return nil end
-    return hum.SeatPart:FindFirstAncestorOfClass("Model")
-end
-
-local function getMovers(primary)
-    if not primary then return nil, nil end
-
-    local bv = primary:FindFirstChild("RideGO_BV")
-    if not bv then
-        bv = Instance.new("BodyVelocity")
-        bv.Name = "RideGO_BV"
-        bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
-        bv.Velocity = Vector3.zero
-        bv.Parent = primary
-    end
-
-    local bg = primary:FindFirstChild("RideGO_BG")
-    if not bg then
-        bg = Instance.new("BodyGyro")
-        bg.Name = "RideGO_BG"
-        bg.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
-        bg.CFrame = primary.CFrame
-        bg.Parent = primary
-    end
-
-    return bv, bg
-end
-
-local function newRayParams()
-    local rayParams = RaycastParams.new()
-    rayParams.FilterType = Enum.RaycastFilterType.Exclude
-    local blacklist = { LocalPlayer.Character }
-    local bike = getBikeModel()
-    if bike then
-        table.insert(blacklist, bike)
-        for _, seat in ipairs(bike:GetDescendants()) do
-            if seat:IsA("VehicleSeat") and seat.Occupant then
-                table.insert(blacklist, seat.Occupant.Parent)
-            end
-        end
-    end
-    rayParams.FilterDescendantsInstances = blacklist
-    return rayParams
-end
-
-local function findGroundY(origin)
-    local ray = Services.Workspace:Raycast(origin, Vector3.new(0, -600, 0), newRayParams())
-    return ray and ray.Position.Y or nil
-end
-
-local function findGroundYFar(x, z, fromY)
-    local origin = Vector3.new(x, (fromY or 0) + 300, z)
-    local ray = Services.Workspace:Raycast(origin, Vector3.new(0, -3000, 0), newRayParams())
-    return ray and ray.Position.Y or nil
-end
-
-local function requestStream(pos)
-    pcall(function()
-        Services.Workspace:RequestStreamAround(pos, 0.4)
-    end)
-end
-
-local function hoverLock(primary, bv, bg, flatLook)
-    bv.Velocity = Vector3.zero
-    primary.AssemblyLinearVelocity  = Vector3.zero
-    primary.AssemblyAngularVelocity = Vector3.zero
-    if flatLook then
-        bg.CFrame = CFrame.lookAt(primary.Position, primary.Position + flatLook)
-    end
-end
-
-local function hoverWaitForGround(primary, bv, bg, flatLook, targetPos, timeout)
-    local t0 = tick()
-    while tick() - t0 < (timeout or STREAM_WAIT_MAX) do
-        if not State.IsRideGOActive or State.RideGOTargetPos ~= targetPos then return nil, true end
-        if not primary.Parent then return nil, true end
-
-        hoverLock(primary, bv, bg, flatLook)
-
-        local gY = findGroundY(primary.Position)
-        if gY then return gY, false end
-        task.wait(0.3)
-    end
-    return nil, false
-end
-
-local function ensureBike()
-    if not SELECTED_CAR then
-        FetchOwnedVehicles()
-        if not SELECTED_CAR then
-            WindUI:Notify({
-                Title = "⚠️ Garasi Kosong",
-                Content = "Pilih kendaraan di garasi terlebih dahulu!",
-                Duration = 4
-            })
-            return nil
-        end
-    end
-
-    local bike = getBikeModel()
-    if bike and isVehicleMine(bike) then
-        local primary = bike.PrimaryPart or bike:FindFirstChild("VehicleSeat") or bike:FindFirstChildOfClass("BasePart")
-        if primary then getMovers(primary) end
-        return bike
-    end
-
-    local existing = findMyMotor()
-    if existing then
-        local seat = existing:FindFirstChildOfClass("VehicleSeat") or existing:FindFirstChild("DriveSeat", true)
-        if seat and CharRef.Humanoid and CharRef.Root then
-            if not seat.Occupant or seat.Occupant == CharRef.Humanoid then
-                CharRef.Root.CFrame = seat.CFrame + Vector3.new(0, 2, 0)
-                task.wait(0.1)
-                seat:Sit(CharRef.Humanoid)
-                task.wait(0.5)
-                local primary = existing.PrimaryPart or seat
-                getMovers(primary)
-                return existing
-            end
-        end
-    end
-
-    pcall(function()
-        if DealershipEvents:FindFirstChild("InitializeCarData") then
-            DealershipEvents.InitializeCarData:InvokeServer()
-        end
-        if DealershipEvents:FindFirstChild("GetInfoCarSlot") then
-            DealershipEvents.GetInfoCarSlot:InvokeServer()
-        end
-        if SpawnCarEvents:FindFirstChild("SpawnCar") then
-            SpawnCarEvents.SpawnCar:FireServer(SELECTED_CAR)
-        end
-    end)
-
-    local seatFound = nil
-    local timeout = tick() + 6
-
-    while tick() < timeout and not seatFound do
-        task.wait(0.3)
-        if CharRef.Root then
-            local myVeh = findMyMotor()
-            if myVeh then
-                local seat = myVeh:FindFirstChildOfClass("VehicleSeat") or myVeh:FindFirstChild("DriveSeat", true)
-                if seat and (not seat.Occupant or seat.Occupant == CharRef.Humanoid) then
-                    seatFound = seat
-                    break
-                end
-            end
-
-            for _, model in ipairs(Services.Workspace:GetChildren()) do
-                if model:IsA("Model") and isVehicleMine(model) then
-                    local seat = model:FindFirstChildOfClass("VehicleSeat") or model:FindFirstChild("DriveSeat", true)
-                    if seat and (not seat.Occupant or seat.Occupant == CharRef.Humanoid) then
-                        local dist = (seat.Position - CharRef.Root.Position).Magnitude
-                        if dist < 50 then
-                            seatFound = seat
-                            break
-                        end
-                    end
-                end
-            end
-        end
-    end
-
-    if seatFound and CharRef.Humanoid and CharRef.Root then
-        CharRef.Root.CFrame = seatFound.CFrame + Vector3.new(0, 2, 0)
-        task.wait(0.1)
-        seatFound:Sit(CharRef.Humanoid)
-        task.wait(0.5)
-
-        local primary = seatFound.Parent.PrimaryPart or seatFound
-        getMovers(primary)
-        return seatFound.Parent
-    end
-
-    return getBikeModel()
-end
-
--- ============================================================================
--- // AUTO RESET MOTOR
--- ============================================================================
-local function resetMotorDanNaik()
-    local hum = CharRef.Humanoid
-    if hum then
-        hum.Sit = false
-        hum:ChangeState(Enum.HumanoidStateType.Jumping)
-        task.wait(0.5)
-    end
-
-    pcall(function()
-        if SpawnCarEvents:FindFirstChild("DespawnCar") then
-            SpawnCarEvents.DespawnCar:FireServer()
-        elseif SpawnCarEvents:FindFirstChild("RemoveCar") then
-            SpawnCarEvents.RemoveCar:FireServer()
-        end
-    end)
-    task.wait(1.5)
-
-    return ensureBike()
-end
-
--- [AUTO-RECOVERY RESPAWN HANDLER]
 LocalPlayer.CharacterAdded:Connect(function()
     task.wait(0.5)
-    if not State.IsRideGOActive then return end
-
+    if not (State.IsRideGOActive or State.IsCourierActive) then return end
     task.wait(1.5)
     pcall(ensureBike)
-
     if not State.RideGOTargetPos and State.RideGOPhase ~= "idle" then
         State.RideGOPhase = "idle"
     end
 end)
-
--- [OPTIMIZED PERIODIC NO-COLLIDE LOOP]
-task.spawn(function()
-    while true do
-        task.wait(1.2)
-        if not State.IsRideGOActive then continue end
-
-        pcall(function()
-            if CharRef.Humanoid and not CharRef.Humanoid.Sit and getBikeModel() then
-                CharRef.Humanoid.Sit = true
-            end
-
-            local bike = getBikeModel()
-            if bike then
-                for _, part in ipairs(bike:GetDescendants()) do
-                    if part:IsA("BasePart") and part.CanCollide then
-                        part.CanCollide = false
-                    end
-                end
-                for _, seat in ipairs(bike:GetDescendants()) do
-                    if seat:IsA("VehicleSeat") and seat.Occupant then
-                        local pax = seat.Occupant.Parent
-                        if pax then
-                            for _, part in ipairs(pax:GetDescendants()) do
-                                if part:IsA("BasePart") and part.CanCollide then
-                                    part.CanCollide = false
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-
-            if CharRef.Character then
-                for _, part in ipairs(CharRef.Character:GetDescendants()) do
-                    if part:IsA("BasePart") and part.CanCollide then
-                        part.CanCollide = false
-                    end
-                end
-            end
-
-            local activeMissions = Services.Workspace:FindFirstChild("ActiveMissions")
-            if activeMissions then
-                for _, mission in ipairs(activeMissions:GetChildren()) do
-                    if mission.Name:find("RideGO_Passenger") then
-                        for _, part in ipairs(mission:GetDescendants()) do
-                            if part:IsA("BasePart") and part.CanCollide then
-                                part.CanCollide = false
-                            end
-                        end
-                    end
-                end
-            end
-        end)
-    end
-end)
-
-local function flyToTarget(targetPos)
-    local bike = ensureBike()
-    if not bike then return false end
-
-    local primary = bike.PrimaryPart
-        or bike:FindFirstChild("VehicleSeat")
-        or bike:FindFirstChildOfClass("BasePart")
-    if not primary then return false end
-
-    pcall(function() bike:SetNetworkOwner(LocalPlayer) end)
-
-    local bv, bg = getMovers(primary)
-    bv.MaxForce  = Vector3.new(1e9, 1e9, 1e9)
-    bg.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
-
-    local reached     = false
-    local flatTarget  = Vector3.new(targetPos.X, 0, targetPos.Z)
-    local baseSpeed   = math.random(MIN_SPEED_LIMIT, MAX_SPEED_LIMIT)
-    local voidHandled = 0
-
-    local function voidStopAndTP()
-        local stopStart = tick()
-        while tick() - stopStart < VOID_STOP_TIME do
-            if not State.IsRideGOActive or State.RideGOTargetPos ~= targetPos then return end
-            bv.Velocity = Vector3.zero
-            primary.AssemblyAngularVelocity = Vector3.zero
-            task.wait(0.03)
-        end
-        hoverLock(primary, bv, bg, nil)
-        task.wait(0.05)
-
-        local posNow   = primary.Position
-        local flatNow  = Vector3.new(posNow.X, 0, posNow.Z)
-        local distNow  = (flatNow - flatTarget).Magnitude
-        local dirToTgt = distNow > 1 and ((flatTarget - flatNow).Unit) or Vector3.new(0, 0, -1)
-        local hoverY   = posNow.Y
-
-        voidHandled += 1
-
-        local safeLandPos = nil
-
-        local streak, firstD, firstGY = 0, nil, nil
-        for d = VOID_SCAN_STEP, VOID_SCAN_MAX, VOID_SCAN_STEP do
-            if not State.IsRideGOActive or State.RideGOTargetPos ~= targetPos then return end
-
-            local px = posNow.X + dirToTgt.X * d
-            local pz = posNow.Z + dirToTgt.Z * d
-            local gY = findGroundYFar(px, pz, posNow.Y)
-
-            if gY then
-                if streak == 0 then
-                    firstD  = d
-                    firstGY = gY
-                end
-                streak += 1
-
-                if streak >= 3 then
-                    local landD = firstD + 25
-                    if landD >= distNow - 10 then
-                        break
-                    end
-                    local lx = posNow.X + dirToTgt.X * landD
-                    local lz = posNow.Z + dirToTgt.Z * landD
-                    local newDist = (Vector3.new(lx, 0, lz) - flatTarget).Magnitude
-                    if newDist < distNow then
-                        safeLandPos = Vector3.new(lx, firstGY + HOVER_HEIGHT, lz)
-                    end
-                    break
-                end
-            else
-                streak, firstD, firstGY = 0, nil, nil
-            end
-        end
-
-        if safeLandPos then
-            local tpCFrame = CFrame.lookAt(safeLandPos, safeLandPos + dirToTgt)
-            bike:PivotTo(tpCFrame)
-            bg.CFrame = tpCFrame
-            requestStream(safeLandPos)
-            task.wait(0.05)
-            hoverLock(primary, bv, bg, dirToTgt)
-            task.wait(0.05)
-            return
-        end
-
-        local curFlat = flatNow
-        for hop = 1, HOP_MAX do
-            if not State.IsRideGOActive or State.RideGOTargetPos ~= targetPos then return end
-            if not primary.Parent then return end
-
-            local remaining = (flatTarget - curFlat).Magnitude
-            if remaining < 20 then break end
-
-            local stepD  = math.min(HOP_DISTANCE, remaining)
-            local hopPos = Vector3.new(curFlat.X + dirToTgt.X * stepD, hoverY, curFlat.Z + dirToTgt.Z * stepD)
-            local tpCF   = CFrame.lookAt(hopPos, hopPos + dirToTgt)
-
-            bike:PivotTo(tpCF)
-            bg.CFrame = tpCF
-            hoverLock(primary, bv, bg, dirToTgt)
-            requestStream(hopPos)
-            task.wait(0.05)
-
-            local gY = findGroundY(primary.Position)
-            if gY then
-                local landPos = Vector3.new(primary.Position.X, gY + HOVER_HEIGHT, primary.Position.Z)
-                bike:PivotTo(CFrame.lookAt(landPos, landPos + dirToTgt))
-                hoverLock(primary, bv, bg, dirToTgt)
-                return
-            end
-
-            curFlat = Vector3.new(primary.Position.X, 0, primary.Position.Z)
-        end
-
-        local missionPos = Vector3.new(targetPos.X, math.max(hoverY, targetPos.Y + HOVER_HEIGHT), targetPos.Z)
-        local tpCF = CFrame.lookAt(missionPos, missionPos + dirToTgt)
-        bike:PivotTo(tpCF)
-        bg.CFrame = tpCF
-        hoverLock(primary, bv, bg, dirToTgt)
-        requestStream(missionPos)
-
-        local gY, aborted = hoverWaitForGround(primary, bv, bg, dirToTgt, targetPos, STREAM_WAIT_MAX)
-        if aborted then return end
-
-        if gY then
-            local landPos = Vector3.new(primary.Position.X, gY + HOVER_HEIGHT, primary.Position.Z)
-            bike:PivotTo(CFrame.lookAt(landPos, landPos + dirToTgt))
-            hoverLock(primary, bv, bg, dirToTgt)
-        end
-    end
-
-    local ok, err = pcall(function()
-        while State.IsRideGOActive and State.RideGOTargetPos == targetPos do
-            if not primary.Parent or not CharRef.Humanoid or not CharRef.Humanoid.SeatPart then
-                break
-            end
-
-            local pos      = primary.Position
-            local flatPos  = Vector3.new(pos.X, 0, pos.Z)
-            local flatDist = (flatPos - flatTarget).Magnitude
-
-            if flatDist < 15 then
-                reached = true
-                break
-            end
-
-            local dirToTarget    = (flatTarget - flatPos).Unit
-            local currentGroundY = findGroundY(pos)
-            local lookAheadPos   = pos + dirToTarget * 40
-            local groundAheadY   = findGroundY(lookAheadPos)
-
-            if (not currentGroundY) or (not groundAheadY) then
-                voidStopAndTP()
-                continue
-            end
-
-            local targetHoverY = currentGroundY + HOVER_HEIGHT
-
-            local currentSpeed = baseSpeed
-            if flatDist < 90 then
-                currentSpeed = math.clamp(flatDist * 2.0, 25, baseSpeed)
-            end
-            currentSpeed = currentSpeed * (1 + (math.random(-2, 2) / 100))
-
-            local moveDir = dirToTarget
-            if moveDir.X ~= moveDir.X then moveDir = Vector3.zero end
-            local moveVel = moveDir * currentSpeed
-            local yVel    = math.clamp((targetHoverY - pos.Y) * 4.5, -25, 25)
-
-            bv.Velocity = Vector3.new(moveVel.X, yVel, moveVel.Z)
-            if moveVel.Magnitude > 0 then
-                bg.CFrame = CFrame.lookAt(pos, pos + moveVel)
-            end
-            task.wait(0.03)
-        end
-    end)
-
-    if err then end
-    if not reached then
-        bv.Velocity = Vector3.zero
-        return false
-    end
-
-    local currentLook = bike:GetPivot().LookVector
-    local flatLook = Vector3.new(currentLook.X, 0, currentLook.Z).Unit
-    if flatLook.Magnitude == 0 then flatLook = Vector3.new(0, 0, -1) end
-
-    bg.CFrame = CFrame.lookAt(primary.Position, primary.Position + flatLook)
-
-    local lastVel = bv.Velocity
-    for i = 1, 8 do
-        bv.Velocity = lastVel * (1 - i / 8)
-        task.wait(0.03)
-    end
-    bv.Velocity = Vector3.zero
-
-    local groundY = findGroundY(primary.Position)
-    if not groundY then
-        groundY = hoverWaitForGround(primary, bv, bg, flatLook, targetPos, STREAM_WAIT_MAX)
-    end
-
-    if groundY then
-        local targetLandY = groundY + 2.5
-        local landTimeout = tick() + 2.5
-
-        while primary.Parent and primary.Position.Y > targetLandY and tick() < landTimeout do
-            if not State.IsRideGOActive then break end
-
-            local remainingDist = primary.Position.Y - targetLandY
-            local downSpeed = math.clamp(remainingDist * 3, 1, 6)
-
-            bv.Velocity = Vector3.new(0, -downSpeed, 0)
-            bg.CFrame   = CFrame.lookAt(primary.Position, primary.Position + flatLook)
-            task.wait(0.04)
-        end
-    end
-
-    hoverLock(primary, bv, bg, flatLook)
-    task.wait(0.5)
-    return true
-end
 
 TaxiEvent.OnClientEvent:Connect(function(action, data)
     if not State.IsRideGOActive then return end
@@ -3182,11 +3165,7 @@ local function StartRideGOScript()
     if State.IsRideGOActive then return end
     if not SELECTED_CAR then FetchOwnedVehicles() end
     if not SELECTED_CAR then
-        WindUI:Notify({
-            Title = "❌ Gagal Memulai",
-            Content = "Pilih kendaraan di garasi sebelum menyalakan RideGO!",
-            Duration = 4
-        })
+        WindUI:Notify({ Title = "❌ Gagal Memulai", Content = "Pilih kendaraan di garasi sebelum menyalakan RideGO!", Duration = 4 })
         return
     end
 
@@ -3200,24 +3179,16 @@ local function StartRideGOScript()
     buatMonitoringGUI()
 
     ensureBike()
-    if not State.RideGOIsOnline then
-        TaxiEvent:FireServer("GoOnline")
-    end
+    if not State.RideGOIsOnline then TaxiEvent:FireServer("GoOnline") end
 
-    WindUI:Notify({
-        Title = "🚕 RideGO Driver",
-        Content = "Auto RideGO & Monitoring Aktif!",
-        Duration = 4
-    })
+    WindUI:Notify({ Title = "🚕 RideGO Driver", Content = "Auto RideGO & Monitoring Aktif!", Duration = 4 })
 end
 
 local function StopRideGOScript()
     State.IsRideGOActive = false
     State.RideGOTargetPos = nil
-    if State.RideGOIsOnline then
-        TaxiEvent:FireServer("GoOffline")
-    end
-    local bike = getBikeModel()
+    if State.RideGOIsOnline then TaxiEvent:FireServer("GoOffline") end
+    local bike = getBikeModel() or findMyMotor()
     if bike then
         local primary = bike.PrimaryPart or bike:FindFirstChild("VehicleSeat") or bike:FindFirstChildOfClass("BasePart")
         if primary then
@@ -3228,26 +3199,18 @@ local function StopRideGOScript()
         end
     end
 
+    focusCameraZoom(false)
     CachedMoneyLabel = nil
     getgenv().UangAwalDikunci = nil
     matikanMonitoring()
 
-    WindUI:Notify({
-        Title = "🛑 RideGO Driver",
-        Content = "Auto RideGO dihentikan.",
-        Duration = 3
-    })
+    WindUI:Notify({ Title = "🛑 RideGO Driver", Content = "Auto RideGO dihentikan.", Duration = 3 })
 end
 
--- ==================== TEAM DETECTOR ====================
 local function OnRideGOTeamChanged()
     if State.IsRideGOActive and LocalPlayer.Team and LocalPlayer.Team.Name ~= "RideGO Driver" then
         StopRideGOScript()
-        WindUI:Notify({
-            Title    = "⚠️ RideGO Driver",
-            Content  = "Keluar dari tim driver, bot dimatikan otomatis.",
-            Duration = 3
-        })
+        WindUI:Notify({ Title = "⚠️ RideGO Driver", Content = "Keluar dari tim driver, bot dimatikan otomatis.", Duration = 3 })
     end
 end
 LocalPlayer:GetPropertyChangedSignal("Team"):Connect(OnRideGOTeamChanged)
@@ -3313,9 +3276,7 @@ local ServerInfo = TabInfo:Paragraph({
             Title    = "Copy Discord Invite",
             Color    = Color3.fromHex("#5707AB"),
             Icon     = "link",
-            Callback = function()
-                if setclipboard then setclipboard("https://discord.gg/XmWf3YQPpZ") end
-            end
+            Callback = function() if setclipboard then setclipboard("https://discord.gg/XmWf3YQPpZ") end end
         },
         {
             Title    = "Update Info",
@@ -3345,33 +3306,9 @@ SectionOffice:Input({
         local val = tonumber(bersih) or 0
         State.TargetProfit = val
         if val > 0 then
-            WindUI:Notify({
-                Title   = "Target dipasang",
-                Content = "Bakal keluar pas profit udah " .. fmtRupiah(val),
-                Duration = 3,
-            })
+            WindUI:Notify({ Title = "Target dipasang", Content = "Bakal keluar pas profit udah " .. fmtRupiah(val), Duration = 3 })
         else
-            WindUI:Notify({
-                Title   = "Target dicopot",
-                Content = "Gak ada batas profit, jalan terus.",
-                Duration = 3,
-            })
-        end
-    end
-})
-
-SectionOffice:Toggle({
-    Title = "Auto keluar saat target tercapai",
-    Desc  = "Nyalain ini biar langsung keluar server kalau udah nyampe target profit.",
-    Icon  = "log-out",
-    Value = false,
-    Callback = function(on)
-        if on and State.TargetProfit == 0 then
-            WindUI:Notify({
-                Title   = "Isi target dulu",
-                Content = "Masukin angka target profit dulu sebelum nyalain ini.",
-                Duration = 3,
-            })
+            WindUI:Notify({ Title = "Target dicopot", Content = "Gak ada batas profit, jalan terus.", Duration = 3 })
         end
     end
 })
@@ -3386,11 +3323,7 @@ VehicleDropdownCourier = SectionCourier:Dropdown({
     Callback = function(chosen)
         if chosen and chosen ~= "" and chosen ~= "Tidak ada kendaraan terdeteksi" and chosen ~= "Pindai garasi..." then
             SELECTED_CAR = chosen
-            WindUI:Notify({
-                Title    = "🚗 Kendaraan Dipilih",
-                Content  = "Menggunakan: " .. SELECTED_CAR,
-                Duration = 2
-            })
+            WindUI:Notify({ Title = "🚗 Kendaraan Dipilih", Content = "Menggunakan: " .. SELECTED_CAR, Duration = 2 })
         end
     end
 })
@@ -3401,30 +3334,17 @@ SectionCourier:Button({
     Callback = function()
         local cars = RefreshAllVehicleDropdowns()
         local count = (cars[1] == "Tidak ada kendaraan terdeteksi") and 0 or #cars
-        WindUI:Notify({
-            Title    = "✅ Garasi Terdeteksi",
-            Content  = "Ditemukan " .. count .. " kendaraan!",
-            Duration = 3
-        })
+        WindUI:Notify({ Title = "✅ Garasi Terdeteksi", Content = "Ditemukan " .. count .. " kendaraan!", Duration = 3 })
     end
 })
 
 local SectionRideGO = TabFarm:Section({ Title = "Auto RideGO Driver", Box = true, BoxBorder = true, Opened = false })
-SectionRideGO:Paragraph({
-    Title = "",
-    Desc = "pilih dulu motor",
-})
+SectionRideGO:Paragraph({ Title = "", Desc = "Pilih dulu motor di dropdown" })
 SectionRideGO:Toggle({
     Title = "Enable Auto RideGO",
     Icon = "car",
     Value = false,
-    Callback = function(on)
-        if on then
-            StartRideGOScript()
-        else
-            StopRideGOScript()
-        end
-    end
+    Callback = function(on) if on then StartRideGOScript() else StopRideGOScript() end end
 })
 
 VehicleDropdownRideGO = SectionRideGO:Dropdown({
@@ -3434,11 +3354,7 @@ VehicleDropdownRideGO = SectionRideGO:Dropdown({
     Callback = function(chosen)
         if chosen and chosen ~= "" and chosen ~= "Tidak ada kendaraan terdeteksi" and chosen ~= "Pindai garasi..." then
             SELECTED_CAR = chosen
-            WindUI:Notify({
-                Title    = "🚕 Kendaraan Dipilih",
-                Content  = "Menggunakan: " .. SELECTED_CAR,
-                Duration = 2
-            })
+            WindUI:Notify({ Title = "🚕 Kendaraan Dipilih", Content = "Menggunakan: " .. SELECTED_CAR, Duration = 2 })
         end
     end
 })
@@ -3449,11 +3365,7 @@ SectionRideGO:Button({
     Callback = function()
         local cars = RefreshAllVehicleDropdowns()
         local count = (cars[1] == "Tidak ada kendaraan terdeteksi") and 0 or #cars
-        WindUI:Notify({
-            Title    = "✅ Garasi Terdeteksi",
-            Content  = "Ditemukan " .. count .. " kendaraan!",
-            Duration = 3
-        })
+        WindUI:Notify({ Title = "✅ Garasi Terdeteksi", Content = "Ditemukan " .. count .. " kendaraan!", Duration = 3 })
     end
 })
 
@@ -3470,7 +3382,7 @@ local SectionAntiLag = TabPerf:Section({ Title = "Anti Lag", Box = true, BoxBord
 SectionAntiLag:Toggle({ Title = "Enable Anti Lag", Desc = "Purges particles & locks graphics to minimum", Value = false, Callback = function(on) ToggleAntiLag(on) end })
 
 local SectionPotato = TabPerf:Section({ Title = "Ultra Potato Mode", Box = true, BoxBorder = true, Opened = false })
-SectionPotato:Toggle({ Title = "Enable Potato Mode (EXTREME)", Desc = "Destroys terrain, meshes, lighting, sounds for MAX FPS. Mutually exclusive with Anti-Lag.", Value = false, Callback = function(on) TogglePotatoMode(on) end })
+SectionPotato:Toggle({ Title = "Enable Potato Mode (EXTREME)", Desc = "Destroys terrain, meshes, lighting, sounds for MAX FPS.", Value = false, Callback = function(on) TogglePotatoMode(on) end })
 
 local TabCfg = Window:Tab({ Title = "Settings", Icon = "settings", Border = true })
 local Konfigurasi = TabCfg:Section({ Title = "Configuration", Box = true, BoxBorder = true, Opened = false })
