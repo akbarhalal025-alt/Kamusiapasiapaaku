@@ -7,7 +7,7 @@
     [+] Fitur       : + Auto RideGO Driver (Void Gate Ultra + Anti-Kick Stabil)
                       + Auto Courier (100% Fix Drop Paket & Auto Delivered +1)
                       + Instant Respawn & Auto-Seat Motor Setiap Ambil & Drop Paket
-                      + Permanent Noclip (Tembus Tembok Fisika Stepped)
+                      + Permanent Noclip (Karakter, Motor, & Penumpang Stepped)
                       + Watchdog 30s: Auto Reset Motor jika Rute Gagal
                       + Anti-Kick 3 Lapis (Hook + Random Keypress + Heartbeat F15)
                       + Auto-Recovery Respawn Karakter
@@ -2275,11 +2275,12 @@ local function getMovers(primary)
 end
 
 -- ============================================================================
--- // PERMANENT NOCLIP (TEMBUS TEMBOK STEPPED — TIDAK BISA MATI)
+-- // PERMANENT NOCLIP (TEMBUS TEMBOK STEPPED — KARAKTER, MOTOR & PENUMPANG)
 -- ============================================================================
 Services.RunService.Stepped:Connect(function()
     if State.IsRideGOActive or State.IsCourierActive then
         pcall(function()
+            -- 1. Noclip Karakter Sendiri
             if CharRef.Character then
                 for _, part in ipairs(CharRef.Character:GetDescendants()) do
                     if part:IsA("BasePart") then
@@ -2287,11 +2288,29 @@ Services.RunService.Stepped:Connect(function()
                     end
                 end
             end
+
+            -- 2. Noclip Motor Sendiri
             local bike = getBikeModel() or findMyMotor()
             if bike then
                 for _, part in ipairs(bike:GetDescendants()) do
                     if part:IsA("BasePart") then
                         part.CanCollide = false
+                    end
+                end
+            end
+
+            -- 3. Noclip Penumpang RideGO (workspace.ActiveMissions.RideGO_Passenger)
+            local activeMissions = Services.Workspace:FindFirstChild("ActiveMissions")
+            if activeMissions then
+                local passenger = activeMissions:FindFirstChild("RideGO_Passenger")
+                if passenger then
+                    if passenger:IsA("BasePart") then
+                        passenger.CanCollide = false
+                    end
+                    for _, part in ipairs(passenger:GetDescendants()) do
+                        if part:IsA("BasePart") then
+                            part.CanCollide = false
+                        end
                     end
                 end
             end
@@ -2422,6 +2441,7 @@ local function newRayParams()
     local rayParams = RaycastParams.new()
     rayParams.FilterType = Enum.RaycastFilterType.Exclude
     local blacklist = { LocalPlayer.Character }
+    
     local bike = getBikeModel()
     if bike then
         table.insert(blacklist, bike)
@@ -2431,6 +2451,15 @@ local function newRayParams()
             end
         end
     end
+
+    local activeMissions = Services.Workspace:FindFirstChild("ActiveMissions")
+    if activeMissions then
+        local pass = activeMissions:FindFirstChild("RideGO_Passenger")
+        if pass then
+            table.insert(blacklist, pass)
+        end
+    end
+
     rayParams.FilterDescendantsInstances = blacklist
     return rayParams
 end
@@ -2599,14 +2628,13 @@ local function flyToTarget(targetPos)
                 break
             end
 
-            -- [MODIFIED] Jatuh dari motor? Jangan break! Cari motor di tempat, naiki lagi, lanjut tanpa TP.
             if not CharRef.Humanoid.SeatPart then
                 bv.Velocity = Vector3.zero
                 primary.AssemblyLinearVelocity = Vector3.zero
 
                 local bike2 = findMyMotor()
                 if not bike2 then
-                    bike2 = spawnAndMountBike() -- spawn di posisi jatuh, bukan tujuan
+                    bike2 = spawnAndMountBike()
                 end
                 if bike2 then
                     local primary2 = bike2.PrimaryPart or bike2:FindFirstChild("VehicleSeat")
@@ -2721,7 +2749,6 @@ local function setJobCourier()
     end)
 end
 
--- Helper: Cek apakah pemain memegang / punya paket Kotak
 local function getKotakTool()
     local bp = LocalPlayer:FindFirstChild("Backpack")
     local ch = LocalPlayer.Character or CharRef.Character
@@ -2742,7 +2769,6 @@ local function getKotakTool()
     return nil, false
 end
 
--- Helper: Pasang Tool Kotak ke Tangan
 local function equipKotak()
     local tool, isEquipped = getKotakTool()
     if isEquipped then return tool end
@@ -2778,7 +2804,6 @@ local function startCourierLoop()
     local courierRemote = (DeliverySettings and DeliverySettings.RemoteEvent) or Services.ReplicatedStorage:FindFirstChild("ServiceEvent", true)
     local livrasonFolder = (DeliverySettings and DeliverySettings.Folder) or workspace:FindFirstChild("Livrason")
 
-    -- Multi-Pattern Listener Event
     if courierRemote then
         ServiceEventConn = courierRemote.OnClientEvent:Connect(function(...)
             if not State.IsCourierActive then return end
@@ -2829,7 +2854,6 @@ local function startCourierLoop()
     while State.IsCourierActive do
         local hasBox = getKotakTool() ~= nil
 
-        -- Deteksi titik antar secara visual jika RemoteEvent terlewat
         if hasBox and not activePackageLoc and livrasonFolder then
             pcall(function()
                 local locFolder = livrasonFolder:FindFirstChild("Location")
@@ -2849,7 +2873,6 @@ local function startCourierLoop()
             end)
         end
 
-        -- FASE 1: ANTAR PAKET (JIKA MEMILIKI KOTAK DAN TUJUAN)
         if hasBox and activePackageLoc then
             State.CourierPhase = "Antar Paket"
             spawnAndMountBike()
@@ -2913,7 +2936,6 @@ local function startCourierLoop()
 
                 task.wait(0.8)
 
-                -- Verifikasi Mandiri: Kotak lenyap dari inventori atau saldo bertambah
                 local stillHasBox = getKotakTool() ~= nil
                 local moneyNow = GetPlayerMoney()
                 if not stillHasBox or moneyNow > moneyBefore then
@@ -2922,14 +2944,12 @@ local function startCourierLoop()
                 end
             end
 
-            -- Reset Status & Update Counter Delivered
             if successDrop or (getKotakTool() == nil) then
                 State.CourierDelivered = (State.CourierDelivered or 0) + 1
                 activePackageLoc = nil
                 activePackageNum = nil
                 State.CourierPhase = "Terkirim!"
 
-                -- [MODIFIED] Jangan langsung kembali ke depot! Tunggu paket baru di tempat.
                 State.CourierPhase = "Menunggu Paket Baru"
                 local waitTimeout = tick() + 60
                 while State.IsCourierActive and tick() < waitTimeout do
@@ -2952,10 +2972,8 @@ local function startCourierLoop()
                             end
                         end)
                     end
-                    -- Jika ada paket baru, keluar dari loop menunggu
                     if activePackageLoc then break end
                 end
-                -- Jika tidak ada paket baru dalam 60 detik, tetap diam (tidak balik ke depot)
                 task.wait(1)
             else
                 activePackageLoc = nil
@@ -2964,10 +2982,7 @@ local function startCourierLoop()
                 task.wait(0.5)
             end
 
-        -- FASE 2: AMBIL PAKET KE DEPOT (JIKA BELUM MEMILIKI KOTAK)
         else
-            -- [MODIFIED] Hanya balik ke depot jika benar-benar tidak ada paket baru dan tidak memegang kotak.
-            -- Di sini kita langsung pergi ke depot untuk ambil paket (karena memang tidak ada)
             State.CourierPhase = "Ke Depot"
             spawnAndMountBike()
             task.wait(0.4)
