@@ -9,7 +9,8 @@
                       + Instant Respawn & Auto-Seat Motor Setiap Ambil & Drop Paket
                       + Permanent Noclip (Karakter, Motor, & Penumpang Stepped)
                       + Watchdog 8s: Auto Spawn/Despawn Motor jika Rute Bug
-                      + Anti-Kick 3 Lapis (Hook + Random Keypress + Heartbeat F15)
+                      + Anti-Kick Kebal (Namecall + Index + Idled Disabler)
+                      + Pure Native Input (Bebas Virtual Cursor & Bebas Mouse)
                       + Auto-Recovery Respawn Karakter
                       + Tri-Layer Garage Scanner (Remote + Upvalues + GC Engine)
                       + Strict Vehicle Ownership Verification (Anti-Motor Orang)
@@ -38,7 +39,7 @@ local function safeDestroy(obj)
 end
 
 -- ============================================================================
--- // 0. ULTIMATE BYPASS "GACOR" — DDS TARGETED
+-- // 0. ULTIMATE BYPASS "GACOR" — DDS TARGETED (ANTI-KICK REINFORCED)
 -- ============================================================================
 do
     local LocalPlayer = game:GetService("Players").LocalPlayer
@@ -83,11 +84,12 @@ do
         BLog("HTTP Blocker aktif")
     end)
 
-    -- ── [3] METATABLE HOOK — Anti-Kick + DDS Remote Blocker ───────────
+    -- ── [3] METATABLE HOOK — Anti-Kick (Namecall & Index) + DDS Blocker ─
     pcall(function()
         local mt = getrawmetatable(game)
         if not mt then return end
         local oldNamecall = rawget(mt, "__namecall")
+        local oldIndex = rawget(mt, "__index")
         if not oldNamecall then return end
         if not pcall(setreadonly, mt, false) then return end
 
@@ -101,17 +103,18 @@ do
         }
 
         setreadonly(mt, false)
+
         mt.__namecall = newcclosure(function(self, ...)
             local method = getnamecallmethod and getnamecallmethod() or ""
 
             if (method:lower() == "kick" or method == "Disconnect")
-                and tostring(self) == tostring(LocalPlayer)
+                and (self == LocalPlayer or tostring(self) == tostring(LocalPlayer))
             then
                 if getgenv().allowSelfKick then
                     getgenv().allowSelfKick = false
                     return oldNamecall(self, ...)
                 end
-                BWarn("Kick diblokir!")
+                BWarn("Kick diblokir via namecall!")
                 return nil
             end
 
@@ -137,8 +140,25 @@ do
 
             return oldNamecall(self, ...)
         end)
+
+        if oldIndex then
+            mt.__index = newcclosure(function(self, k)
+                if (tostring(k):lower() == "kick") and (self == LocalPlayer or tostring(self) == tostring(LocalPlayer)) then
+                    return newcclosure(function(...)
+                        if getgenv().allowSelfKick then
+                            getgenv().allowSelfKick = false
+                            return oldNamecall(self, ...)
+                        end
+                        BWarn("Kick diblokir via index!")
+                        return nil
+                    end)
+                end
+                return oldIndex(self, k)
+            end)
+        end
+
         setreadonly(mt, true)
-        BLog("Metatable Hook aktif (Anti-Kick + Remote Blocker)")
+        BLog("Metatable Hook aktif (Anti-Kick Multi-Layer)")
     end)
 
     -- ── [4] WRONGTEAMEVENT INTERCEPTOR ────────────────────────────────
@@ -241,21 +261,17 @@ do
         end)
     end
 
-    BLog("Smart AC Killer aktif (scan 5s + ChildAdded monitor)")
+    BLog("Smart AC Killer aktif")
 
     -- ── [7] EXTERNAL BYPASS ───────────────────────────────────────────
     task.spawn(function()
-        local ok1, e1 = pcall(function()
+        pcall(function()
             loadstring(game:HttpGet("https://raw.githubusercontent.com/Pixeluted/adoniscries/main/Source.lua", true))()
         end)
-        BLog(ok1 and "AdonisCries loaded" or "AdonisCries gagal: " .. tostring(e1))
-
         task.wait(1)
-
-        local ok2, e2 = pcall(function()
+        pcall(function()
             loadstring(game:HttpGet("https://raw.githubusercontent.com/SUUUUUS00000/MEGGD-Anti-kick/refs/heads/main/MEGGD%20Best%20Anti-kick.lua"))()
         end)
-        BLog(ok2 and "MEGGD Anti-Kick loaded" or "MEGGD gagal: " .. tostring(e2))
     end)
 end
 
@@ -315,7 +331,6 @@ local Services = {
     PathfindingService  = game:GetService("PathfindingService"),
     ReplicatedStorage   = game:GetService("ReplicatedStorage"),
     StarterGui          = game:GetService("StarterGui"),
-    VirtualInputManager = game:GetService("VirtualInputManager"),
 }
 
 local LocalPlayer = Services.Players.LocalPlayer
@@ -345,22 +360,34 @@ LocalPlayer.CharacterAdded:Connect(function()
 end)
 
 -- ============================================================================
--- // SAFE INPUT SYSTEM (TANPA VIRTUALUSER)
+-- // SAFE UI INTERACTION (BEBAS VIRTUAL MOUSE & BEBAS KURSOR)
 -- ============================================================================
-local function SafeClick(x, y, holdTime)
-    holdTime = holdTime or 0.05
+local function SafeClickGui(btn)
+    if not btn then return false end
+    local triggered = false
+
     pcall(function()
-        if mousemover and mouse1press and mouse1release then
-            mousemover(x, y)
-            mouse1press(x, y)
-            task.wait(holdTime)
-            mouse1release(x, y)
-        elseif mousemover and mouse1click then
-            mousemover(x, y)
-            task.wait(0.01)
-            mouse1click()
+        if firesignal then
+            firesignal(btn.Activated)
+            firesignal(btn.MouseButton1Click)
+            triggered = true
         end
     end)
+
+    if not triggered and getconnections then
+        pcall(function()
+            for _, sig in ipairs({btn.Activated, btn.MouseButton1Click}) do
+                for _, conn in ipairs(getconnections(sig)) do
+                    if conn.Function then
+                        conn.Function()
+                        triggered = true
+                    end
+                end
+            end
+        end)
+    end
+
+    return triggered
 end
 
 -- ============================================================================
@@ -398,71 +425,29 @@ local State = {
 }
 
 -- ============================================================================
--- // ANTI-KICK & KEEPALIVE 3 LAPIS
+-- // PURE ANTI-AFK (TANPA VIRTUAL INPUT MANAGER / TANPA KURSOR MOUSE)
 -- ============================================================================
 pcall(function()
-    if not hookmetamethod or not newcclosure or not getnamecallmethod then return end
-    local _origNamecall
-    _origNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-        if self == LocalPlayer and getnamecallmethod():lower() == "kick" then
-            if getgenv().allowSelfKick then
-                getgenv().allowSelfKick = false
-                return _origNamecall(self, ...)
-            end
-            return nil
+    if getconnections then
+        for _, conn in pairs(getconnections(LocalPlayer.Idled)) do
+            if conn.Disable then conn:Disable() end
+            if conn.Disconnect then conn:Disconnect() end
         end
-        return _origNamecall(self, ...)
-    end))
+    end
 end)
 
 LocalPlayer.Idled:Connect(function()
     if State.AntiAFK then
         pcall(function()
-            Services.VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-            task.wait(0.05)
-            Services.VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
             local cam = workspace.CurrentCamera
             if cam then
-                cam.CFrame = cam.CFrame * CFrame.Angles(0, math.rad(1), 0)
+                cam.CFrame = cam.CFrame * CFrame.Angles(0, math.rad(0.05), 0)
                 task.wait(0.05)
-                cam.CFrame = cam.CFrame * CFrame.Angles(0, math.rad(-1), 0)
+                cam.CFrame = cam.CFrame * CFrame.Angles(0, math.rad(-0.05), 0)
             end
         end)
     end
 end)
-
-task.spawn(function()
-    local _keyPool = {
-        Enum.KeyCode.W, Enum.KeyCode.A, Enum.KeyCode.S, Enum.KeyCode.D,
-        Enum.KeyCode.Space, Enum.KeyCode.LeftShift, Enum.KeyCode.E,
-    }
-    while true do
-        task.wait(math.random(45, 75))
-        if State.AntiAFK then
-            pcall(function()
-                local k = _keyPool[math.random(1, #_keyPool)]
-                Services.VirtualInputManager:SendKeyEvent(true, k, false, game)
-                task.wait(0.04 + math.random() * 0.04)
-                Services.VirtualInputManager:SendKeyEvent(false, k, false, game)
-            end)
-        end
-    end
-end)
-
-do
-    local _lastKA = tick()
-    Services.RunService.Heartbeat:Connect(function()
-        if tick() - _lastKA < 30 then return end
-        _lastKA = tick()
-        task.spawn(function()
-            pcall(function()
-                Services.VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F15, false, game)
-                task.wait(0.02)
-                Services.VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F15, false, game)
-            end)
-        end)
-    end)
-end
 
 -- ============================================================================
 -- // 3.5 FAKE NAME SYSTEM
@@ -577,12 +562,16 @@ local function DoHold(prompt, targetPart)
     local ok = false
     pcall(function()
         prompt.Enabled = true
-        pcall(function()
-            prompt.RequiresLineOfSight = false
-            if (prompt.MaxActivationDistance or 0) < 30 then
-                prompt.MaxActivationDistance = 30
-            end
-        end)
+        prompt.RequiresLineOfSight = false
+        if (prompt.MaxActivationDistance or 0) < 30 then
+            prompt.MaxActivationDistance = 30
+        end
+
+        if fireproximityprompt then
+            fireproximityprompt(prompt)
+            ok = true
+            return
+        end
 
         local part = targetPart or (prompt.Parent:IsA("BasePart") and prompt.Parent) or CharRef.Root
         focusCameraZoom(true, part)
@@ -604,12 +593,16 @@ local function DoTap(prompt, targetPart)
     local ok = false
     pcall(function()
         prompt.Enabled = true
-        pcall(function()
-            prompt.RequiresLineOfSight = false
-            if (prompt.MaxActivationDistance or 0) < 30 then
-                prompt.MaxActivationDistance = 30
-            end
-        end)
+        prompt.RequiresLineOfSight = false
+        if (prompt.MaxActivationDistance or 0) < 30 then
+            prompt.MaxActivationDistance = 30
+        end
+
+        if fireproximityprompt then
+            fireproximityprompt(prompt)
+            ok = true
+            return
+        end
 
         local part = targetPart or (prompt.Parent:IsA("BasePart") and prompt.Parent) or CharRef.Root
         focusCameraZoom(true, part)
@@ -1083,23 +1076,21 @@ local function FindByColor(parent, col, tol)
 end
 
 -- ============================================================================
--- // 11. AI MINIGAME (BARISTA)
+-- // 11. AI MINIGAME (BARISTA - PURE EVENT TAP, TANPA MOUSEMOVER)
 -- ============================================================================
 local function StartMinigameAI()
     if State.AiThread then task.cancel(State.AiThread) end
     State.AiThread = task.spawn(function()
-        local cam = Services.Workspace.CurrentCamera
         while State.IsBaristaActive do
-            task.wait(0.016)
+            task.wait(0.03)
             local gui = LocalPlayer.PlayerGui:FindFirstChild("BaristaGUI")
             if not gui then task.wait(0.1); continue end
             local mf = gui:FindFirstChild("MinigameFrame", true)
             if not (mf and mf.Visible) then task.wait(0.1); continue end
 
-            local cx = (cam.ViewportSize.X/2) + math.random(-15,15)
-            local cy = (cam.ViewportSize.Y/2) + math.random(-15,15)
-            local pill, bar = nil, nil
+            local tapTarget = mf:FindFirstChildOfClass("GuiButton") or mf:FindFirstChildOfClass("Frame") or mf
 
+            local pill, bar = nil, nil
             for _, v in pairs(mf:GetDescendants()) do
                 if v:IsA("Frame") or v:IsA("ImageLabel") then
                     local nm = v.Name:lower()
@@ -1111,32 +1102,21 @@ local function StartMinigameAI()
             if not pill then pill = FindByColor(mf, Constants.COLOR_ORANGE, 0.6) end
             if not bar  then bar  = FindByColor(mf, Constants.COLOR_GREEN,  0.6) end
 
-            if not pill or not bar then
-                local els = {}
-                for _, v in pairs(mf:GetDescendants()) do
-                    if (v:IsA("Frame") or v:IsA("ImageLabel")) and v.Visible
-                        and v.BackgroundTransparency < 0.9 and v.AbsoluteSize.Y > 10
-                    then table.insert(els, v) end
-                end
-                table.sort(els, function(a,b) return a.AbsolutePosition.X < b.AbsolutePosition.X end)
-                if #els >= 2 then pill = els[1]; bar = els[#els] end
-            end
-
             if pill and bar then
                 local diff = (pill.AbsolutePosition.Y + pill.AbsoluteSize.Y/2)
                            - (bar.AbsolutePosition.Y  + bar.AbsoluteSize.Y/2)
                 if diff > 6 then
-                    SafeClick(cx, cy, math.random(55,90)/1000)
-                    task.wait(math.random(30,60)/1000)
+                    SafeClickGui(tapTarget)
+                    task.wait(0.06)
                 elseif diff < -6 then
-                    task.wait(0.016)
+                    task.wait(0.02)
                 else
-                    SafeClick(cx, cy, math.random(50,80)/1000)
-                    task.wait(math.random(80,130)/1000)
+                    SafeClickGui(tapTarget)
+                    task.wait(0.1)
                 end
             else
-                SafeClick(cx, cy, math.random(55,90)/1000)
-                task.wait(math.random(60,100)/1000)
+                SafeClickGui(tapTarget)
+                task.wait(0.08)
             end
         end
     end)
@@ -1271,7 +1251,6 @@ end
 -- ============================================================================
 -- // 13. OFFICE JOB SYSTEM & MONITORING
 -- ============================================================================
-local playerGui       = LocalPlayer:WaitForChild("PlayerGui")
 local ComputersFolder = workspace:WaitForChild("Computers")
 
 local function eksekusiPromptTahan(pp)
@@ -1403,7 +1382,7 @@ local function dudukKeKursi(instantTP)
 end
 
 -- ============================================================================
--- // AUTO JAWAB SOAL MATEMATIKA (OFFICE)
+-- // AUTO JAWAB SOAL MATEMATIKA (OFFICE - NATIVE FIRESIGNAL)
 -- ============================================================================
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
@@ -1477,25 +1456,6 @@ local function unhighlightLater(btn, delaySec)
     end)
 end
 
-local function pressButton(btn)
-    if getconnections then
-        for _, signal in ipairs({btn.MouseButton1Click, btn.Activated}) do
-            for _, conn in ipairs(getconnections(signal)) do
-                if conn.Function then
-                    if pcall(conn.Function) then return "handler-asli" end
-                end
-            end
-        end
-    end
-    local ok = pcall(function()
-        local pos = btn.AbsolutePosition
-        local size = btn.AbsoluteSize
-        SafeClick(pos.X + size.X / 2, pos.Y + size.Y / 2, 0.06)
-    end)
-    if ok then return "safe-click" end
-    return nil
-end
-
 local lastActivityTime = tick()
 
 GenerateQuestion.OnClientEvent:Connect(function(questionText, answerData, sessionID)
@@ -1517,7 +1477,7 @@ GenerateQuestion.OnClientEvent:Connect(function(questionText, answerData, sessio
     end
 
     if correctButton then
-        pressButton(correctButton)
+        SafeClickGui(correctButton)
         unhighlightLater(correctButton, 0.4)
     else
         clearHighlights()
@@ -2280,12 +2240,11 @@ local function getMovers(primary)
 end
 
 -- ============================================================================
--- // PERMANENT NOCLIP (TEMBUS TEMBOK STEPPED — KARAKTER, MOTOR & PENUMPANG)
+-- // PERMANENT NOCLIP (STEPPED — KARAKTER, MOTOR & PENUMPANG)
 -- ============================================================================
 Services.RunService.Stepped:Connect(function()
     if State.IsRideGOActive or State.IsCourierActive then
         pcall(function()
-            -- 1. Noclip Karakter Sendiri
             if CharRef.Character then
                 for _, part in ipairs(CharRef.Character:GetDescendants()) do
                     if part:IsA("BasePart") then
@@ -2294,7 +2253,6 @@ Services.RunService.Stepped:Connect(function()
                 end
             end
 
-            -- 2. Noclip Motor Sendiri
             local bike = getBikeModel() or findMyMotor()
             if bike then
                 for _, part in ipairs(bike:GetDescendants()) do
@@ -2304,7 +2262,6 @@ Services.RunService.Stepped:Connect(function()
                 end
             end
 
-            -- 3. Noclip Penumpang RideGO (workspace.ActiveMissions.RideGO_Passenger)
             local activeMissions = Services.Workspace:FindFirstChild("ActiveMissions")
             if activeMissions then
                 local passenger = activeMissions:FindFirstChild("RideGO_Passenger")
@@ -2324,7 +2281,7 @@ Services.RunService.Stepped:Connect(function()
 end)
 
 -- ============================================================================
--- // CORE GO-JEK ENGINE: SPAWN, DESPAWN & NAIK MOTOR
+-- // CORE ENGINE: SPAWN, DESPAWN & NAIK MOTOR
 -- ============================================================================
 local DealershipEvents = Services.ReplicatedStorage:WaitForChild("DealershipEvents", 10)
 local SpawnCarEvents   = Services.ReplicatedStorage:WaitForChild("SpawnCarEvents", 10)
@@ -2333,7 +2290,6 @@ local function spawnAndMountBike()
     if not SELECTED_CAR then FetchOwnedVehicles() end
     if not SELECTED_CAR then return nil end
 
-    -- Despawn motor lama
     pcall(function()
         if SpawnCarEvents:FindFirstChild("DespawnCar") then
             SpawnCarEvents.DespawnCar:FireServer()
@@ -2343,7 +2299,6 @@ local function spawnAndMountBike()
     end)
     task.wait(0.8)
 
-    -- Panggil remote untuk spawn
     pcall(function()
         if DealershipEvents:FindFirstChild("InitializeCarData") then
             DealershipEvents.InitializeCarData:InvokeServer()
@@ -2356,7 +2311,6 @@ local function spawnAndMountBike()
         end
     end)
 
-    -- Tunggu seat muncul (jarak 100)
     local seatFound = nil
     local timeout = tick() + 8
     while tick() < timeout and not seatFound do
@@ -2377,14 +2331,12 @@ local function spawnAndMountBike()
         end
     end
 
-    -- Langsung duduk di jok (CFrame seat persis)
     if seatFound and CharRef.Humanoid and CharRef.Root then
         CharRef.Root.CFrame = seatFound.CFrame
         task.wait(0.1)
         seatFound:Sit(CharRef.Humanoid)
         task.wait(0.5)
 
-        -- Verifikasi duduk, ulangi jika gagal
         if CharRef.Humanoid.SeatPart ~= seatFound then
             CharRef.Root.CFrame = seatFound.CFrame
             task.wait(0.1)
@@ -2392,7 +2344,6 @@ local function spawnAndMountBike()
             task.wait(0.5)
         end
 
-        -- Stabilkan motor
         local primary = seatFound.Parent.PrimaryPart or seatFound
         getMovers(primary)
 
@@ -2411,7 +2362,6 @@ local function ensureBike()
         end
     end
 
-    -- Jika sudah duduk di motor milik sendiri, langsung return
     local bike = getBikeModel()
     if bike and isVehicleMine(bike) and CharRef.Humanoid and CharRef.Humanoid.SeatPart then
         local primary = bike.PrimaryPart or bike:FindFirstChild("VehicleSeat") or bike:FindFirstChildOfClass("BasePart")
@@ -2419,7 +2369,6 @@ local function ensureBike()
         return bike
     end
 
-    -- Cari motor yang sudah ada di dekat
     local existing = findMyMotor()
     if existing and CharRef.Root and CharRef.Humanoid then
         local seat = existing:FindFirstChildOfClass("VehicleSeat") or existing:FindFirstChild("DriveSeat", true)
@@ -2437,7 +2386,6 @@ local function ensureBike()
         end
     end
 
-    -- Kalau tidak ada, spawn baru
     return spawnAndMountBike()
 end
 
@@ -3334,12 +3282,12 @@ end
 LocalPlayer:GetPropertyChangedSignal("Team"):Connect(OnRideGOTeamChanged)
 
 -- ============================================================================
--- // 16.5 DISCORD WEBHOOK SYSTEM (FREE & SUPER RAPI — TANPA EMOJI, SEMUA INLINE)
+-- // 16.5 DISCORD WEBHOOK SYSTEM (FREE & SUPER RAPI — INLINE)
 -- ============================================================================
 getgenv().WebhookSettings = {
     URL = "",
     Enabled = false,
-    Interval = 15 -- menit
+    Interval = 15
 }
 
 local httprequest = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
@@ -3399,17 +3347,12 @@ function SendDiscordWebhook(statusTitle)
                 ["url"] = "https://cdn-icons-png.flaticon.com/512/2694/2694157.png"
             },
             ["fields"] = {
-                -- Baris 1 (3 Kolom)
                 {["name"] = "Player",          ["value"] = "||" .. game.Players.LocalPlayer.Name .. "||", ["inline"] = true},
                 {["name"] = "Active Job",      ["value"] = jobName,                                       ["inline"] = true},
                 {["name"] = "Current Money",   ["value"] = "**" .. fmtRupiah(uangSekarang) .. "**",       ["inline"] = true},
-
-                -- Baris 2 (3 Kolom)
                 {["name"] = "Total Profit",    ["value"] = profitStr,                                    ["inline"] = true},
                 {["name"] = "Profit / Hour",   ["value"] = profitHStr,                                   ["inline"] = true},
                 {["name"] = "Target Profit",   ["value"] = targetStr,                                    ["inline"] = true},
-
-                -- Baris 3 (3 Kolom)
                 {["name"] = stat1,             ["value"] = val1,                                         ["inline"] = true},
                 {["name"] = stat2,             ["value"] = val2,                                         ["inline"] = true},
                 {["name"] = "Uptime",          ["value"] = formatTime(uptimeDetik),                      ["inline"] = true}
@@ -3433,7 +3376,6 @@ function SendDiscordWebhook(statusTitle)
     end)
 end
 
--- // LOOP OTOMATIS WEBHOOK (DINAMIS MENGIKUTI INTERVAL SLIDER)
 local lastWebhookTick = tick()
 
 task.spawn(function()
