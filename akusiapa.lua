@@ -8,7 +8,7 @@
                       + Auto Courier (100% Fix Drop Paket & Auto Delivered +1)
                       + Instant Respawn & Auto-Seat Motor Setiap Ambil & Drop Paket
                       + Permanent Noclip (Karakter, Motor, & Penumpang Stepped)
-                      + Watchdog 30s: Auto Reset Motor jika Rute Gagal
+                      + Watchdog 8s: Auto Spawn/Despawn Motor jika Rute Bug
                       + Anti-Kick 3 Lapis (Hook + Random Keypress + Heartbeat F15)
                       + Auto-Recovery Respawn Karakter
                       + Tri-Layer Garage Scanner (Remote + Upvalues + GC Engine)
@@ -3230,7 +3230,7 @@ TaxiEvent.OnClientEvent:Connect(function(action, data)
 end)
 
 -- ============================================================================
--- // RIDEGO FLIGHT DISPATCHER (WATCHDOG 30S ANTI-NYANGKUT)
+-- // RIDEGO FLIGHT DISPATCHER (WATCHDOG 8S ANTI-NYANGKUT)
 -- ============================================================================
 task.spawn(function()
     while true do
@@ -3249,14 +3249,14 @@ task.spawn(function()
                 State.RideGOPhase = "waitingDropOff"
 
                 local arrivedAt = tick()
-                while State.IsRideGOActive and State.RideGOPhase == "waitingDropOff" and (tick() - arrivedAt < 30) do
+                while State.IsRideGOActive and State.RideGOPhase == "waitingDropOff" and (tick() - arrivedAt < 8) do
                     task.wait(0.5)
                 end
 
                 if State.RideGOPhase == "waitingDropOff" then
                     WindUI:Notify({
                         Title    = "⚠️ Rute Gagal / Macet",
-                        Content  = "Penumpang tidak turun (30s). Auto reset motor & cari order lain...",
+                        Content  = "Nyangkut verifikasi rute (8s). Auto reset motor & cari order lain...",
                         Duration = 4
                     })
 
@@ -3267,7 +3267,10 @@ task.spawn(function()
                         end
                     end)
 
-                    resetMotorDanNaik()
+                    -- [PERBAIKAN] Paksa karakter turun, lalu despawn motor lama dan keluarkan motor baru
+                    forceDismount()
+                    task.wait(0.5)
+                    spawnAndMountBike()
 
                     State.RideGOToken     = nil
                     State.RideGOTargetPos = nil
