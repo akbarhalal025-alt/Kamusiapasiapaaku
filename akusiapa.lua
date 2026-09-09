@@ -5,6 +5,8 @@
     [+] Developer   : King Akbar
     [+] Game        : Drag Drive Simulator
     [+] Fitur       : + Auto RideGO Driver (Void Gate Ultra + Anti-Kick Stabil)
+                      + Silent Humanizer Cycle (Auto Reset Motor Acak 3-7 Trip)
+                      + Dynamic Speed Range (Slider Min & Max Speed Terpisah)
                       + Auto Courier (100% Fix Drop Paket & Auto Delivered +1)
                       + Instant Respawn & Auto-Seat Motor Setiap Ambil & Drop Paket
                       + Permanent Noclip (Karakter, Motor, & Penumpang Stepped)
@@ -348,9 +350,6 @@ end)
 -- ============================================================================
 local function SafeClick(x, y, holdTime)
     holdTime = holdTime or 0.05
-    -- Jangan gunakan mousemover, mouse1press, mouse1release, mouse1click
-    -- Ini semua adalah input sintetis yang mudah terdeteksi.
-    -- Jika tombol GUI ditemukan, panggil fungsi langsung.
     pcall(function()
         local gui = LocalPlayer:FindFirstChild("PlayerGui")
         if not gui then return end
@@ -378,38 +377,48 @@ end
 -- // 3. STATE MANAGER
 -- ============================================================================
 local State = {
-    IsBaristaActive    = false,
-    IsOfficeActive     = false,
-    IsCourierActive    = false,
-    IsRideGOActive     = false,
-    AiThread           = nil,
-    StatusText         = "Idling...",
-    OrderCount         = 0,
-    ActionDelay        = 5,
-    AntiAFK            = true,
-    AntiAdmin          = true,
-    UangAwal           = 0,
-    UangAwalSession    = 0,
-    SessionStartTime   = 0,
-    LastStopReason     = "",
-    MachineFixCount    = 0,
-    OfficeMathSolved   = 0,
-    OfficePrints       = 0,
-    CourierDelivered   = 0,
-    CourierPhase       = "Idle",
-    FakeNameActive     = false,
-    FakeName           = "King Akbar",
-    TargetProfit       = 0,
-    RideGOIsOnline     = false,
-    RideGOPhase        = "idle",
-    RideGOToken        = nil,
-    RideGOTargetPos    = nil,
-    RideGOTripCount    = 0,
-    RideGOEarnings     = 0,
+    IsBaristaActive      = false,
+    IsOfficeActive       = false,
+    IsCourierActive      = false,
+    IsRideGOActive       = false,
+    AiThread             = nil,
+    StatusText           = "Idling...",
+    OrderCount           = 0,
+    ActionDelay          = 5,
+    AntiAFK              = true,
+    AntiAdmin            = true,
+    UangAwal             = 0,
+    UangAwalSession      = 0,
+    SessionStartTime     = 0,
+    LastStopReason       = "",
+    MachineFixCount      = 0,
+    OfficeMathSolved     = 0,
+    OfficePrints         = 0,
+    CourierDelivered     = 0,
+    CourierPhase         = "Idle",
+    FakeNameActive       = false,
+    FakeName             = "King Akbar",
+    TargetProfit         = 0,
+    RideGOIsOnline       = false,
+    RideGOPhase          = "idle",
+    RideGOToken          = nil,
+    RideGOTargetPos      = nil,
+    RideGOTripCount      = 0,
+    RideGOEarnings       = 0,
+
+    -- Konfigurasi Rentang Kecepatan (Min & Max Terpisah)
+    RideGOMinSpeed       = 180,
+    RideGOMaxSpeed       = 220,
+    CourierMinSpeed      = 180,
+    CourierMaxSpeed      = 220,
+
+    -- Auto Silent Humanizer Cycle (Reset Motor 3-7 Trip)
+    NextBikeCycle        = math.random(3, 7),
+    CurrentCycleTrips    = 0,
 }
 
 -- ============================================================================
--- // ANTI-KICK & KEEPALIVE (TANPA VIRTUAL INPUT, AMAN)
+-- // ANTI-KICK & KEEPALIVE (TANPA VIRTUAL INPUT)
 -- ============================================================================
 pcall(function()
     if not hookmetamethod or not newcclosure or not getnamecallmethod then return end
@@ -426,7 +435,6 @@ pcall(function()
     end))
 end)
 
--- IDLED: Ganti dari SendKeyEvent menjadi gerakan kamera / karakter saja
 LocalPlayer.Idled:Connect(function()
     if State.AntiAFK then
         pcall(function()
@@ -436,7 +444,6 @@ LocalPlayer.Idled:Connect(function()
                 task.wait(0.05)
                 cam.CFrame = cam.CFrame * CFrame.Angles(0, math.rad(-1), 0)
             end
-            -- Geser karakter sedikit
             if CharRef.Root and CharRef.Humanoid then
                 CharRef.Humanoid:MoveTo(CharRef.Root.Position + Vector3.new(1, 0, 0))
                 task.wait(0.05)
@@ -445,9 +452,6 @@ LocalPlayer.Idled:Connect(function()
         end)
     end
 end)
-
--- HAPUS Random Key Spam (VirtualInputManager)
--- HAPUS Heartbeat F15 (VirtualInputManager)
 
 -- ============================================================================
 -- // 3.5 FAKE NAME SYSTEM
@@ -1472,7 +1476,6 @@ local function pressButton(btn)
             end
         end
     end
-    -- TANPA SafeClick! Karena itu mouse sintetis.
     return nil
 end
 
@@ -2260,12 +2263,11 @@ local function getMovers(primary)
 end
 
 -- ============================================================================
--- // PERMANENT NOCLIP (TEMBUS TEMBOK STEPPED — KARAKTER, MOTOR & PENUMPANG)
+-- // PERMANENT NOCLIP (TEMBUS TEMBOK STEPPED)
 -- ============================================================================
 Services.RunService.Stepped:Connect(function()
     if State.IsRideGOActive or State.IsCourierActive then
         pcall(function()
-            -- 1. Noclip Karakter Sendiri
             if CharRef.Character then
                 for _, part in ipairs(CharRef.Character:GetDescendants()) do
                     if part:IsA("BasePart") then
@@ -2274,7 +2276,6 @@ Services.RunService.Stepped:Connect(function()
                 end
             end
 
-            -- 2. Noclip Motor Sendiri
             local bike = getBikeModel() or findMyMotor()
             if bike then
                 for _, part in ipairs(bike:GetDescendants()) do
@@ -2284,18 +2285,13 @@ Services.RunService.Stepped:Connect(function()
                 end
             end
 
-            -- 3. Noclip Penumpang RideGO (workspace.ActiveMissions.RideGO_Passenger)
             local activeMissions = Services.Workspace:FindFirstChild("ActiveMissions")
             if activeMissions then
                 local passenger = activeMissions:FindFirstChild("RideGO_Passenger")
                 if passenger then
-                    if passenger:IsA("BasePart") then
-                        passenger.CanCollide = false
-                    end
+                    if passenger:IsA("BasePart") then passenger.CanCollide = false end
                     for _, part in ipairs(passenger:GetDescendants()) do
-                        if part:IsA("BasePart") then
-                            part.CanCollide = false
-                        end
+                        if part:IsA("BasePart") then part.CanCollide = false end
                     end
                 end
             end
@@ -2313,7 +2309,6 @@ local function spawnAndMountBike()
     if not SELECTED_CAR then FetchOwnedVehicles() end
     if not SELECTED_CAR then return nil end
 
-    -- Despawn motor lama
     pcall(function()
         if SpawnCarEvents:FindFirstChild("DespawnCar") then
             SpawnCarEvents.DespawnCar:FireServer()
@@ -2323,7 +2318,6 @@ local function spawnAndMountBike()
     end)
     task.wait(0.8)
 
-    -- Panggil remote untuk spawn
     pcall(function()
         if DealershipEvents:FindFirstChild("InitializeCarData") then
             DealershipEvents.InitializeCarData:InvokeServer()
@@ -2336,7 +2330,6 @@ local function spawnAndMountBike()
         end
     end)
 
-    -- Tunggu seat muncul (jarak 100)
     local seatFound = nil
     local timeout = tick() + 8
     while tick() < timeout and not seatFound do
@@ -2357,14 +2350,12 @@ local function spawnAndMountBike()
         end
     end
 
-    -- Langsung duduk di jok (CFrame seat persis)
     if seatFound and CharRef.Humanoid and CharRef.Root then
         CharRef.Root.CFrame = seatFound.CFrame
         task.wait(0.1)
         seatFound:Sit(CharRef.Humanoid)
         task.wait(0.5)
 
-        -- Verifikasi duduk, ulangi jika gagal
         if CharRef.Humanoid.SeatPart ~= seatFound then
             CharRef.Root.CFrame = seatFound.CFrame
             task.wait(0.1)
@@ -2372,7 +2363,6 @@ local function spawnAndMountBike()
             task.wait(0.5)
         end
 
-        -- Stabilkan motor
         local primary = seatFound.Parent.PrimaryPart or seatFound
         getMovers(primary)
 
@@ -2391,7 +2381,6 @@ local function ensureBike()
         end
     end
 
-    -- Jika sudah duduk di motor milik sendiri, langsung return
     local bike = getBikeModel()
     if bike and isVehicleMine(bike) and CharRef.Humanoid and CharRef.Humanoid.SeatPart then
         local primary = bike.PrimaryPart or bike:FindFirstChild("VehicleSeat") or bike:FindFirstChildOfClass("BasePart")
@@ -2399,7 +2388,6 @@ local function ensureBike()
         return bike
     end
 
-    -- Cari motor yang sudah ada di dekat
     local existing = findMyMotor()
     if existing and CharRef.Root and CharRef.Humanoid then
         local seat = existing:FindFirstChildOfClass("VehicleSeat") or existing:FindFirstChild("DriveSeat", true)
@@ -2417,7 +2405,6 @@ local function ensureBike()
         end
     end
 
-    -- Kalau tidak ada, spawn baru
     return spawnAndMountBike()
 end
 
@@ -2445,13 +2432,11 @@ end
 -- ============================================================================
 -- // GLOBAL FLIGHT ENGINE (VOID GATE & HOVER TERBANG TEMBUS TEMBOK)
 -- ============================================================================
-local MAX_SPEED_LIMIT = 250
-local MIN_SPEED_LIMIT = 200
-local HOVER_HEIGHT    = 12
+local HOVER_HEIGHT    = 4
 local VOID_STOP_TIME  = 0.08
 local VOID_SCAN_MAX   = 4000
 local VOID_SCAN_STEP  = 60
-local HOP_DISTANCE    = 700
+local HOP_DISTANCE    = 600
 local HOP_MAX         = 20
 local STREAM_WAIT_MAX = 4
 
@@ -2540,9 +2525,25 @@ local function flyToTarget(targetPos)
     bv.MaxForce  = Vector3.new(1e9, 1e9, 1e9)
     bg.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
 
-    local reached     = false
-    local flatTarget  = Vector3.new(targetPos.X, 0, targetPos.Z)
-    local baseSpeed   = math.random(MIN_SPEED_LIMIT, MAX_SPEED_LIMIT)
+    local reached    = false
+    local flatTarget = Vector3.new(targetPos.X, 0, targetPos.Z)
+
+    -- Dynamic Random Speed (math.random antara MIN & MAX yang disetel user)
+    local minSpd = 180
+    local maxSpd = 220
+    if State.IsRideGOActive then
+        minSpd = tonumber(State.RideGOMinSpeed) or 180
+        maxSpd = tonumber(State.RideGOMaxSpeed) or 220
+    elseif State.IsCourierActive then
+        minSpd = tonumber(State.CourierMinSpeed) or 180
+        maxSpd = tonumber(State.CourierMaxSpeed) or 220
+    end
+
+    if minSpd > maxSpd then
+        minSpd, maxSpd = maxSpd, minSpd
+    end
+
+    local baseSpeed = math.random(math.floor(minSpd), math.floor(maxSpd))
 
     local function voidStopAndTP()
         local stopStart = tick()
@@ -2642,13 +2643,8 @@ local function flyToTarget(targetPos)
 
     pcall(function()
         while isFlightAllowed() do
-            if not primary.Parent or not CharRef.Humanoid then
-                break
-            end
-
-            if not CharRef.Humanoid or CharRef.Humanoid.Health <= 0 then
-                break 
-            end
+            if not primary.Parent or not CharRef.Humanoid then break end
+            if not CharRef.Humanoid or CharRef.Humanoid.Health <= 0 then break end
 
             if not CharRef.Humanoid.SeatPart then
                 pcall(function()
@@ -2657,7 +2653,6 @@ local function flyToTarget(targetPos)
                 end)
 
                 local bike2 = spawnAndMountBike()
-                
                 if bike2 then
                     local primary2 = bike2.PrimaryPart or bike2:FindFirstChild("VehicleSeat") or bike2:FindFirstChildOfClass("BasePart")
                     if primary2 then
@@ -3140,7 +3135,7 @@ local function InjectMesin(HP_Mult, RPM_Add, Ratio_Mult, FD_Mult, NamaMode)
 end
 
 -- ============================================================================
--- // 16. AUTO RIDEGO DRIVER (TUNED NETWORK + ANTI-DESYNC)
+-- // 16. AUTO RIDEGO DRIVER (TUNED NETWORK + SILENT HUMANIZER CYCLE)
 -- ============================================================================
 local TaxiEvent = Services.ReplicatedStorage
     :WaitForChild("TaxiAssets", 10)
@@ -3152,7 +3147,7 @@ LocalPlayer.CharacterAdded:Connect(function()
     if not (State.IsRideGOActive or State.IsCourierActive) then return end
     task.wait(1.5)
     pcall(ensureBike)
-    if not State.RideGOTargetPos and State.RideGOPhase ~= "idle" then
+    if not State.RideGOTargetPos and State.RideGOPhase ~= "idle" and State.RideGOPhase ~= "cycling" then
         State.RideGOPhase = "idle"
     end
 end)
@@ -3197,14 +3192,44 @@ TaxiEvent.OnClientEvent:Connect(function(action, data)
         task.delay(1, function() TaxiEvent:FireServer("AckTripComplete") end)
         State.RideGOToken     = nil
         State.RideGOTargetPos = nil
-        State.RideGOPhase     = "idle"
+
+        -- AUTO HUMANIZER: RESET MOTOR SECARA ACAK ANTARA 3 - 7 TRIP (SILENT / NO NOTIF)
+        State.CurrentCycleTrips = (State.CurrentCycleTrips or 0) + 1
+        if State.CurrentCycleTrips >= (State.NextBikeCycle or 5) then
+            State.RideGOPhase = "cycling"
+            task.spawn(function()
+                -- 1. Offline sejenak agar order tidak tertimpa
+                pcall(function() TaxiEvent:FireServer("GoOffline") end)
+                task.wait(0.5)
+
+                -- 2. Turun dari motor
+                forceDismount()
+
+                -- 3. Jeda santai seperti player asli (4 - 8 detik)
+                task.wait(math.random(40, 80) / 10)
+
+                -- 4. Despawn & spawn ulang motor baru lalu naik
+                spawnAndMountBike()
+                task.wait(math.random(15, 25) / 10)
+
+                -- 5. Masuk online kembali dan set target acak baru (3 - 7 trip)
+                pcall(function() TaxiEvent:FireServer("GoOnline") end)
+                State.CurrentCycleTrips = 0
+                State.NextBikeCycle = math.random(3, 7)
+                State.RideGOPhase = "idle"
+            end)
+        else
+            State.RideGOPhase = "idle"
+        end
 
     elseif action == "OrderExpired"
         or action == "OrderDeclined"
         or action == "OrderCancelled" then
         State.RideGOToken     = nil
         State.RideGOTargetPos = nil
-        State.RideGOPhase     = "idle"
+        if State.RideGOPhase ~= "cycling" then
+            State.RideGOPhase = "idle"
+        end
     end
 end)
 
@@ -3270,6 +3295,8 @@ local function StartRideGOScript()
     State.IsRideGOActive = true
     State.RideGOTripCount = 0
     State.RideGOEarnings = 0
+    State.CurrentCycleTrips = 0
+    State.NextBikeCycle = math.random(3, 7)
     CachedMoneyLabel = nil
     getgenv().UangAwalDikunci = nil
     getgenv().WaktuMulai = tick()
@@ -3319,7 +3346,7 @@ LocalPlayer:GetPropertyChangedSignal("Team"):Connect(OnRideGOTeamChanged)
 getgenv().WebhookSettings = {
     URL = "",
     Enabled = false,
-    Interval = 15 -- menit
+    Interval = 15
 }
 
 local httprequest = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
@@ -3507,9 +3534,11 @@ local ServerInfo = TabInfo:Paragraph({
 
 local TabFarm = Window:Tab({ Title = "Auto Farm", Icon = "coffee", Border = true })
 
+-- SECTION BARISTA
 local SectionBarista = TabFarm:Section({ Title = "Auto Barista", Box = true, BoxBorder = true, Opened = false })
 SectionBarista:Toggle({ Title = "Enable Auto Barista", Icon = "play", Value = false, Callback = function(on) if on then StartBaristaScript() else StopBaristaScript() end end })
 
+-- SECTION OFFICE
 local SectionOffice = TabFarm:Section({ Title = "Auto Office", Box = true, BoxBorder = true, Opened = false })
 SectionOffice:Toggle({ Title = "Enable Auto Office", Icon = "briefcase", Value = false, Callback = function(on) if on then StartOfficeScript() else StopOfficeScript() end end })
 
@@ -3529,6 +3558,7 @@ SectionOffice:Input({
     end
 })
 
+-- SECTION COURIER
 local SectionCourier = TabFarm:Section({ Title = "Auto Courier", Box = true, BoxBorder = true, Opened = false })
 SectionCourier:Toggle({ Title = "Enable Auto Courier", Icon = "package", Value = false, Callback = function(on) if on then StartCourierScript() else StopCourierScript() end end })
 
@@ -3554,8 +3584,29 @@ SectionCourier:Button({
     end
 })
 
+SectionCourier:Slider({
+    Title    = "Kecepatan Minimum Kurir",
+    Desc     = "Batas kecepatan terendah saat antar paket (Default: 180)",
+    Step     = 5,
+    Value    = { Min = 60, Max = 400, Default = 180 },
+    Callback = function(v)
+        State.CourierMinSpeed = v
+    end
+})
+
+SectionCourier:Slider({
+    Title    = "Kecepatan Maksimum Kurir",
+    Desc     = "Batas kecepatan tertinggi saat antar paket (Default: 220)",
+    Step     = 5,
+    Value    = { Min = 80, Max = 450, Default = 220 },
+    Callback = function(v)
+        State.CourierMaxSpeed = v
+    end
+})
+
+-- SECTION RIDEGO DRIVER
 local SectionRideGO = TabFarm:Section({ Title = "Auto RideGO Driver", Box = true, BoxBorder = true, Opened = false })
-SectionRideGO:Paragraph({ Title = "", Desc = "Pilih dulu motor di dropdown" })
+SectionRideGO:Paragraph({ Title = "", Desc = "Pilih dulu motor di dropdown sebelum mengaktifkan" })
 SectionRideGO:Toggle({
     Title = "Enable Auto RideGO",
     Icon = "car",
@@ -3582,6 +3633,26 @@ SectionRideGO:Button({
         local cars = RefreshAllVehicleDropdowns()
         local count = (cars[1] == "Tidak ada kendaraan terdeteksi") and 0 or #cars
         WindUI:Notify({ Title = "✅ Garasi Terdeteksi", Content = "Ditemukan " .. count .. " kendaraan!", Duration = 3 })
+    end
+})
+
+SectionRideGO:Slider({
+    Title    = "Kecepatan Minimum RideGO",
+    Desc     = "Batas kecepatan terendah saat jemput/antar penumpang (Default: 180)",
+    Step     = 5,
+    Value    = { Min = 60, Max = 400, Default = 180 },
+    Callback = function(v)
+        State.RideGOMinSpeed = v
+    end
+})
+
+SectionRideGO:Slider({
+    Title    = "Kecepatan Maksimum RideGO",
+    Desc     = "Batas kecepatan tertinggi saat jemput/antar penumpang (Default: 220)",
+    Step     = 5,
+    Value    = { Min = 80, Max = 450, Default = 220 },
+    Callback = function(v)
+        State.RideGOMaxSpeed = v
     end
 })
 
