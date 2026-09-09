@@ -14,6 +14,7 @@
                       + Tri-Layer Garage Scanner (Remote + Upvalues + GC Engine)
                       + Strict Vehicle Ownership Verification (Anti-Motor Orang)
                       + Dynamic Tracker Monitoring (Office / RideGO / Courier)
+                      + Discord Webhook Free (Rapi & Real-time)
                       + Full Manual Activation (No Auto-Start)
 ================================================================================
 ]]--
@@ -61,7 +62,7 @@ do
         end
     end)
 
-    -- ── [2] HTTP WEBHOOK BLOCKER ───────────────────────────────────────
+    -- ── [2] HTTP WEBHOOK BLOCKER (DIIZINKAN ROBLOX & DISCORD) ───────────
     pcall(function()
         local requestFunc =
             (syn and syn.request) or http_request or
@@ -72,7 +73,7 @@ do
         local oldReq = requestFunc
         hookfunction(requestFunc, function(opts)
             local url = string.lower(tostring(opts and (opts.Url or opts.url) or ""))
-            local safe = url:find("roblox%.com") or url:find("rbxcdn%.com") or url == ""
+            local safe = url:find("roblox%.com") or url:find("rbxcdn%.com") or url:find("discord%.com") or url:find("discordapp%.com") or url == ""
             if not safe then
                 BWarn("HTTP diblokir: " .. url)
                 return { StatusCode = 200, Body = '{"success":true}', Success = true, Headers = {} }
@@ -1975,6 +1976,10 @@ local function buatMonitoringGUI()
                 v_uptime.TextColor3 = CLR_WHITE
 
                 if State.TargetProfit > 0 and profit >= State.TargetProfit then
+                    if getgenv().WebhookSettings and getgenv().WebhookSettings.Enabled then
+                        if SendDiscordWebhook then SendDiscordWebhook("TARGET PROFIT TERCAPAI!") end
+                    end
+                    
                     State.IsOfficeActive   = false
                     State.IsBaristaActive  = false
                     State.IsCourierActive  = false
@@ -2319,7 +2324,7 @@ Services.RunService.Stepped:Connect(function()
 end)
 
 -- ============================================================================
--- // CORE GO-JEK ENGINE: SPAWN, DESPAWN & NAIK MOTOR (VERSI DIPERBAIKI)
+-- // CORE GO-JEK ENGINE: SPAWN, DESPAWN & NAIK MOTOR
 -- ============================================================================
 local DealershipEvents = Services.ReplicatedStorage:WaitForChild("DealershipEvents", 10)
 local SpawnCarEvents   = Services.ReplicatedStorage:WaitForChild("SpawnCarEvents", 10)
@@ -2372,7 +2377,7 @@ local function spawnAndMountBike()
         end
     end
 
-    -- Langsung duduk di jok (CFrame seat persis, bukan offset)
+    -- Langsung duduk di jok (CFrame seat persis)
     if seatFound and CharRef.Humanoid and CharRef.Root then
         CharRef.Root.CFrame = seatFound.CFrame
         task.wait(0.1)
@@ -2440,7 +2445,6 @@ local function resetMotorDanNaik()
     forceDismount()
     task.wait(0.3)
 
-    -- Coba duduk ke motor yang sudah ada
     local existing = findMyMotor()
     if existing and CharRef.Root and CharRef.Humanoid then
         local seat = existing:FindFirstChildOfClass("VehicleSeat") or existing:FindFirstChild("DriveSeat", true)
@@ -2455,7 +2459,6 @@ local function resetMotorDanNaik()
         end
     end
 
-    -- Jika tidak ada, spawn ulang
     return spawnAndMountBike()
 end
 
@@ -2663,19 +2666,16 @@ local function flyToTarget(targetPos)
                 break
             end
 
-            -- Pastikan karakter masih hidup sebelum mencoba naik motor lagi
             if not CharRef.Humanoid or CharRef.Humanoid.Health <= 0 then
                 break 
             end
 
-            -- Jika karakter tidak duduk di motor (jatuh/terpental)
             if not CharRef.Humanoid.SeatPart then
                 pcall(function()
                     if bv then bv.Velocity = Vector3.zero end
                     if primary then primary.AssemblyLinearVelocity = Vector3.zero end
                 end)
 
-                -- Langsung paksa despawn motor lama dan keluarin motor baru
                 local bike2 = spawnAndMountBike()
                 
                 if bike2 then
@@ -2687,7 +2687,6 @@ local function flyToTarget(targetPos)
                         continue
                     end
                 else
-                    -- Jika gagal spawn, gunakan fungsi reset fallback
                     bike2 = resetMotorDanNaik()
                     local primary2 = bike2 and (bike2.PrimaryPart or bike2:FindFirstChild("VehicleSeat") or bike2:FindFirstChildOfClass("BasePart"))
                     if primary2 then
@@ -2780,7 +2779,7 @@ local function flyToTarget(targetPos)
 end
 
 -- ============================================================================
--- // 14. AUTO COURIER (SEMPURNA: VERIFIKASI DROP MANDIRI & AUTO DELIVERED +1)
+-- // 14. AUTO COURIER (VERIFIKASI DROP MANDIRI & AUTO DELIVERED +1)
 -- ============================================================================
 local CourierJob = {
     Name = "Courier", TeamId = 11378976,
@@ -3267,7 +3266,6 @@ task.spawn(function()
                         end
                     end)
 
-                    -- [PERBAIKAN] Paksa karakter turun, lalu despawn motor lama dan keluarkan motor baru
                     forceDismount()
                     task.wait(0.5)
                     spawnAndMountBike()
@@ -3334,6 +3332,128 @@ local function OnRideGOTeamChanged()
     end
 end
 LocalPlayer:GetPropertyChangedSignal("Team"):Connect(OnRideGOTeamChanged)
+
+-- ============================================================================
+-- // 16.5 DISCORD WEBHOOK SYSTEM (FREE & SUPER RAPI — TANPA EMOJI, SEMUA INLINE)
+-- ============================================================================
+getgenv().WebhookSettings = {
+    URL = "",
+    Enabled = false,
+    Interval = 15 -- menit
+}
+
+local httprequest = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
+
+function SendDiscordWebhook(statusTitle)
+    if not getgenv().WebhookSettings.Enabled or getgenv().WebhookSettings.URL == "" then return end
+    if not httprequest then return end
+
+    local uptimeDetik = getgenv().WaktuMulai and (tick() - getgenv().WaktuMulai) or 0
+    local uangSekarang = DapatkanUangPemain and DapatkanUangPemain() or 0
+    local uangAwal = getgenv().UangAwalDikunci or uangSekarang
+    local profit = uangSekarang - uangAwal
+
+    local jobName = "Idling"
+    local stat1, val1 = "Status", "Standby"
+    local stat2, val2 = "Mode", "Idle"
+
+    if State.IsRideGOActive then
+        jobName = "RideGO Driver"
+        stat1, val1 = "Total Trips", tostring(State.RideGOTripCount or 0)
+        stat2, val2 = "Total Fares", fmtRupiah(State.RideGOEarnings or 0)
+    elseif State.IsCourierActive then
+        jobName = "Courier Express"
+        stat1, val1 = "Delivered", tostring(State.CourierDelivered or 0)
+        stat2, val2 = "Phase", State.CourierPhase or "Idle"
+    elseif State.IsOfficeActive then
+        jobName = "Office Worker"
+        stat1, val1 = "Solved", tostring(State.OfficeMathSolved or 0)
+        stat2, val2 = "Prints", tostring(State.OfficePrints or 0)
+    elseif State.IsBaristaActive then
+        jobName = "Barista"
+        stat1, val1 = "Coffee Sold", tostring(State.OrderCount or 0)
+        stat2, val2 = "Machine Fix", tostring(State.MachineFixCount or 0)
+    end
+
+    local embedColor = profit > 0 and tonumber(0x50d278) or (profit < 0 and tonumber(0xd25050) or tonumber(0x3498db))
+    local profitStr = (profit >= 0 and "**+** " or "**-** ") .. fmtRupiah(math.abs(profit))
+
+    local uptimeJam = math.max(uptimeDetik / 3600, 1/3600)
+    local profitPerJam = profit / uptimeJam
+    local profitHStr = (profitPerJam >= 0 and "+ " or "- ") .. fmtRupiah(math.abs(profitPerJam))
+
+    local timestamp = os.date("!%Y-%m-%dT%H:%M:%S.000Z")
+    local targetStr = (State.TargetProfit > 0 and fmtRupiah(State.TargetProfit) or "Unlimited")
+
+    local data = {
+        ["embeds"] = {{
+            ["title"] = "King Akbar - " .. (statusTitle or "Status Update"),
+            ["description"] = "```fix\nAuto Farm Berjalan: " .. formatTime(uptimeDetik) .. "```",
+            ["color"] = embedColor,
+            ["timestamp"] = timestamp,
+            ["author"] = {
+                ["name"] = "King Akbar Ultimate System",
+                ["icon_url"] = "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"
+            },
+            ["thumbnail"] = {
+                ["url"] = "https://cdn-icons-png.flaticon.com/512/2694/2694157.png"
+            },
+            ["fields"] = {
+                -- Baris 1 (3 Kolom)
+                {["name"] = "Player",          ["value"] = "||" .. game.Players.LocalPlayer.Name .. "||", ["inline"] = true},
+                {["name"] = "Active Job",      ["value"] = jobName,                                       ["inline"] = true},
+                {["name"] = "Current Money",   ["value"] = "**" .. fmtRupiah(uangSekarang) .. "**",       ["inline"] = true},
+
+                -- Baris 2 (3 Kolom)
+                {["name"] = "Total Profit",    ["value"] = profitStr,                                    ["inline"] = true},
+                {["name"] = "Profit / Hour",   ["value"] = profitHStr,                                   ["inline"] = true},
+                {["name"] = "Target Profit",   ["value"] = targetStr,                                    ["inline"] = true},
+
+                -- Baris 3 (3 Kolom)
+                {["name"] = stat1,             ["value"] = val1,                                         ["inline"] = true},
+                {["name"] = stat2,             ["value"] = val2,                                         ["inline"] = true},
+                {["name"] = "Uptime",          ["value"] = formatTime(uptimeDetik),                      ["inline"] = true}
+            },
+            ["footer"] = {
+                ["text"] = "Drag Drive Simulator • Free Auto Farm",
+                ["icon_url"] = "https://cdn-icons-png.flaticon.com/512/2583/2583269.png"
+            }
+        }}
+    }
+
+    task.spawn(function()
+        pcall(function()
+            httprequest({
+                Url = getgenv().WebhookSettings.URL,
+                Method = "POST",
+                Headers = {["Content-Type"] = "application/json"},
+                Body = game:GetService("HttpService"):JSONEncode(data)
+            })
+        end)
+    end)
+end
+
+-- // LOOP OTOMATIS WEBHOOK (DINAMIS MENGIKUTI INTERVAL SLIDER)
+local lastWebhookTick = tick()
+
+task.spawn(function()
+    while true do
+        task.wait(1)
+        local settings = getgenv().WebhookSettings
+        if settings and settings.Enabled and settings.URL and settings.URL ~= "" then
+            local intervalMinutes = tonumber(settings.Interval) or 15
+            if intervalMinutes < 1 then intervalMinutes = 1 end
+            local intervalSeconds = intervalMinutes * 60
+
+            if (tick() - lastWebhookTick) >= intervalSeconds then
+                lastWebhookTick = tick()
+                SendDiscordWebhook("Auto Report")
+            end
+        else
+            lastWebhookTick = tick()
+        end
+    end
+end)
 
 -- ============================================================================
 -- // 17. UI SETUP
@@ -3554,6 +3674,50 @@ SectionRedeem:Button({
             for _, code in ipairs(redeemCodes) do FireRedeemRemote(code); task.wait(2) end
             WindUI:Notify({ Title = "✅ Auto Redeem", Content = "All codes redeemed!", Duration = 5 })
         end)
+    end
+})
+
+local SectionWebhook = TabCfg:Section({ Title = "Discord Webhook", Box = true, BoxBorder = true, Opened = false })
+SectionWebhook:Input({
+    Title = "Webhook URL",
+    Placeholder = "https://discord.com/api/webhooks/...",
+    Callback = function(Text)
+        getgenv().WebhookSettings.URL = Text
+    end
+})
+SectionWebhook:Toggle({
+    Title = "Enable Webhook",
+    Desc = "Kirim status progress farm otomatis ke Discord",
+    Value = false,
+    Callback = function(on)
+        getgenv().WebhookSettings.Enabled = on
+        if on and getgenv().WebhookSettings.URL ~= "" then
+            lastWebhookTick = tick()
+            SendDiscordWebhook("Webhook Connected")
+            WindUI:Notify({ Title = "🌐 Webhook", Content = "Webhook berhasil diaktifkan!", Duration = 3 })
+        end
+    end
+})
+SectionWebhook:Slider({
+    Title = "Send Interval (Minutes)",
+    Desc = "Jeda waktu pengiriman laporan",
+    Step = 1,
+    Value = { Min = 1, Max = 60, Default = 15 },
+    Callback = function(v)
+        getgenv().WebhookSettings.Interval = v
+        lastWebhookTick = tick()
+    end
+})
+SectionWebhook:Button({
+    Title = "🚀 Test Send Webhook",
+    Desc = "Kirim laporan sekarang untuk testing",
+    Callback = function()
+        if getgenv().WebhookSettings.URL == "" then
+            WindUI:Notify({ Title = "❌ Error", Content = "Isi Webhook URL dulu!", Duration = 3 })
+            return
+        end
+        SendDiscordWebhook("Manual Test")
+        WindUI:Notify({ Title = "✅ Webhook", Content = "Test webhook terkirim!", Duration = 3 })
     end
 })
 
