@@ -2663,22 +2663,34 @@ local function flyToTarget(targetPos)
                 break
             end
 
-            if not CharRef.Humanoid.SeatPart then
-                bv.Velocity = Vector3.zero
-                primary.AssemblyLinearVelocity = Vector3.zero
+            -- Pastikan karakter masih hidup sebelum mencoba naik motor lagi
+            if not CharRef.Humanoid or CharRef.Humanoid.Health <= 0 then
+                break 
+            end
 
-                local bike2 = findMyMotor()
-                if not bike2 then
-                    bike2 = spawnAndMountBike()
-                end
+            -- Jika karakter tidak duduk di motor (jatuh/terpental)
+            if not CharRef.Humanoid.SeatPart then
+                pcall(function()
+                    if bv then bv.Velocity = Vector3.zero end
+                    if primary then primary.AssemblyLinearVelocity = Vector3.zero end
+                end)
+
+                -- Langsung paksa despawn motor lama dan keluarin motor baru
+                local bike2 = spawnAndMountBike()
+                
                 if bike2 then
-                    local primary2 = bike2.PrimaryPart or bike2:FindFirstChild("VehicleSeat")
-                    if primary2 and CharRef.Root then
-                        CharRef.Root.CFrame = primary2.CFrame + Vector3.new(0, 1.5, 0)
-                        task.wait(0.1)
-                        local seat = bike2:FindFirstChildOfClass("VehicleSeat") or bike2:FindFirstChild("DriveSeat", true)
-                        if seat then seat:Sit(CharRef.Humanoid) end
-                        task.wait(0.5)
+                    local primary2 = bike2.PrimaryPart or bike2:FindFirstChild("VehicleSeat") or bike2:FindFirstChildOfClass("BasePart")
+                    if primary2 then
+                        bv, bg = getMovers(primary2)
+                        primary = primary2
+                        bike = bike2
+                        continue
+                    end
+                else
+                    -- Jika gagal spawn, gunakan fungsi reset fallback
+                    bike2 = resetMotorDanNaik()
+                    local primary2 = bike2 and (bike2.PrimaryPart or bike2:FindFirstChild("VehicleSeat") or bike2:FindFirstChildOfClass("BasePart"))
+                    if primary2 then
                         bv, bg = getMovers(primary2)
                         primary = primary2
                         bike = bike2
