@@ -6,18 +6,15 @@
     [+] Game        : Drag Drive Simulator
     [+] Fitur       : + Auto RideGO Driver (Void Gate Ultra + Anti-Kick Stabil)
                       + Silent Humanizer Cycle (Auto Reset Motor Acak 3-7 Trip)
-                      + Dynamic Speed Range (Slider Min & Max Speed Terpisah)
+                      + Auto Barista (New AI Minigame + Smart Pathfinding + Auto Zoom)
                       + Auto Courier (100% Fix Drop Paket & Auto Delivered +1)
-                      + Instant Respawn & Auto-Seat Motor Setiap Ambil & Drop Paket
+                      + Auto Office (Anti-AFK + Print & Math Logic)
+                      + Universal Monitoring GUI untuk SEMUA JOB
                       + Permanent Noclip (Karakter, Motor, & Penumpang Stepped)
                       + Watchdog 8s: Auto Spawn/Despawn Motor jika Rute Bug
                       + Anti-Kick 3 Lapis (Hook + No Input Spam + Heartbeat Disabled)
                       + Auto-Recovery Respawn Karakter
-                      + Tri-Layer Garage Scanner (Remote + Upvalues + GC Engine)
-                      + Strict Vehicle Ownership Verification (Anti-Motor Orang)
-                      + Dynamic Tracker Monitoring (Office / RideGO / Courier)
                       + Discord Webhook Free (Rapi & Real-time)
-                      + Full Manual Activation (No Auto-Start)
 ================================================================================
 ]]--
 
@@ -415,6 +412,16 @@ local State = {
     -- Auto Silent Humanizer Cycle (Reset Motor 3-7 Trip)
     NextBikeCycle        = math.random(3, 7),
     CurrentCycleTrips    = 0,
+
+    -- Barista Debug UI
+    DebugOverlay         = nil,
+    DebugEnabled         = true,
+    DebugCursorY         = 0,
+    DebugTargetY         = 0,
+    DebugTapCount        = 0,
+    DebugLastAction      = "idle",
+    DebugMinigameActive  = false,
+    DebugCursorDelta     = 0,
 }
 
 -- ============================================================================
@@ -817,9 +824,7 @@ end
 -- // 8. CONSTANTS & PATHS (BARISTA)
 -- ============================================================================
 local Constants = {
-    START_SHIFT  = Vector3.new(-4991.23, 4.29, -715.26),
-    COLOR_ORANGE = Color3.fromRGB(230, 150, 30),
-    COLOR_GREEN  = Color3.fromRGB(30,  180, 60),
+    START_SHIFT = Vector3.new(-4991.23, 4.29, -715.26),
 }
 
 local Paths = {
@@ -987,274 +992,521 @@ local function TogglePotatoMode(on)
 end
 
 -- ============================================================================
--- // 10. UTILITY (BARISTA)
+-- // 10. AUTO WALK SYSTEM (BARISTA)
 -- ============================================================================
-local function WalkToPoint(pos)
-    if not CharRef.Humanoid or not CharRef.Root then return end
+local function WalkToPoint(pos, timeoutSec)
+    timeoutSec = timeoutSec or 15
+    if not CharRef.Humanoid or not CharRef.Root then return false end
+
     if CharRef.Humanoid.Sit then
         CharRef.Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
         task.wait(0.2)
     end
-    local hp = pos + Vector3.new(math.random(-15,15)/10, 0, math.random(-15,15)/10)
-    CharRef.Humanoid:MoveTo(hp)
-    local t = 10
-    while t > 0 and State.IsBaristaActive do
-        local d = Vector3.new(CharRef.Root.Position.X, 0, CharRef.Root.Position.Z)
-               - Vector3.new(hp.X, 0, hp.Z)
-        if d.Magnitude < 3 then break end
-        task.wait(0.1); t -= 0.1
-    end
-end
 
-local function FollowPath(arr)
-    for _, p in ipairs(arr) do
-        if not State.IsBaristaActive then break end
-        WalkToPoint(p)
-    end
-end
+    local offset = Vector3.new(math.random(-8,8)/10, 0, math.random(-8,8)/10)
+    local target = pos + offset
 
-local function FindPrompt(kw, maxD, origin)
-    if not CharRef.Root then return nil end
-    origin = origin or CharRef.Root.Position; maxD = maxD or 20
-    local found, closest = nil, maxD
-    for _, v in pairs(Services.Workspace:GetDescendants()) do
-        if v:IsA("ProximityPrompt") and v.Enabled
-            and string.find(string.lower(v.ActionText), string.lower(kw))
-        then
-            local part = v.Parent
-            if part and part:IsA("BasePart") then
-                local d = (part.Position - origin).Magnitude
-                if d < closest then closest = d; found = v end
-            end
+    local t0 = tick()
+    local lastPos = CharRef.Root.Position
+    local stuckTime = tick()
+    local jumpCooldown = 0
+
+    while tick() - t0 < timeoutSec and State.IsBaristaActive do
+        if not CharRef.Humanoid or not CharRef.Root or not CharRef.Root.Parent then return false end
+
+        local myPos = CharRef.Root.Position
+        local flatDist = (Vector3.new(myPos.X, 0, myPos.Z) - Vector3.new(target.X, 0, target.Z)).Magnitude
+
+        if flatDist < 3 then
+            CharRef.Humanoid:MoveTo(CharRef.Root.Position)
+            return true
         end
-    end
-    return found
-end
 
-local function IsMachineBroken()
-    for _, gui in pairs(LocalPlayer.PlayerGui:GetChildren()) do
-        for _, v in pairs(gui:GetDescendants()) do
-            if v:IsA("TextLabel") and v.Visible then
-                local t = string.lower(v.Text)
-                if t:find("machine broke") or t:find("needs maintenance") or t:find("fix machine") then
-                    return true
-                end
+        if (myPos - lastPos).Magnitude < 0.5 then
+            if tick() - stuckTime > 1.5 then
+                pcall(function()
+                    if tick() > jumpCooldown then
+                        CharRef.Humanoid.Jump = true
+                        jumpCooldown = tick() + 1
+                    end
+                end)
+                target = pos + Vector3.new(math.random(-20,20)/10, 0, math.random(-20,20)/10)
+                stuckTime = tick()
             end
+        else
+            lastPos = myPos
+            stuckTime = tick()
         end
+
+        CharRef.Humanoid:MoveTo(target)
+        task.wait(0.1)
     end
+
+    pcall(function()
+        if CharRef.Humanoid then CharRef.Humanoid:MoveTo(CharRef.Root.Position) end
+    end)
     return false
 end
 
-local function HasJob()
-    local hasJob = true
-    for _, v in pairs(Services.Workspace:GetDescendants()) do
-        if v:IsA("ProximityPrompt") and v.Enabled and v.ActionText:lower():find("shift") then
-            local part = v.Parent
-            if part and part:IsA("BasePart") and (part.Position - Constants.START_SHIFT).Magnitude < 40 then
-                hasJob = v.ActionText:lower():find("end") and true or false
-                break
-            end
+local function FollowPath(pathArray, skipFirst)
+    if not pathArray or #pathArray == 0 then return false end
+    for i, waypoint in ipairs(pathArray) do
+        if not State.IsBaristaActive then return false end
+        if skipFirst and i == 1 then continue end
+        local ok = WalkToPoint(waypoint, 15)
+        if not ok and State.IsBaristaActive then
+            task.wait(0.3)
+            WalkToPoint(waypoint, 10)
         end
+        rWait(0.1, 0.25)
     end
-    return hasJob
+    return true
 end
 
-local function FindByColor(parent, col, tol)
-    local best, bestD = nil, math.huge
-    for _, v in pairs(parent:GetDescendants()) do
-        if (v:IsA("Frame") or v:IsA("ImageLabel")) and v.Visible and v.BackgroundTransparency < 0.8 then
-            local c = v:IsA("ImageLabel") and v.ImageColor3 or v.BackgroundColor3
-            local d = math.abs(c.R-col.R) + math.abs(c.G-col.G) + math.abs(c.B-col.B)
-            if d < bestD then bestD = d; best = v end
-        end
+local function FindClosestWaypointIndex(pathArray, currentPos)
+    local bestIdx, bestDist = 1, math.huge
+    for i, wp in ipairs(pathArray) do
+        local d = (Vector3.new(wp.X, 0, wp.Z) - Vector3.new(currentPos.X, 0, currentPos.Z)).Magnitude
+        if d < bestDist then bestDist = d; bestIdx = i end
     end
-    return bestD < (tol or 0.6) and best or nil
+    return bestIdx, bestDist
+end
+
+local function SmartFollowPath(pathArray, threshold)
+    threshold = threshold or 15
+    if not CharRef.Root then return false end
+    local idx, dist = FindClosestWaypointIndex(pathArray, CharRef.Root.Position)
+    if dist < threshold and idx < #pathArray then
+        local sliced = {}
+        for i = idx, #pathArray do table.insert(sliced, pathArray[i]) end
+        return FollowPath(sliced)
+    end
+    return FollowPath(pathArray)
 end
 
 -- ============================================================================
--- // 11. AI MINIGAME (BARISTA) — TANPA CLICK SYNTHETIC
+-- // 11. BARISTA DEBUG OVERLAY
 -- ============================================================================
-local function StartMinigameAI()
-    if State.AiThread then task.cancel(State.AiThread) end
-    State.AiThread = task.spawn(function()
-        local cam = Services.Workspace.CurrentCamera
-        while State.IsBaristaActive do
-            task.wait(0.016)
-            local gui = LocalPlayer.PlayerGui:FindFirstChild("BaristaGUI")
-            if not gui then task.wait(0.1); continue end
-            local mf = gui:FindFirstChild("MinigameFrame", true)
-            if not (mf and mf.Visible) then task.wait(0.1); continue end
+local function CreateDebugOverlay()
+    if State.DebugOverlay and State.DebugOverlay.Parent then
+        State.DebugOverlay:Destroy()
+    end
 
-            local cx = (cam.ViewportSize.X/2) + math.random(-15,15)
-            local cy = (cam.ViewportSize.Y/2) + math.random(-15,15)
-            local pill, bar = nil, nil
+    local sg = Instance.new("ScreenGui")
+    sg.Name = "BaristaDebugOverlay"
+    sg.ResetOnSpawn = false
+    sg.IgnoreGuiInset = true
+    sg.DisplayOrder = 500
+    sg.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    State.DebugOverlay = sg
 
-            for _, v in pairs(mf:GetDescendants()) do
-                if v:IsA("Frame") or v:IsA("ImageLabel") then
-                    local nm = v.Name:lower()
-                    if nm:find("pill") or nm:find("indicator") or nm:find("player") or nm:find("handle") then pill = v end
-                    if nm:find("target") or nm:find("zone") or nm:find("goal") or nm:find("safe") then bar = v end
-                end
-            end
+    local panel = Instance.new("Frame", sg)
+    panel.Name = "Panel"
+    panel.Size = UDim2.fromOffset(240, 190)
+    panel.Position = UDim2.fromOffset(12, 12)
+    panel.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+    panel.BackgroundTransparency = 0.15
+    panel.BorderSizePixel = 0
+    panel.Visible = true
+    Instance.new("UICorner", panel).CornerRadius = UDim.new(0, 10)
+    local stroke = Instance.new("UIStroke", panel)
+    stroke.Color = Color3.fromRGB(60, 200, 100); stroke.Thickness = 1.5
 
-            if not pill then pill = FindByColor(mf, Constants.COLOR_ORANGE, 0.6) end
-            if not bar  then bar  = FindByColor(mf, Constants.COLOR_GREEN,  0.6) end
+    local title = Instance.new("TextLabel", panel)
+    title.Size = UDim2.new(1, 0, 0, 22)
+    title.Position = UDim2.fromOffset(0, 6)
+    title.BackgroundTransparency = 1
+    title.Text = "☕ BARISTA DEBUG MONITOR"
+    title.TextColor3 = Color3.fromRGB(80, 220, 130)
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 12
+    title.TextXAlignment = Enum.TextXAlignment.Center
 
-            if not pill or not bar then
-                local els = {}
-                for _, v in pairs(mf:GetDescendants()) do
-                    if (v:IsA("Frame") or v:IsA("ImageLabel")) and v.Visible
-                        and v.BackgroundTransparency < 0.9 and v.AbsoluteSize.Y > 10
-                    then table.insert(els, v) end
-                end
-                table.sort(els, function(a,b) return a.AbsolutePosition.X < b.AbsolutePosition.X end)
-                if #els >= 2 then pill = els[1]; bar = els[#els] end
-            end
+    local div = Instance.new("Frame", panel)
+    div.Size = UDim2.new(1, -20, 0, 1)
+    div.Position = UDim2.fromOffset(10, 30)
+    div.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+    div.BorderSizePixel = 0
 
-            if pill and bar then
-                local diff = (pill.AbsolutePosition.Y + pill.AbsoluteSize.Y/2)
-                           - (bar.AbsolutePosition.Y  + bar.AbsoluteSize.Y/2)
-                if diff > 6 then
-                    SafeClick(cx, cy, math.random(55,90)/1000)
-                    task.wait(math.random(30,60)/1000)
-                elseif diff < -6 then
-                    task.wait(0.016)
+    local function makeRow(yPos, labelTxt, color)
+        local row = Instance.new("Frame", panel)
+        row.Size = UDim2.new(1, -20, 0, 16)
+        row.Position = UDim2.fromOffset(10, yPos)
+        row.BackgroundTransparency = 1
+
+        local lbl = Instance.new("TextLabel", row)
+        lbl.Size = UDim2.new(0, 110, 1, 0)
+        lbl.BackgroundTransparency = 1
+        lbl.Text = labelTxt
+        lbl.TextColor3 = Color3.fromRGB(140, 140, 155)
+        lbl.Font = Enum.Font.GothamMedium
+        lbl.TextSize = 10
+        lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+        local val = Instance.new("TextLabel", row)
+        val.Size = UDim2.new(1, -115, 1, 0)
+        val.Position = UDim2.fromOffset(115, 0)
+        val.BackgroundTransparency = 1
+        val.Text = "—"
+        val.TextColor3 = color or Color3.fromRGB(230, 230, 235)
+        val.Font = Enum.Font.GothamBold
+        val.TextSize = 10
+        val.TextXAlignment = Enum.TextXAlignment.Right
+        return val
+    end
+
+    local labels = {}
+    labels.status   = makeRow(38,  "Status",       Color3.fromRGB(200, 200, 210))
+    labels.mgActive = makeRow(56,  "Minigame",     Color3.fromRGB(220, 180, 60))
+    labels.cursor   = makeRow(74,  "Cursor Y",     Color3.fromRGB(80, 180, 255))
+    labels.target   = makeRow(92,  "Target Y",     Color3.fromRGB(80, 220, 130))
+    labels.delta    = makeRow(110, "Delta",        Color3.fromRGB(230, 130, 130))
+    labels.tap      = makeRow(128, "Total Taps",   Color3.fromRGB(230, 200, 80))
+    labels.action   = makeRow(146, "Last Action",  Color3.fromRGB(180, 180, 200))
+    labels.order    = makeRow(164, "Coffee Sold",  Color3.fromRGB(80, 220, 130))
+
+    local toggleBtn = Instance.new("TextButton", sg)
+    toggleBtn.Name = "ToggleBtn"
+    toggleBtn.Size = UDim2.fromOffset(80, 22)
+    toggleBtn.Position = UDim2.fromOffset(12, 210)
+    toggleBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
+    toggleBtn.BorderSizePixel = 0
+    toggleBtn.Text = "🐞 Hide Debug"
+    toggleBtn.TextColor3 = Color3.fromRGB(230, 230, 235)
+    toggleBtn.Font = Enum.Font.GothamMedium
+    toggleBtn.TextSize = 10
+    Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0, 6)
+
+    toggleBtn.MouseButton1Click:Connect(function()
+        State.DebugEnabled = not State.DebugEnabled
+        panel.Visible = State.DebugEnabled
+        toggleBtn.Text = State.DebugEnabled and "🐞 Hide Debug" or "🐞 Show Debug"
+        toggleBtn.Position = State.DebugEnabled
+            and UDim2.fromOffset(12, 210)
+            or  UDim2.fromOffset(12, 12)
+    end)
+
+    task.spawn(function()
+        while sg.Parent do
+            task.wait(0.1)
+            pcall(function()
+                labels.status.Text   = State.StatusText or "idle"
+                labels.status.TextColor3 = State.IsBaristaActive
+                    and Color3.fromRGB(80, 220, 130)
+                    or  Color3.fromRGB(180, 180, 190)
+
+                labels.mgActive.Text = State.DebugMinigameActive and "AKTIF 🟢" or "OFF ⚪"
+                labels.mgActive.TextColor3 = State.DebugMinigameActive
+                    and Color3.fromRGB(80, 220, 130)
+                    or  Color3.fromRGB(120, 120, 130)
+
+                labels.cursor.Text = string.format("%.0f px", State.DebugCursorY)
+                labels.target.Text = string.format("%.0f px", State.DebugTargetY)
+
+                local delta = State.DebugCursorDelta
+                labels.delta.Text = string.format("%.0f px", delta)
+                if math.abs(delta) < 5 then
+                    labels.delta.TextColor3 = Color3.fromRGB(80, 220, 130)
+                elseif math.abs(delta) < 30 then
+                    labels.delta.TextColor3 = Color3.fromRGB(230, 200, 80)
                 else
-                    SafeClick(cx, cy, math.random(50,80)/1000)
-                    task.wait(math.random(80,130)/1000)
+                    labels.delta.TextColor3 = Color3.fromRGB(230, 90, 90)
                 end
-            else
-                SafeClick(cx, cy, math.random(55,90)/1000)
-                task.wait(math.random(60,100)/1000)
-            end
+
+                labels.tap.Text = tostring(State.DebugTapCount)
+                labels.action.Text = State.DebugLastAction or "idle"
+                labels.order.Text = tostring(State.OrderCount or 0)
+            end)
         end
     end)
 end
 
--- ============================================================================
--- // 12. BARISTA FARMING LOOP
--- ============================================================================
-local function TakeJob()
-    State.StatusText = "🏃 Walking to start shift..."
-    WalkToPoint(Constants.START_SHIFT); rWait(0.4, 0.8)
-    local sp = FindPrompt("start shift", 30) or FindPrompt("shift", 30)
-    if sp and sp.ActionText:lower():find("start") then
-        State.StatusText = "💼 Shift started!"
-        DoTap(sp, sp.Parent); rWait(0.8, 1.5)
+local function DestroyDebugOverlay()
+    if State.DebugOverlay and State.DebugOverlay.Parent then
+        State.DebugOverlay:Destroy()
+        State.DebugOverlay = nil
     end
+end
+
+-- ============================================================================
+-- // 12. BARISTA AI MINIGAME & LOGIC
+-- ============================================================================
+local function StartMinigameAI()
+    if State.AiThread then task.cancel(State.AiThread) end
+    State.DebugTapCount = 0
+    State.AiThread = task.spawn(function()
+        while State.IsBaristaActive do
+            task.wait(0.02)
+            local gui = LocalPlayer.PlayerGui:FindFirstChild("BaristaGUI")
+            if not gui then
+                State.DebugMinigameActive = false
+                task.wait(0.1); continue
+            end
+            local mf = gui:FindFirstChild("MinigameFrame", true)
+            if not (mf and mf.Visible) then
+                State.DebugMinigameActive = false
+                task.wait(0.1); continue
+            end
+
+            State.DebugMinigameActive = true
+
+            local tapZone    = mf:FindFirstChild("TapZone", true)
+            local bgBar      = mf:FindFirstChild("BackgroundBar", true)
+            local targetZone = bgBar and bgBar:FindFirstChild("TargetZone")
+            local cursor     = bgBar and bgBar:FindFirstChild("PlayerCursor")
+
+            if tapZone and targetZone and cursor then
+                local cursorY  = cursor.AbsolutePosition.Y + cursor.AbsoluteSize.Y / 2
+                local tzTop    = targetZone.AbsolutePosition.Y
+                local tzHeight = targetZone.AbsoluteSize.Y
+                local tzCenter = tzTop + tzHeight / 2
+
+                State.DebugCursorY = cursorY
+                State.DebugTargetY = tzCenter
+                State.DebugCursorDelta = cursorY - tzCenter
+
+                if cursorY > tzCenter + 2 then
+                    pcall(function()
+                        if getconnections then
+                            for _, c in ipairs(getconnections(tapZone.MouseButton1Down)) do
+                                if c.Function then c.Function() end
+                            end
+                        end
+                        if firesignal then firesignal(tapZone.MouseButton1Down) end
+                    end)
+                    State.DebugTapCount = State.DebugTapCount + 1
+                    State.DebugLastAction = "TAP ⚡"
+                else
+                    State.DebugLastAction = "WAIT ⏳"
+                end
+            else
+                State.DebugLastAction = "NO UI ❌"
+            end
+        end
+        State.DebugMinigameActive = false
+    end)
+end
+
+local BaristaRefs = {}
+
+local function RefreshBaristaRefs()
+    local job = workspace:FindFirstChild("BaristaJob")
+    local inter = job and job:FindFirstChild("Interactions")
+    if not inter then return false end
+
+    local sp = inter:FindFirstChild("StartPart")
+    sp = sp and sp:FindFirstChild("StartPart")
+    BaristaRefs.JobPrompt = sp and sp:FindFirstChild("JobPrompt")
+
+    local mach = inter:FindFirstChild("MachinePart")
+    mach = mach and mach:FindFirstChild("MachinePart")
+    BaristaRefs.MachinePart   = mach
+    BaristaRefs.MachinePrompt = mach and mach:FindFirstChild("MachinePrompt")
+
+    local reg = inter:FindFirstChild("RegisterPart")
+    reg = reg and reg:FindFirstChild("RegisterPart")
+    BaristaRefs.RegisterPart   = reg
+    BaristaRefs.RegisterPrompt = reg and reg:FindFirstChild("RegisterPrompt")
+
+    local sup = inter:FindFirstChild("SupplyPart")
+    sup = sup and sup:FindFirstChild("SupplyPart")
+    BaristaRefs.SupplyPart   = sup
+    BaristaRefs.SupplyPrompt = sup and sup:FindFirstChild("SupplyPrompt")
+
+    return BaristaRefs.JobPrompt ~= nil
+end
+
+local function HasJobActive()
+    local p = BaristaRefs.JobPrompt
+    if not p or not p.ActionText then return false end
+    return p.ActionText:lower():find("end") ~= nil
 end
 
 local function HasPendingOrder()
-    local mp = Paths.START_TO_MACHINE[#Paths.START_TO_MACHINE]
-    return FindPrompt("brewing", 40, mp) or FindPrompt("brew", 40, mp) or FindPrompt("make", 40, mp) ~= nil
+    local p = BaristaRefs.MachinePrompt
+    return p and p.Enabled or false
+end
+
+local function NeedsRestock()
+    local s = BaristaRefs.SupplyPrompt
+    return s and s.Enabled or false
+end
+
+local function CanServe()
+    local r = BaristaRefs.RegisterPrompt
+    return r and r.Enabled or false
+end
+
+local function TriggerPrompt(prompt, keepCameraLocked)
+    if not prompt or not prompt.Parent then return false end
+    local ok = false
+    pcall(function()
+        prompt.Enabled = true
+        pcall(function()
+            prompt.RequiresLineOfSight = false
+            if (prompt.MaxActivationDistance or 0) < 30 then prompt.MaxActivationDistance = 30 end
+        end)
+        
+        -- Kamera mengunci ke part sebelum ditekan
+        if prompt.Parent and prompt.Parent:IsA("BasePart") then
+            focusCameraZoom(true, prompt.Parent)
+            task.wait(0.05)
+        end
+        
+        prompt:InputHoldBegin()
+        task.wait((prompt.HoldDuration or 0.1) + 0.15)
+        prompt:InputHoldEnd()
+        ok = true
+    end)
+    rWait(0.15, 0.3)
+    
+    -- Kembalikan kamera jika tidak disuruh ditahan
+    if not keepCameraLocked then
+        focusCameraZoom(false)
+    end
+    
+    return ok
 end
 
 local function BaristaFarmLoop()
-    local isAtCashier = false
+    local lastLocation = "unknown"
+
     while State.IsBaristaActive do
         if not CharRef.Character or not CharRef.Character.Parent then
-            UpdateCharRef()
+            UpdateCharRef(); task.wait(0.5)
+        end
+        if not RefreshBaristaRefs() then
+            State.StatusText = "Loading BaristaJob..."
+            task.wait(1); continue
         end
 
-        if not HasJob() then
-            State.StatusText = "⚠️ Shift ended, restarting..."
-            local dm = (CharRef.Root.Position - Paths.START_TO_MACHINE[#Paths.START_TO_MACHINE]).Magnitude
-            local dc = (CharRef.Root.Position - Paths.MACHINE_TO_CASHIER[#Paths.MACHINE_TO_CASHIER]).Magnitude
-            FollowPath(dm < dc and Paths.MACHINE_TO_START or Paths.CASHIER_TO_START)
-            TakeJob()
-            State.StatusText = "🚶 Returning to workstation..."
-            FollowPath(Paths.START_TO_MACHINE); isAtCashier = false; continue
-        end
-
-        while not HasPendingOrder() and not IsMachineBroken() and State.IsBaristaActive do
-            State.StatusText = "Waiting for customers..."; task.wait(1)
-        end
-        if not State.IsBaristaActive then continue end
-        if not HasJob() then continue end
-
-        if IsMachineBroken() then
-            State.StatusText = "Machine broken, fixing..."
-            if isAtCashier then FollowPath(Paths.CASHIER_TO_MACHINE); isAtCashier = false end
-            FollowPath(Paths.MACHINE_TO_FIX); rWait(0.4, 0.8)
-            local fix = FindPrompt("fix",20) or FindPrompt("repair",20) or FindPrompt("clean",20) or FindPrompt("maintain",20)
-            if fix then DoHold(fix, fix.Parent)
-            else
-                for _, v in pairs(Services.Workspace:GetDescendants()) do
-                    if v:IsA("ProximityPrompt") and v.Enabled then
-                        local p = v.Parent
-                        if p and p:IsA("BasePart") and (p.Position - CharRef.Root.Position).Magnitude < 15 then DoHold(v, p) end
-                    end
+        if not HasJobActive() then
+            State.StatusText = "🏃 Jalan ke Start Shift..."
+            State.DebugLastAction = "GO START"
+            if lastLocation ~= "start" then
+                if lastLocation == "machine" then
+                    SmartFollowPath(Paths.MACHINE_TO_START)
+                elseif lastLocation == "cashier" then
+                    SmartFollowPath(Paths.CASHIER_TO_START)
+                elseif lastLocation == "supply" then
+                    SmartFollowPath(Paths.FIX_TO_MACHINE)
+                    SmartFollowPath(Paths.MACHINE_TO_START)
+                else
+                    WalkToPoint(Constants.START_SHIFT, 20)
                 end
+                lastLocation = "start"
             end
+
+            rWait(0.5, 1)
+            local p = BaristaRefs.JobPrompt
+            if p and p.Enabled and p.ActionText:lower():find("start") then
+                State.StatusText = "💼 Mulai shift..."
+                State.DebugLastAction = "START SHIFT"
+                TriggerPrompt(p)
+                rWait(1.5, 2.5)
+                State.StatusText = "🚶 Jalan ke mesin..."
+                SmartFollowPath(Paths.START_TO_MACHINE)
+                lastLocation = "machine"
+            end
+            continue
+        end
+
+        if CanServe() then
+            State.StatusText = "☕ Jalan ke kasir..."
+            State.DebugLastAction = "GO CASHIER"
+            if lastLocation ~= "cashier" then
+                SmartFollowPath(Paths.MACHINE_TO_CASHIER)
+                lastLocation = "cashier"
+            end
+
+            rWait(0.3, 0.6)
+            local r = BaristaRefs.RegisterPrompt
+            if r and r.Enabled then
+                TriggerPrompt(r)
+                State.OrderCount = (State.OrderCount or 0) + 1
+                State.StatusText = "✅ Terkirim! Total: " .. State.OrderCount
+                State.DebugLastAction = "SERVED"
+                rWait(1, 1.5)
+            end
+            continue
+        end
+
+        if NeedsRestock() then
+            State.StatusText = "🔧 Jalan ke supply (fix mesin)..."
+            State.DebugLastAction = "GO FIX"
+            if lastLocation == "cashier" then
+                SmartFollowPath(Paths.CASHIER_TO_MACHINE)
+            end
+            SmartFollowPath(Paths.MACHINE_TO_FIX)
+            lastLocation = "supply"
+
             rWait(0.4, 0.8)
-            State.MachineFixCount = (State.MachineFixCount or 0) + 1
-            FollowPath(Paths.FIX_TO_MACHINE); continue
+            local s = BaristaRefs.SupplyPrompt
+            if s and s.Enabled then
+                TriggerPrompt(s)
+                State.MachineFixCount = (State.MachineFixCount or 0) + 1
+                State.StatusText = "✅ Mesin diperbaiki!"
+                State.DebugLastAction = "FIXED"
+
+                State.StatusText = "🚶 Balik ke mesin..."
+                SmartFollowPath(Paths.FIX_TO_MACHINE)
+                lastLocation = "machine"
+                rWait(0.5, 1)
+            end
+            continue
         end
 
         if HasPendingOrder() then
-            if isAtCashier then
-                FollowPath(Paths.CASHIER_TO_MACHINE); isAtCashier = false
+            State.StatusText = "☕ Jalan ke mesin (brew)..."
+            State.DebugLastAction = "GO BREW"
+            if lastLocation == "cashier" then
+                SmartFollowPath(Paths.CASHIER_TO_MACHINE)
+            elseif lastLocation == "supply" then
+                SmartFollowPath(Paths.FIX_TO_MACHINE)
+            elseif lastLocation == "start" then
+                SmartFollowPath(Paths.START_TO_MACHINE)
             else
-                WalkToPoint(Paths.START_TO_MACHINE[#Paths.START_TO_MACHINE])
+                WalkToPoint(BaristaRefs.MachinePart.Position + Vector3.new(0,0,2), 10)
             end
+            lastLocation = "machine"
 
-            local mp = Paths.START_TO_MACHINE[#Paths.START_TO_MACHINE]
-            local bp = FindPrompt("brewing",30,mp) or FindPrompt("brew",30,mp) or FindPrompt("make",30,mp)
-            if bp then
-                State.StatusText = "Brewing coffee..."; DoTap(bp, bp.Parent); rWait(0.8, 1.2)
-                while State.IsBaristaActive do
-                    local g = LocalPlayer.PlayerGui:FindFirstChild("BaristaGUI")
-                    local m = g and g:FindFirstChild("MinigameFrame", true)
-                    if not m or not m.Visible then break end; task.wait(0.5)
+            rWait(0.3, 0.6)
+            local m = BaristaRefs.MachinePrompt
+            if m and m.Enabled then
+                State.StatusText = "🍺 Brewing..."
+                State.DebugLastAction = "BREWING"
+                
+                -- Tahan kamera (Lock) selama proses Minigame
+                TriggerPrompt(m, true)
+                
+                local t = 0
+                while State.IsBaristaActive and t < 30 do
+                    task.wait(0.3); t += 0.3
+                    if CanServe() or NeedsRestock() then break end
+                    if not HasJobActive() then break end
                 end
+                
+                -- Lepaskan kamera saat Minigame selesai
+                focusCameraZoom(false)
             end
-            rWait(0.8, 1.5)
-
-            local dp = FindPrompt("take",25,mp) or FindPrompt("grab",25,mp)
-            if dp then DoTap(dp, dp.Parent) end; rWait(0.3, 0.7)
-
-            local tool = LocalPlayer.Backpack:FindFirstChildOfClass("Tool") or CharRef.Character:FindFirstChildOfClass("Tool")
-            if tool then CharRef.Humanoid:EquipTool(tool) end
-
-            State.StatusText = "🚶 Delivering coffee..."
-            FollowPath(Paths.MACHINE_TO_CASHIER); isAtCashier = true
-
-            local attempt = 0
-            while CharRef.Character:FindFirstChildOfClass("Tool") and State.IsBaristaActive and attempt < 5 do
-                local sp2 = FindPrompt("serve",25) or FindPrompt("deliver",25)
-                if sp2 then DoHold(sp2, sp2.Parent) else break end
-                attempt += 1; rWait(0.4, 0.7)
-            end
-
-            if not CharRef.Character:FindFirstChildOfClass("Tool") then
-                State.OrderCount += 1
-                State.StatusText = "✅ Coffee sold! Total: " .. State.OrderCount
-            end
-
-            local delay = State.ActionDelay + math.random(-5, 10) / 10
-            rWait(delay, delay + 0.5)
+            continue
         end
-    end
-end
 
-local function StartBaristaScript()
-    if State.IsBaristaActive then return end
-    State.IsBaristaActive = true
-    State.UangAwal = GetPlayerMoney()
-    State.UangAwalSession = State.UangAwal
-    State.SessionStartTime = os.time()
-    State.LastStopReason = ""
-    State.MachineFixCount = 0
-    task.spawn(function() TakeJob(); StartMinigameAI(); BaristaFarmLoop() end)
-end
+        if lastLocation == "unknown" or lastLocation == "start" then
+            State.StatusText = "🚶 Jalan ke standby..."
+            State.DebugLastAction = "STANDBY"
+            WalkToPoint(BaristaRefs.MachinePart and BaristaRefs.MachinePart.Position + Vector3.new(0,0,3), 15)
+            lastLocation = "machine"
+            continue
+        end
 
-local function StopBaristaScript(reason)
-    State.IsBaristaActive = false
-    State.StatusText = "Idling..."
-    State.LastStopReason = reason or "User manually stopped Barista"
-    if CharRef.Humanoid and CharRef.Root then
-        CharRef.Humanoid:MoveTo(CharRef.Root.Position)
+        State.StatusText = "⏳ Nunggu pelanggan..."
+        State.DebugLastAction = "IDLE"
+        task.wait(1)
     end
+
+    State.DebugMinigameActive = false
+    focusCameraZoom(false)
 end
 
 -- ============================================================================
@@ -1711,7 +1963,7 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- // MONITORING GUI (RAPIH & MULTI-JOB)
+-- // 14. MONITORING GUI (RAPIH & MULTI-JOB)
 -- ============================================================================
 local CoreGui2 = (gethui and gethui()) or game:GetService("CoreGui")
 local TrackerGui = nil
@@ -1848,10 +2100,11 @@ local function buatMonitoringGUI()
     TitleLbl.BackgroundTransparency = 1; TitleLbl.Text = "KING AKBAR"
     TitleLbl.TextColor3 = Color3.fromRGB(210,210,215); TitleLbl.Font = Enum.Font.GothamBold
     TitleLbl.TextSize = 13; TitleLbl.TextXAlignment = Enum.TextXAlignment.Left
+    
     local SubLbl = Instance.new("TextLabel", H)
     SubLbl.Size = UDim2.new(1,-40,0,11); SubLbl.Position = UDim2.new(0,40,0,20)
     SubLbl.BackgroundTransparency = 1
-    SubLbl.Text = State.IsRideGOActive and "RideGO Driver" or (State.IsCourierActive and "Courier Express" or (State.IsOfficeActive and "Office Worker" or "Bypass GACOR"))
+    SubLbl.Text = State.IsRideGOActive and "RideGO Driver" or (State.IsCourierActive and "Courier Express" or (State.IsBaristaActive and "Barista" or (State.IsOfficeActive and "Office Worker" or "Bypass GACOR")))
     SubLbl.TextColor3 = Color3.fromRGB(90,90,100); SubLbl.Font = Enum.Font.Gotham
     SubLbl.TextSize = 9; SubLbl.TextXAlignment = Enum.TextXAlignment.Left
 
@@ -1887,10 +2140,10 @@ local function buatMonitoringGUI()
 
     local v_initial, v_profit = baris("💵","Initial", "💰","Profit", 3)
     local v_stat1, v_stat2, c_stat1, c_stat2 = baris(
-        State.IsRideGOActive and "🚕" or (State.IsCourierActive and "📦" or "📝"),
-        State.IsRideGOActive and "Trips" or (State.IsCourierActive and "Delivered" or "Solved"),
-        State.IsRideGOActive and "💵" or (State.IsCourierActive and "🔄" or "🖨️"),
-        State.IsRideGOActive and "Fares" or (State.IsCourierActive and "Status" or "Prints"),
+        State.IsRideGOActive and "🚕" or (State.IsCourierActive and "📦" or (State.IsBaristaActive and "☕" or "📝")),
+        State.IsRideGOActive and "Trips" or (State.IsCourierActive and "Delivered" or (State.IsBaristaActive and "Sold" or "Solved")),
+        State.IsRideGOActive and "💵" or (State.IsCourierActive and "🔄" or (State.IsBaristaActive and "🔧" or "🖨️")),
+        State.IsRideGOActive and "Fares" or (State.IsCourierActive and "Status" or (State.IsBaristaActive and "Fixes" or "Prints")),
         4
     )
     local v_profitH, v_ping   = baris("⚡","Profit/H", "📶","Ping", 5)
@@ -1939,6 +2192,14 @@ local function buatMonitoringGUI()
                     animateValue(v_stat1, delivered, function(n) return tostring(math.floor(n)) end, nil, nil, CLR_WHITE)
                     v_stat2.Text = State.CourierPhase or "Idle"
                     v_stat2.TextColor3 = CLR_GREEN
+                elseif State.IsBaristaActive then
+                    SubLbl.Text = "Barista"
+                    c_stat1.Text = "☕ Sold"
+                    c_stat2.Text = "🔧 Fixes"
+                    local sold = State.OrderCount or 0
+                    local fixes = State.MachineFixCount or 0
+                    animateValue(v_stat1, sold, function(n) return tostring(math.floor(n)) end, nil, nil, CLR_WHITE)
+                    animateValue(v_stat2, fixes, function(n) return tostring(math.floor(n)) end, nil, nil, CLR_WHITE)
                 else
                     SubLbl.Text = State.IsOfficeActive and "Office Worker" or "Bypass GACOR"
                     c_stat1.Text = "📝 Solved"
@@ -1989,6 +2250,43 @@ end
 
 local function matikanMonitoring()
     if TrackerGui and TrackerGui.Parent then TrackerGui:Destroy(); TrackerGui = nil end
+end
+
+-- ============================================================================
+-- // START / STOP MODULE (BARISTA & OFFICE)
+-- ============================================================================
+local function StartBaristaScript()
+    if State.IsBaristaActive then return end
+    State.IsBaristaActive = true
+    State.MachineFixCount = 0
+    State.OrderCount      = 0
+    State.DebugTapCount   = 0
+
+    CachedMoneyLabel = nil
+    getgenv().UangAwalDikunci = nil
+    getgenv().WaktuMulai = tick()
+    buatMonitoringGUI()
+
+    if State.DebugEnabled then CreateDebugOverlay() end
+    task.spawn(function()
+        RefreshBaristaRefs()
+        StartMinigameAI()
+        BaristaFarmLoop()
+    end)
+    WindUI:Notify({ Title = "☕ Auto Barista", Content = "Auto Barista & Monitoring Aktif!", Duration = 3 })
+end
+
+local function StopBaristaScript()
+    State.IsBaristaActive = false
+    State.StatusText = "Idling..."
+    State.DebugMinigameActive = false
+    focusCameraZoom(false)
+    if CharRef.Humanoid and CharRef.Root then
+        CharRef.Humanoid:MoveTo(CharRef.Root.Position)
+    end
+    DestroyDebugOverlay()
+    matikanMonitoring()
+    WindUI:Notify({ Title = "🛑 Auto Barista", Content = "Auto Barista Dihentikan.", Duration = 3 })
 end
 
 local function StartOfficeScript()
@@ -2754,7 +3052,7 @@ local function flyToTarget(targetPos)
 end
 
 -- ============================================================================
--- // 14. AUTO COURIER (VERIFIKASI DROP MANDIRI & AUTO DELIVERED +1)
+-- // 15. AUTO COURIER (VERIFIKASI DROP MANDIRI & AUTO DELIVERED +1)
 -- ============================================================================
 local CourierJob = {
     Name = "Courier", TeamId = 11378976,
@@ -3056,7 +3354,12 @@ local function StartCourierScript()
     State.IsCourierActive = true
     State.CourierDelivered = 0
     State.CourierPhase = "Standby"
+    
+    CachedMoneyLabel = nil
+    getgenv().UangAwalDikunci = nil
+    getgenv().WaktuMulai = tick()
     buatMonitoringGUI()
+
     task.spawn(startCourierLoop)
     WindUI:Notify({ Title = "📦 Auto Courier", Content = "Auto Courier (RideGO Engine) Aktif!", Duration = 3 })
 end
@@ -3081,7 +3384,7 @@ local function StopCourierScript()
 end
 
 -- ============================================================================
--- // 15. INJECT A-CHASSIS
+-- // 16. INJECT A-CHASSIS
 -- ============================================================================
 local function InjectMesin(HP_Mult, RPM_Add, Ratio_Mult, FD_Mult, NamaMode)
     local char = game:GetService("Players").LocalPlayer.Character
@@ -3135,7 +3438,7 @@ local function InjectMesin(HP_Mult, RPM_Add, Ratio_Mult, FD_Mult, NamaMode)
 end
 
 -- ============================================================================
--- // 16. AUTO RIDEGO DRIVER (TUNED NETWORK + SILENT HUMANIZER CYCLE)
+-- // 17. AUTO RIDEGO DRIVER (TUNED NETWORK + SILENT HUMANIZER CYCLE)
 -- ============================================================================
 local TaxiEvent = Services.ReplicatedStorage
     :WaitForChild("TaxiAssets", 10)
@@ -3297,6 +3600,7 @@ local function StartRideGOScript()
     State.RideGOEarnings = 0
     State.CurrentCycleTrips = 0
     State.NextBikeCycle = math.random(3, 7)
+    
     CachedMoneyLabel = nil
     getgenv().UangAwalDikunci = nil
     getgenv().WaktuMulai = tick()
@@ -3341,7 +3645,7 @@ end
 LocalPlayer:GetPropertyChangedSignal("Team"):Connect(OnRideGOTeamChanged)
 
 -- ============================================================================
--- // 16.5 DISCORD WEBHOOK SYSTEM
+-- // 18. DISCORD WEBHOOK SYSTEM
 -- ============================================================================
 getgenv().WebhookSettings = {
     URL = "",
@@ -3459,7 +3763,7 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- // 17. UI SETUP
+-- // 19. UI SETUP
 -- ============================================================================
 local wSz  = IsMobile and UDim2.fromOffset(420, 320) or UDim2.fromOffset(580, 460)
 local mnSz = IsMobile and Vector2.new(600, 300) or Vector2.new(600, 350)
@@ -3537,6 +3841,7 @@ local TabFarm = Window:Tab({ Title = "Auto Farm", Icon = "coffee", Border = true
 -- SECTION BARISTA
 local SectionBarista = TabFarm:Section({ Title = "Auto Barista", Box = true, BoxBorder = true, Opened = false })
 SectionBarista:Toggle({ Title = "Enable Auto Barista", Icon = "play", Value = false, Callback = function(on) if on then StartBaristaScript() else StopBaristaScript() end end })
+SectionBarista:Toggle({ Title = "Show Debug Overlay", Icon = "monitor", Value = true, Callback = function(on) State.DebugEnabled = on; if State.IsBaristaActive then if on then CreateDebugOverlay() else DestroyDebugOverlay() end end end })
 
 -- SECTION OFFICE
 local SectionOffice = TabFarm:Section({ Title = "Auto Office", Box = true, BoxBorder = true, Opened = false })
