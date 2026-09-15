@@ -1,32 +1,22 @@
 --[[
 ================================================================================
-  👑 KING AKBAR - ULTIMATE AUTO FARM SCRIPT (NO VIRTUAL INPUT VERSION) 👑
+  KING AKBAR — ULTIMATE AUTO FARM SUITE
 ================================================================================
-    [+] Developer   : King Akbar
-    [+] Game        : Drag Drive Simulator
-    [+] Fitur       : + Auto RideGO Driver (Void Gate Ultra + Anti-Kick Stabil)
-                      + Silent Humanizer Cycle (Auto Reset Motor Acak 3-7 Trip)
-                      + Auto Barista (New AI Minigame + Smart Pathfinding + Auto Zoom)
-                      + Auto Courier (100% Fix Drop Paket & Auto Delivered +1)
-                      + Auto Office (Anti-AFK + Print & Math Logic)
-                      + Universal Monitoring GUI untuk SEMUA JOB
-                      + Permanent Noclip (Karakter, Motor, & Penumpang Stepped)
-                      + Watchdog 8s: Auto Spawn/Despawn Motor jika Rute Bug
-                      + Anti-Kick 3 Lapis (Hook + No Input Spam + Heartbeat Disabled)
-                      + Auto-Recovery Respawn Karakter
-                      + Discord Webhook Free (Rapi & Real-time)
+  Developer   : King Akbar
+  Game        : Drag Drive Simulator
+  Features    : Barista • Office • Courier • RideGO • Police Duty
 ================================================================================
-]]--
+]]
 
 -- ============================================================================
--- // SILENT MODE (MATIKAN F9 CONSOLE)
+-- [00] SILENT MODE
 -- ============================================================================
 local print = function() end
-local warn = function() end
+local warn  = function() end
 local error = function() end
 
 -- ============================================================================
--- // SAFE DESTROY (ANTI WARNING SPAM - F9 CLEAN)
+-- [01] SAFE DESTROY HELPER
 -- ============================================================================
 local function safeDestroy(obj)
     task.defer(function()
@@ -37,16 +27,16 @@ local function safeDestroy(obj)
 end
 
 -- ============================================================================
--- // 0. ULTIMATE BYPASS "GACOR" — DDS TARGETED
+-- [02] PROTECTION LAYER — DDS TARGETED
 -- ============================================================================
 do
-    local LocalPlayer = game:GetService("Players").LocalPlayer
-    local RS          = game:GetService("ReplicatedStorage")
+    local Players = game:GetService("Players")
+    local RS      = game:GetService("ReplicatedStorage")
+    local LocalPlayer = Players.LocalPlayer
 
-    local function BLog(msg)  end
-    local function BWarn(msg) end
+    local function BLog(_)  end
+    local function BWarn(_) end
 
-    -- ── [1] INDEXINSTANCE NEUTRALIZER ──────────────────────────────────
     pcall(function()
         if not getgc then return end
         for _, v in pairs(getgc(true)) do
@@ -55,34 +45,36 @@ do
                 if type(idx) == "table" and idx[1] == "kick" then
                     setreadonly(v, false)
                     v.tvk = { "kick", function() return game.Workspace:WaitForChild("") end }
-                    BLog("IndexInstance kick dinetralkan")
+                    BLog("IndexInstance kick neutralized")
                 end
             end)
         end
     end)
 
-    -- ── [2] HTTP WEBHOOK BLOCKER ───────────────────────────────────────
     pcall(function()
         local requestFunc =
             (syn and syn.request) or http_request or
             (fluxus and fluxus.request) or request or
             (http and http.request)
         if not requestFunc or not hookfunction then return end
-
         local oldReq = requestFunc
         hookfunction(requestFunc, function(opts)
             local url = string.lower(tostring(opts and (opts.Url or opts.url) or ""))
-            local safe = url:find("roblox%.com") or url:find("rbxcdn%.com") or url:find("discord%.com") or url:find("discordapp%.com") or url == ""
+            local safe =
+                url:find("roblox%.com") or
+                url:find("rbxcdn%.com") or
+                url:find("discord%.com") or
+                url:find("discordapp%.com") or
+                url == ""
             if not safe then
-                BWarn("HTTP diblokir: " .. url)
+                BWarn("HTTP blocked: " .. url)
                 return { StatusCode = 200, Body = '{"success":true}', Success = true, Headers = {} }
             end
             return oldReq(opts)
         end)
-        BLog("HTTP Blocker aktif")
+        BLog("HTTP Blocker active")
     end)
 
-    -- ── [3] METATABLE HOOK — Anti-Kick + DDS Remote Blocker ───────────
     pcall(function()
         local mt = getrawmetatable(game)
         if not mt then return end
@@ -102,83 +94,60 @@ do
         setreadonly(mt, false)
         mt.__namecall = newcclosure(function(self, ...)
             local method = getnamecallmethod and getnamecallmethod() or ""
-
             if (method:lower() == "kick" or method == "Disconnect")
-                and tostring(self) == tostring(LocalPlayer)
-            then
+                and tostring(self) == tostring(LocalPlayer) then
                 if getgenv().allowSelfKick then
                     getgenv().allowSelfKick = false
                     return oldNamecall(self, ...)
                 end
-                BWarn("Kick diblokir!")
+                BWarn("Kick blocked!")
                 return nil
             end
-
             if method == "FireServer" then
-                local ok, name = pcall(function()
-                    return string.lower(tostring(self.Name))
-                end)
+                local ok, name = pcall(function() return string.lower(tostring(self.Name)) end)
                 if ok and BLOCK_FIRE[name] then
-                    BWarn("FireServer diblokir: " .. name)
+                    BWarn("FireServer blocked: " .. name)
                     return nil
                 end
             end
-
             if method == "InvokeServer" then
-                local ok, name = pcall(function()
-                    return string.lower(tostring(self.Name))
-                end)
+                local ok, name = pcall(function() return string.lower(tostring(self.Name)) end)
                 if ok and SPOOF_INVOKE[name] ~= nil then
-                    BWarn("InvokeServer dispoofed: " .. name)
+                    BWarn("InvokeServer spoofed: " .. name)
                     return SPOOF_INVOKE[name]
                 end
             end
-
             return oldNamecall(self, ...)
         end)
         setreadonly(mt, true)
-        BLog("Metatable Hook aktif (Anti-Kick + Remote Blocker)")
+        BLog("Metatable hook active")
     end)
 
-    -- ── [4] WRONGTEAMEVENT INTERCEPTOR ────────────────────────────────
     task.spawn(function()
         local jobEv = RS:WaitForChild("JobEvents", 10)
         if not jobEv then return end
         local wte = jobEv:WaitForChild("WrongTeamEvent", 5)
         if not wte then return end
-        wte.OnClientEvent:Connect(function()
-            BWarn("WrongTeamEvent dari server — DIABAIKAN")
-        end)
-        BLog("WrongTeamEvent interceptor aktif")
+        wte.OnClientEvent:Connect(function() end)
     end)
 
-    -- ── [5] UUID AC REMOTE NEUTRALIZER ────────────────────────────────
     task.spawn(function()
         local UUID = "0bde16ec-a0df-43fe-ba4b-b1fca4f092ee"
-        local rem = RS:WaitForChild(UUID, 5)
-        if not rem then BLog("UUID AC tidak aktif sesi ini") return end
+        local rem  = RS:WaitForChild(UUID, 5)
+        if not rem then return end
         pcall(function()
             if rem:IsA("RemoteEvent") then
-                rem.OnClientEvent:Connect(function()
-                    BWarn("UUID AC fired — DIABAIKAN")
-                end)
+                rem.OnClientEvent:Connect(function() end)
             end
         end)
-        pcall(function()
-            local fn = rem:FindFirstChildWhichIsA("RemoteFunction")
-            if fn then fn.OnClientInvoke = function() return nil end end
-        end)
-        BLog("UUID AC dinetralkan: " .. UUID)
     end)
 
-    -- ── [6] SMART AC SCRIPT KILLER ────────────────────────────────────
     local AC_KW = {
-        "adonis","ae_","anticheat","anti_cheat","cheatdetect",
-        "adminscript","bansystem","kicksystem","hackdetect",
-        "exploitdetect","injectioncheck"
+        "adonis", "ae_", "anticheat", "anti_cheat", "cheatdetect",
+        "adminscript", "bansystem", "kicksystem", "hackdetect",
+        "exploitdetect", "injectioncheck",
     }
     local killedSet = {}
-
     local function isAC(name)
         local low = string.lower(name)
         for _, kw in ipairs(AC_KW) do
@@ -186,21 +155,16 @@ do
         end
         return false
     end
-
     local function killAC(parent)
         if not parent then return end
         pcall(function()
             for _, v in pairs(parent:GetChildren()) do
-                local name = string.lower(v.Name)
-                if isAC(name) then
+                if isAC(string.lower(v.Name)) then
                     pcall(function()
                         if v:IsA("LocalScript") or v:IsA("ModuleScript") or v:IsA("Script") then
                             if not v.Disabled then
                                 v.Disabled = true
-                                if not killedSet[v] then
-                                    BWarn("AC Script dimatikan: " .. v.Name)
-                                    killedSet[v] = true
-                                end
+                                killedSet[v] = true
                             end
                         end
                     end)
@@ -209,21 +173,17 @@ do
             end
         end)
     end
-
     local gui_services = {
         LocalPlayer:WaitForChild("PlayerGui"),
         game:GetService("CoreGui"),
         gethui and gethui() or game:GetService("CoreGui"),
     }
-
     for _, svc in ipairs(gui_services) do pcall(killAC, svc) end
-
     task.spawn(function()
         while task.wait(5) do
             for _, svc in ipairs(gui_services) do pcall(killAC, svc) end
         end
     end)
-
     for _, svc in ipairs(gui_services) do
         pcall(function()
             svc.ChildAdded:Connect(function(child)
@@ -231,7 +191,6 @@ do
                     pcall(function()
                         if child:IsA("LocalScript") or child:IsA("ModuleScript") or child:IsA("Script") then
                             child.Disabled = true
-                            BWarn("AC Script baru dicegah: " .. child.Name)
                         end
                     end)
                     safeDestroy(child)
@@ -240,26 +199,23 @@ do
         end)
     end
 
-    BLog("Smart AC Killer aktif (scan 5s + ChildAdded monitor)")
-
-    -- ── [7] EXTERNAL BYPASS ───────────────────────────────────────────
     task.spawn(function()
-        local ok1, e1 = pcall(function()
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/Pixeluted/adoniscries/main/Source.lua", true))()
+        pcall(function()
+            loadstring(game:HttpGet(
+                "https://raw.githubusercontent.com/Pixeluted/adoniscries/main/Source.lua", true
+            ))()
         end)
-        BLog(ok1 and "AdonisCries loaded" or "AdonisCries gagal: " .. tostring(e1))
-
         task.wait(1)
-
-        local ok2, e2 = pcall(function()
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/SUUUUUS00000/MEGGD-Anti-kick/refs/heads/main/MEGGD%20Best%20Anti-kick.lua"))()
+        pcall(function()
+            loadstring(game:HttpGet(
+                "https://raw.githubusercontent.com/SUUUUUS00000/MEGGD-Anti-kick/refs/heads/main/MEGGD%20Best%20Anti-kick.lua"
+            ))()
         end)
-        BLog(ok2 and "MEGGD Anti-Kick loaded" or "MEGGD gagal: " .. tostring(e2))
     end)
 end
 
 -- ============================================================================
--- // 1. LOAD WINDUI (SAFE)
+-- [03] LOAD UI LIBRARY
 -- ============================================================================
 do
     local ok, result = pcall(function()
@@ -271,27 +227,33 @@ do
         WindUI = result
     else
         WindUI = {
-            CreateWindow = function() return {
-                Tab            = function() return {
-                    Paragraph  = function() return { Set = function() end } end,
-                    Toggle     = function() end,
-                    Button     = function() end,
-                    Input      = function() end,
-                    Slider     = function() end,
-                    Section    = function() return {
-                        Paragraph = function() return { Set = function() end } end,
-                        Toggle    = function() end,
-                        Button    = function() end,
-                        Input     = function() end,
-                        Slider    = function() end,
-                    } end,
-                    Select     = function() end,
-                    Dropdown   = function() end,
-                } end,
-                Tag            = function() return { SetTitle = function() end } end,
-                EditOpenButton = function() end,
-                SetIconSize    = function() end,
-            } end,
+            CreateWindow = function()
+                return {
+                    Tab = function()
+                        return {
+                            Paragraph = function() return { Set = function() end } end,
+                            Toggle    = function() end,
+                            Button    = function() end,
+                            Input     = function() end,
+                            Slider    = function() end,
+                            Section   = function()
+                                return {
+                                    Paragraph = function() return { Set = function() end } end,
+                                    Toggle    = function() end,
+                                    Button    = function() end,
+                                    Input     = function() end,
+                                    Slider    = function() end,
+                                }
+                            end,
+                            Select   = function() end,
+                            Dropdown = function() end,
+                        }
+                    end,
+                    Tag            = function() return { SetTitle = function() end } end,
+                    EditOpenButton = function() end,
+                    SetIconSize    = function() end,
+                }
+            end,
             Notify   = function() end,
             SetTheme = function() end,
             Gradient = function() return {} end,
@@ -300,20 +262,20 @@ do
 end
 
 -- ============================================================================
--- // 2. SERVICES & REFERENCES
+-- [04] SERVICES & PLAYER REFERENCES
 -- ============================================================================
 local Services = {
-    Players             = game:GetService("Players"),
-    RunService          = game:GetService("RunService"),
-    TweenSvc            = game:GetService("TweenService"),
-    UserInput           = game:GetService("UserInputService"),
-    Stats               = game:GetService("Stats"),
-    Workspace           = game:GetService("Workspace"),
-    HttpService         = game:GetService("HttpService"),
-    GuiService          = game:GetService("GuiService"),
-    PathfindingService  = game:GetService("PathfindingService"),
-    ReplicatedStorage   = game:GetService("ReplicatedStorage"),
-    StarterGui          = game:GetService("StarterGui"),
+    Players            = game:GetService("Players"),
+    RunService         = game:GetService("RunService"),
+    TweenSvc           = game:GetService("TweenService"),
+    UserInput          = game:GetService("UserInputService"),
+    Stats              = game:GetService("Stats"),
+    Workspace          = game:GetService("Workspace"),
+    HttpService        = game:GetService("HttpService"),
+    GuiService         = game:GetService("GuiService"),
+    PathfindingService = game:GetService("PathfindingService"),
+    ReplicatedStorage  = game:GetService("ReplicatedStorage"),
+    StarterGui         = game:GetService("StarterGui"),
 }
 
 local LocalPlayer = Services.Players.LocalPlayer
@@ -322,11 +284,7 @@ local IsMobile = Services.UserInput.TouchEnabled
     and not Services.UserInput.KeyboardEnabled
     and not Services.UserInput.MouseEnabled
 
-local CharRef = {
-    Character = nil,
-    Humanoid  = nil,
-    Root      = nil,
-}
+local CharRef = { Character = nil, Humanoid = nil, Root = nil }
 
 local function UpdateCharRef()
     CharRef.Character = LocalPlayer.Character
@@ -343,89 +301,71 @@ LocalPlayer.CharacterAdded:Connect(function()
 end)
 
 -- ============================================================================
--- // SAFE INPUT SYSTEM (TANPA VIRTUAL USER & MOUSE)
--- ============================================================================
-local function SafeClick(x, y, holdTime)
-    holdTime = holdTime or 0.05
-    pcall(function()
-        local gui = LocalPlayer:FindFirstChild("PlayerGui")
-        if not gui then return end
-        
-        for _, button in ipairs(gui:GetDescendants()) do
-            if button:IsA("GuiButton") and button.Visible and button.Active then
-                local pos = button.AbsolutePosition
-                local size = button.AbsoluteSize
-                if x >= pos.X and x <= pos.X + size.X and y >= pos.Y and y <= pos.Y + size.Y then
-                    if getconnections then
-                        for _, signal in ipairs({button.MouseButton1Click, button.Activated}) do
-                            for _, conn in ipairs(getconnections(signal)) do
-                                if conn.Function then pcall(conn.Function) end
-                            end
-                        end
-                    end
-                    return
-                end
-            end
-        end
-    end)
-end
-
--- ============================================================================
--- // 3. STATE MANAGER
+-- [05] STATE MANAGER
 -- ============================================================================
 local State = {
-    IsBaristaActive      = false,
-    IsOfficeActive       = false,
-    IsCourierActive      = false,
-    IsRideGOActive       = false,
-    AiThread             = nil,
-    StatusText           = "Idling...",
-    OrderCount           = 0,
-    ActionDelay          = 5,
-    AntiAFK              = true,
-    AntiAdmin            = true,
-    UangAwal             = 0,
-    UangAwalSession      = 0,
-    SessionStartTime     = 0,
-    LastStopReason       = "",
-    MachineFixCount      = 0,
-    OfficeMathSolved     = 0,
-    OfficePrints         = 0,
-    CourierDelivered     = 0,
-    CourierPhase         = "Idle",
-    FakeNameActive       = false,
-    FakeName             = "King Akbar",
-    TargetProfit         = 0,
-    RideGOIsOnline       = false,
-    RideGOPhase          = "idle",
-    RideGOToken          = nil,
-    RideGOTargetPos      = nil,
-    RideGOTripCount      = 0,
-    RideGOEarnings       = 0,
+    IsBaristaActive  = false,
+    IsOfficeActive   = false,
+    IsCourierActive  = false,
+    IsRideGOActive   = false,
+    IsPoliceActive   = false,
 
-    -- Konfigurasi Rentang Kecepatan (Min & Max Terpisah)
-    RideGOMinSpeed       = 180,
-    RideGOMaxSpeed       = 220,
-    CourierMinSpeed      = 180,
-    CourierMaxSpeed      = 220,
+    AiThread         = nil,
+    StatusText       = "Idling...",
+    ActionDelay      = 5,
+    AntiAFK          = true,
+    AntiAdmin        = true,
+    LastStopReason   = "",
 
-    -- Auto Silent Humanizer Cycle (Reset Motor 3-7 Trip)
-    NextBikeCycle        = math.random(3, 7),
-    CurrentCycleTrips    = 0,
+    OrderCount       = 0,
+    MachineFixCount  = 0,
+    OfficeMathSolved = 0,
+    OfficePrints     = 0,
+    CourierDelivered = 0,
+    CourierPhase     = "Idle",
+    PoliceMissions   = 0,
+    PolicePhase      = "Idle",
 
-    -- Barista Debug UI
-    DebugOverlay         = nil,
-    DebugEnabled         = true,
-    DebugCursorY         = 0,
-    DebugTargetY         = 0,
-    DebugTapCount        = 0,
-    DebugLastAction      = "idle",
-    DebugMinigameActive  = false,
-    DebugCursorDelta     = 0,
+    FakeNameActive   = false,
+    FakeName         = "King Akbar",
+
+    TargetProfit     = 0,
+
+    RideGOIsOnline    = false,
+    RideGOPhase       = "idle",
+    RideGOToken       = nil,
+    RideGOTargetPos   = nil,
+    RideGOTripCount   = 0,
+    RideGOEarnings    = 0,
+
+    RideGOMinSpeed    = 180,
+    RideGOMaxSpeed    = 220,
+    CourierMinSpeed   = 180,
+    CourierMaxSpeed   = 220,
+    PoliceMinSpeed    = 180,
+    PoliceMaxSpeed    = 220,
+
+    NextBikeCycle     = math.random(3, 7),
+    CurrentCycleTrips = 0,
+
+    DebugOverlay      = nil,
+    DebugEnabled      = true,
+    DebugCursorY      = 0,
+    DebugTargetY      = 0,
+    DebugTapCount     = 0,
+    DebugLastAction   = "idle",
+    DebugMinigameActive = false,
+    DebugCursorDelta  = 0,
+
+    PMValidCones      = 0,
+    PMReqCones        = 0,
+    PMValidLines      = 0,
+    PMReqLines        = 0,
+    PMType            = "",
 }
 
 -- ============================================================================
--- // ANTI-KICK & KEEPALIVE (TANPA VIRTUAL INPUT)
+-- [06] ANTI-KICK & KEEPALIVE
 -- ============================================================================
 pcall(function()
     if not hookmetamethod or not newcclosure or not getnamecallmethod then return end
@@ -443,25 +383,51 @@ pcall(function()
 end)
 
 LocalPlayer.Idled:Connect(function()
-    if State.AntiAFK then
-        pcall(function()
-            local cam = workspace.CurrentCamera
-            if cam then
-                cam.CFrame = cam.CFrame * CFrame.Angles(0, math.rad(1), 0)
-                task.wait(0.05)
-                cam.CFrame = cam.CFrame * CFrame.Angles(0, math.rad(-1), 0)
-            end
-            if CharRef.Root and CharRef.Humanoid then
-                CharRef.Humanoid:MoveTo(CharRef.Root.Position + Vector3.new(1, 0, 0))
-                task.wait(0.05)
-                CharRef.Humanoid:MoveTo(CharRef.Root.Position - Vector3.new(1, 0, 0))
-            end
-        end)
-    end
+    if not State.AntiAFK then return end
+    pcall(function()
+        local cam = workspace.CurrentCamera
+        if cam then
+            cam.CFrame = cam.CFrame * CFrame.Angles(0, math.rad(1), 0)
+            task.wait(0.05)
+            cam.CFrame = cam.CFrame * CFrame.Angles(0, math.rad(-1), 0)
+        end
+        if CharRef.Root and CharRef.Humanoid then
+            CharRef.Humanoid:MoveTo(CharRef.Root.Position + Vector3.new(1, 0, 0))
+            task.wait(0.05)
+            CharRef.Humanoid:MoveTo(CharRef.Root.Position - Vector3.new(1, 0, 0))
+        end
+    end)
 end)
 
 -- ============================================================================
--- // 3.5 FAKE NAME SYSTEM
+-- [07] SAFE INPUT SYSTEM
+-- ============================================================================
+local function SafeClick(x, y)
+    pcall(function()
+        local gui = LocalPlayer:FindFirstChild("PlayerGui")
+        if not gui then return end
+        for _, button in ipairs(gui:GetDescendants()) do
+            if button:IsA("GuiButton") and button.Visible and button.Active then
+                local pos  = button.AbsolutePosition
+                local size = button.AbsoluteSize
+                if x >= pos.X and x <= pos.X + size.X
+                    and y >= pos.Y and y <= pos.Y + size.Y then
+                    if getconnections then
+                        for _, signal in ipairs({ button.MouseButton1Click, button.Activated }) do
+                            for _, conn in ipairs(getconnections(signal)) do
+                                if conn.Function then pcall(conn.Function) end
+                            end
+                        end
+                    end
+                    return
+                end
+            end
+        end
+    end)
+end
+
+-- ============================================================================
+-- [08] DISPLAY NAME SPOOFER
 -- ============================================================================
 local OriginalDisplayName = LocalPlayer.DisplayName
 local SpoofCache = {}
@@ -470,7 +436,9 @@ local function SpoofScan(char)
     for _, obj in pairs(char:GetDescendants()) do
         if obj:IsA("TextLabel") and obj.Visible then
             local t = obj.Text
-            if t == LocalPlayer.Name or t == OriginalDisplayName or t == ("@" .. LocalPlayer.Name) then
+            if t == LocalPlayer.Name
+                or t == OriginalDisplayName
+                or t == ("@" .. LocalPlayer.Name) then
                 if SpoofCache[obj] == nil then SpoofCache[obj] = t end
                 obj.Text = State.FakeName
             end
@@ -510,13 +478,12 @@ end
 
 LocalPlayer.CharacterAdded:Connect(function(char)
     task.wait(1)
-    if State.FakeNameActive then
-        SpoofCache = {}
-        pcall(function()
-            local hum = char:WaitForChild("Humanoid", 5)
-            if hum then hum.DisplayName = State.FakeName end
-        end)
-    end
+    if not State.FakeNameActive then return end
+    SpoofCache = {}
+    pcall(function()
+        local hum = char:WaitForChild("Humanoid", 5)
+        if hum then hum.DisplayName = State.FakeName end
+    end)
 end)
 
 task.spawn(function()
@@ -535,7 +502,7 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- // 4. HUMANIZATION & SAFE CAMERA FOCUS ZOOM SYSTEM
+-- [09] HUMANIZATION & CAMERA UTILITY
 -- ============================================================================
 local function rWait(minSec, maxSec)
     task.wait(math.random((minSec or 0.5) * 1000, (maxSec or 1.5) * 1000) / 1000)
@@ -553,17 +520,15 @@ local function focusCameraZoom(enable, targetPart)
             elseif CharRef.Root then
                 targetPos = CharRef.Root.Position
             end
-
             if targetPos then
-                local forward = (CharRef.Root and CharRef.Root.CFrame.LookVector) or Vector3.new(0, 0, -1)
+                local forward = (CharRef.Root and CharRef.Root.CFrame.LookVector)
+                    or Vector3.new(0, 0, -1)
                 local camPos = targetPos - (forward * 3.2) + Vector3.new(0, 1.3, 0)
                 cam.CFrame = CFrame.lookAt(camPos, targetPos)
             end
         else
             cam.CameraType = Enum.CameraType.Custom
-            if CharRef.Humanoid then
-                cam.CameraSubject = CharRef.Humanoid
-            end
+            if CharRef.Humanoid then cam.CameraSubject = CharRef.Humanoid end
         end
     end)
 end
@@ -579,14 +544,13 @@ local function DoHold(prompt, targetPart)
                 prompt.MaxActivationDistance = 30
             end
         end)
-
-        local part = targetPart or (prompt.Parent:IsA("BasePart") and prompt.Parent) or CharRef.Root
+        local part = targetPart
+            or (prompt.Parent:IsA("BasePart") and prompt.Parent)
+            or CharRef.Root
         focusCameraZoom(true, part)
         task.wait(0.05)
-
         prompt:InputHoldBegin()
-        local duration = (prompt.HoldDuration or 1) + 0.3
-        task.wait(duration)
+        task.wait((prompt.HoldDuration or 1) + 0.3)
         prompt:InputHoldEnd()
         ok = true
     end)
@@ -606,11 +570,11 @@ local function DoTap(prompt, targetPart)
                 prompt.MaxActivationDistance = 30
             end
         end)
-
-        local part = targetPart or (prompt.Parent:IsA("BasePart") and prompt.Parent) or CharRef.Root
+        local part = targetPart
+            or (prompt.Parent:IsA("BasePart") and prompt.Parent)
+            or CharRef.Root
         focusCameraZoom(true, part)
         task.wait(0.05)
-
         prompt:InputHoldBegin()
         task.wait(0.12)
         prompt:InputHoldEnd()
@@ -623,9 +587,9 @@ end
 
 local function forceDismount()
     local char = LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local hum  = char and char:FindFirstChildOfClass("Humanoid")
     if not char or not hum then return end
-    hum.Sit = false
+    hum.Sit  = false
     hum.Jump = true
     task.wait(0.1)
     if hum.SeatPart then
@@ -636,18 +600,21 @@ local function forceDismount()
 end
 
 -- ============================================================================
--- // 5. GET PLAYER MONEY
+-- [10] MONEY & STAFF SENSOR
 -- ============================================================================
 local function GetPlayerMoney()
     local money = 0
     pcall(function()
-        if LocalPlayer:FindFirstChild("leaderstats") and LocalPlayer.leaderstats:FindFirstChild("Money") then
+        if LocalPlayer:FindFirstChild("leaderstats")
+            and LocalPlayer.leaderstats:FindFirstChild("Money") then
             money = LocalPlayer.leaderstats.Money.Value
-        elseif LocalPlayer:FindFirstChild("Data") and LocalPlayer.Data:FindFirstChild("Money") then
+        elseif LocalPlayer:FindFirstChild("Data")
+            and LocalPlayer.Data:FindFirstChild("Money") then
             money = LocalPlayer.Data.Money.Value
         else
             for _, v in pairs(LocalPlayer.PlayerGui:GetDescendants()) do
-                if v:IsA("TextLabel") and v.Visible and string.find(v.Text, "Rp%.") then
+                if v:IsA("TextLabel") and v.Visible
+                    and string.find(v.Text, "Rp%.") then
                     local m = tonumber(string.gsub(v.Text, "[^%d]", ""))
                     if m and m > money then money = m end
                 end
@@ -657,9 +624,6 @@ local function GetPlayerMoney()
     return money
 end
 
--- ============================================================================
--- // 6. ADMIN SENSOR
--- ============================================================================
 local GAME_GROUP_ID  = 11378976
 local MIN_STAFF_RANK = 2
 
@@ -667,7 +631,7 @@ local BlacklistedExactNames = {
     ["slametriyadi"] = true,
     ["admin"]        = true,
     ["moderator"]    = true,
-    ["developer"]    = true
+    ["developer"]    = true,
 }
 
 local function CheckForAdmin(player)
@@ -679,7 +643,6 @@ local function CheckForAdmin(player)
     if BlacklistedExactNames[pName] or BlacklistedExactNames[dName] then
         isStaff = true
     end
-
     if not isStaff then
         pcall(function()
             local rank = player:GetRankInGroup(GAME_GROUP_ID)
@@ -688,140 +651,49 @@ local function CheckForAdmin(player)
     end
     if not isStaff then
         pcall(function()
-            local chatTag = player:GetAttributeInHierarchy("ChatTags") or player:GetAttribute("IsAdmin")
+            local chatTag = player:GetAttributeInHierarchy("ChatTags")
+                or player:GetAttribute("IsAdmin")
             if chatTag then isStaff = true end
         end)
     end
     if isStaff then
-        State.LastStopReason = "Admin detected: " .. player.Name
+        State.LastStopReason = "Staff detected: " .. player.Name
         rWait(0.2, 0.5)
         getgenv().allowSelfKick = true
-        LocalPlayer:Kick("🚨 " .. player.Name .. " (Admin) joined! Leaving for safety.")
+        LocalPlayer:Kick("🚨 " .. player.Name .. " (Staff) joined — leaving for safety.")
     end
 end
 
 for _, p in ipairs(Services.Players:GetPlayers()) do CheckForAdmin(p) end
 Services.Players.PlayerAdded:Connect(CheckForAdmin)
 
-local TextChatService = game:GetService("TextChatService")
 pcall(function()
+    local TextChatService = game:GetService("TextChatService")
     TextChatService.MessageReceived:Connect(function(message)
         if not State.AntiAdmin then return end
-        local text = string.lower(message.Text or "")
+        local text   = string.lower(message.Text or "")
         local sender = message.TextSource
         if sender then
             local player = Services.Players:GetPlayerByUserId(sender.UserId)
             if player and player ~= LocalPlayer then
-                if text:find("%[admin%]") or text:find("%[mod%]") or text:find("%[owner%]") or text:find("%[staff%]") then
-                    State.LastStopReason = "Admin chat detected: " .. player.Name
+                if text:find("%[admin%]")
+                    or text:find("%[mod%]")
+                    or text:find("%[owner%]")
+                    or text:find("%[staff%]") then
+                    State.LastStopReason = "Staff chat detected: " .. player.Name
                     rWait(0.2, 0.5)
                     getgenv().allowSelfKick = true
-                    LocalPlayer:Kick("🚨 Admin chatting detected! Leaving server!")
+                    LocalPlayer:Kick("🚨 Staff chat detected — leaving server!")
                 end
             end
         end
     end)
 end)
 
--- ============================================================================
--- // 7. SPLASH SCREEN
--- ============================================================================
-do
-    local sg = Instance.new("ScreenGui")
-    sg.Name = "BaristaSplash"; sg.ResetOnSpawn = false
-    sg.IgnoreGuiInset = true; sg.DisplayOrder = 999
-    sg.Parent = LocalPlayer:WaitForChild("PlayerGui")
-
-    local bg = Instance.new("Frame", sg)
-    bg.Size = UDim2.fromScale(1,1); bg.BackgroundColor3 = Color3.fromHex("#0a0a0a")
-    bg.BorderSizePixel = 0; bg.ZIndex = 1
-
-    local grad = Instance.new("UIGradient", bg)
-    grad.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromHex("#0a0a0a")),
-        ColorSequenceKeypoint.new(1, Color3.fromHex("#1e1e1e")),
-    }); grad.Rotation = 135
-
-    local ct = Instance.new("Frame", bg)
-    ct.Size = UDim2.fromOffset(500, 300); ct.Position = UDim2.fromScale(0.5, 0.5)
-    ct.AnchorPoint = Vector2.new(0.5, 0.5); ct.BackgroundTransparency = 1; ct.ZIndex = 2
-
-    local function mkLabel(txt, yOff, sz)
-        local l = Instance.new("TextLabel", ct)
-        l.Size = UDim2.fromOffset(500, 70); l.Position = UDim2.fromOffset(0, yOff)
-        l.BackgroundTransparency = 1; l.Text = txt; l.TextSize = sz
-        l.Font = Enum.Font.GothamBold; l.TextColor3 = Color3.fromHex("#ffffff")
-        l.TextTransparency = 1; l.ZIndex = 3; return l
-    end
-
-    local icon = Instance.new("ImageLabel", ct)
-    icon.Size = UDim2.fromOffset(120, 120); icon.Position = UDim2.fromOffset(190, -40)
-    icon.BackgroundTransparency = 1; icon.Image = "rbxassetid://91115084979317"
-    icon.ImageTransparency = 1; icon.ZIndex = 3
-
-    local title = mkLabel("King Akbar", 70, IsMobile and 38 or 50)
-    local tg = Instance.new("UIGradient", title)
-    tg.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0,   Color3.fromHex("#ffffff")),
-        ColorSequenceKeypoint.new(0.5, Color3.fromHex("#aaaaaa")),
-        ColorSequenceKeypoint.new(1,   Color3.fromHex("#555555")),
-    }); tg.Rotation = 45
-
-    local stat = mkLabel("Preparing combat engine...", 200, 12)
-    stat.Font = Enum.Font.Gotham; stat.TextColor3 = Color3.fromHex("#555555")
-    stat.TextXAlignment = Enum.TextXAlignment.Left; stat.Position = UDim2.fromOffset(50, 200)
-
-    local line = Instance.new("Frame", ct)
-    line.Size = UDim2.fromOffset(0, 2); line.Position = UDim2.fromOffset(250, 152)
-    line.AnchorPoint = Vector2.new(0.5, 0); line.BackgroundColor3 = Color3.fromHex("#444444")
-    line.BorderSizePixel = 0; line.ZIndex = 3
-
-    local barBg = Instance.new("Frame", ct)
-    barBg.Size = UDim2.fromOffset(400, 5); barBg.Position = UDim2.fromOffset(50, 190)
-    barBg.BackgroundColor3 = Color3.fromHex("#222222"); barBg.BackgroundTransparency = 1
-    barBg.BorderSizePixel = 0; barBg.ZIndex = 3
-    Instance.new("UICorner", barBg).CornerRadius = UDim.new(1, 0)
-
-    local bar = Instance.new("Frame", barBg)
-    bar.Size = UDim2.fromOffset(0, 5); bar.BackgroundColor3 = Color3.fromHex("#ffffff")
-    bar.BorderSizePixel = 0; bar.ZIndex = 4
-    Instance.new("UICorner", bar).CornerRadius = UDim.new(1, 0)
-
-    local function tw(obj, props, t)
-        Services.TweenSvc:Create(obj, TweenInfo.new(t, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), props):Play()
-    end
-
-    task.spawn(function()
-        tw(icon,  { ImageTransparency = 0 }, 0.5); task.wait(0.15)
-        tw(title, { TextTransparency  = 0 }, 0.6); task.wait(0.35)
-        tw(line,  { Size = UDim2.fromOffset(400, 2) }, 0.7); task.wait(0.4)
-        tw(barBg, { BackgroundTransparency = 0 }, 0.3)
-        tw(stat,  { TextTransparency = 0 }, 0.3)
-
-        for _, s in ipairs({
-            { "Preparing RNG Bot...", 0.30 },
-            { "Activating Emergency Alarm...", 0.60 },
-            { "Welcome, King Akbar!", 1.00 },
-        }) do
-            stat.Text = s[1]
-            tw(bar, { Size = UDim2.fromOffset(400 * s[2], 5) }, 0.5)
-            task.wait(0.55)
-        end
-
-        task.wait(0.3)
-        for _, p in ipairs({ bg, icon, title, line, barBg, bar, stat }) do
-            local prop = p == stat and "TextTransparency"
-                or (p == icon  and "ImageTransparency" or "BackgroundTransparency")
-            if p == title then prop = "TextTransparency" end
-            tw(p, { [prop] = 1 }, 0.4)
-        end
-        task.wait(0.8); sg:Destroy()
-    end)
-    task.wait(3)
-end
+task.wait(0.2)
 
 -- ============================================================================
--- // 8. CONSTANTS & PATHS (BARISTA)
+-- [11] BARISTA — CONSTANTS & PATHS
 -- ============================================================================
 local Constants = {
     START_SHIFT = Vector3.new(-4991.23, 4.29, -715.26),
@@ -829,59 +701,83 @@ local Constants = {
 
 local Paths = {
     START_TO_MACHINE = {
-        Vector3.new(-4991.23, 4.29, -715.26), Vector3.new(-5004.86, 4.29, -718.90),
-        Vector3.new(-5006.28, 4.29, -802.11), Vector3.new(-4994.18, 4.29, -801.66),
-        Vector3.new(-4994.62, 4.29, -794.89), Vector3.new(-4997.13, 4.29, -794.57),
+        Vector3.new(-4991.23, 4.29, -715.26),
+        Vector3.new(-5004.86, 4.29, -718.90),
+        Vector3.new(-5006.28, 4.29, -802.11),
+        Vector3.new(-4994.18, 4.29, -801.66),
+        Vector3.new(-4994.62, 4.29, -794.89),
+        Vector3.new(-4997.13, 4.29, -794.57),
         Vector3.new(-4998.16, 4.29, -794.80),
     },
     MACHINE_TO_CASHIER = {
-        Vector3.new(-4997.13, 4.29, -794.57), Vector3.new(-4994.62, 4.29, -794.89),
+        Vector3.new(-4997.13, 4.29, -794.57),
+        Vector3.new(-4994.62, 4.29, -794.89),
         Vector3.new(-4995.56, 4.29, -759.78),
     },
     CASHIER_TO_MACHINE = {
-        Vector3.new(-4994.62, 4.29, -794.89), Vector3.new(-4997.13, 4.29, -794.57),
+        Vector3.new(-4994.62, 4.29, -794.89),
+        Vector3.new(-4997.13, 4.29, -794.57),
         Vector3.new(-4998.16, 4.29, -794.80),
     },
     MACHINE_TO_START = {
-        Vector3.new(-4998.16, 4.29, -794.80), Vector3.new(-4997.13, 4.29, -794.57),
-        Vector3.new(-4994.62, 4.29, -794.89), Vector3.new(-4994.18, 4.29, -801.66),
-        Vector3.new(-5006.28, 4.29, -802.11), Vector3.new(-5004.86, 4.29, -718.90),
+        Vector3.new(-4998.16, 4.29, -794.80),
+        Vector3.new(-4997.13, 4.29, -794.57),
+        Vector3.new(-4994.62, 4.29, -794.89),
+        Vector3.new(-4994.18, 4.29, -801.66),
+        Vector3.new(-5006.28, 4.29, -802.11),
+        Vector3.new(-5004.86, 4.29, -718.90),
         Vector3.new(-4991.23, 4.29, -715.26),
     },
     CASHIER_TO_START = {
-        Vector3.new(-4995.56, 4.29, -759.78), Vector3.new(-4994.62, 4.29, -794.89),
-        Vector3.new(-4994.18, 4.29, -801.66), Vector3.new(-5006.28, 4.29, -802.11),
-        Vector3.new(-5004.86, 4.29, -718.90), Vector3.new(-4991.23, 4.29, -715.26),
+        Vector3.new(-4995.56, 4.29, -759.78),
+        Vector3.new(-4994.62, 4.29, -794.89),
+        Vector3.new(-4994.18, 4.29, -801.66),
+        Vector3.new(-5006.28, 4.29, -802.11),
+        Vector3.new(-5004.86, 4.29, -718.90),
+        Vector3.new(-4991.23, 4.29, -715.26),
     },
     MACHINE_TO_FIX = {
-        Vector3.new(-4998.14, 4.29, -795.38), Vector3.new(-4997.02, 4.29, -802.18),
-        Vector3.new(-5006.31, 4.29, -802.30), Vector3.new(-5003.75, 4.29, -711.60),
-        Vector3.new(-5004.43, 3.19, -670.40), Vector3.new(-5114.86, 3.19, -670.41),
+        Vector3.new(-4998.14, 4.29, -795.38),
+        Vector3.new(-4997.02, 4.29, -802.18),
+        Vector3.new(-5006.31, 4.29, -802.30),
+        Vector3.new(-5003.75, 4.29, -711.60),
+        Vector3.new(-5004.43, 3.19, -670.40),
+        Vector3.new(-5114.86, 3.19, -670.41),
     },
     FIX_TO_MACHINE = {
-        Vector3.new(-5114.86, 3.19, -670.41), Vector3.new(-5004.43, 3.19, -670.40),
-        Vector3.new(-5003.75, 4.29, -711.60), Vector3.new(-5006.31, 4.29, -802.30),
-        Vector3.new(-4997.02, 4.29, -802.18), Vector3.new(-4998.14, 4.29, -795.38),
+        Vector3.new(-5114.86, 3.19, -670.41),
+        Vector3.new(-5004.43, 3.19, -670.40),
+        Vector3.new(-5003.75, 4.29, -711.60),
+        Vector3.new(-5006.31, 4.29, -802.30),
+        Vector3.new(-4997.02, 4.29, -802.18),
+        Vector3.new(-4998.14, 4.29, -795.38),
     },
 }
 
 -- ============================================================================
--- // 9. PERFORMANCE SYSTEMS
+-- [12] PERFORMANCE SYSTEMS
 -- ============================================================================
 local BlackGui
+
 local function ToggleBlackScreen(on)
     pcall(function() Services.RunService:Set3dRenderingEnabled(not on) end)
     if on then
         if not BlackGui then
             BlackGui = Instance.new("ScreenGui")
-            BlackGui.Name = "BlackScreenSaver"; BlackGui.IgnoreGuiInset = true
-            BlackGui.DisplayOrder = 9999; BlackGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+            BlackGui.Name           = "BlackScreenSaver"
+            BlackGui.IgnoreGuiInset = true
+            BlackGui.DisplayOrder   = 9999
+            BlackGui.Parent         = LocalPlayer:WaitForChild("PlayerGui")
             local f = Instance.new("Frame", BlackGui)
-            f.Size = UDim2.fromScale(1,1); f.BackgroundColor3 = Color3.new(0,0,0)
+            f.Size             = UDim2.fromScale(1, 1)
+            f.BackgroundColor3 = Color3.new(0, 0, 0)
             local t = Instance.new("TextLabel", f)
-            t.Text = "🌑 POWER SAVING MODE ACTIVE 🌑\nKing Akbar is farming..."
-            t.Size = UDim2.fromScale(1,1); t.TextColor3 = Color3.new(1,1,1)
-            t.BackgroundTransparency = 1; t.Font = Enum.Font.GothamBold; t.TextSize = 20
+            t.Text                   = "POWER SAVING MODE ACTIVE\nKing Akbar is farming..."
+            t.Size                   = UDim2.fromScale(1, 1)
+            t.TextColor3             = Color3.new(1, 1, 1)
+            t.BackgroundTransparency = 1
+            t.Font                   = Enum.Font.GothamBold
+            t.TextSize               = 20
         end
         BlackGui.Enabled = true
     else
@@ -890,13 +786,11 @@ local function ToggleBlackScreen(on)
 end
 
 local AntiLagActive = false
-local AntiLagConn = nil
-local PotatoActive = false
-local PotatoConns = {}
+local AntiLagConn   = nil
+local PotatoActive  = false
+local PotatoConns   = {}
 
-local LAG_CLASSES = {
-    "ParticleEmitter", "Smoke", "Fire", "Explosion", "Beam", "Trail", "Sparkles"
-}
+local LAG_CLASSES = { "ParticleEmitter", "Smoke", "Fire", "Explosion", "Beam", "Trail", "Sparkles" }
 
 local function isLaggy(inst)
     for _, c in ipairs(LAG_CLASSES) do
@@ -932,26 +826,27 @@ local function TogglePotatoMode(on)
     if on and AntiLagActive then ToggleAntiLag(false) end
     PotatoActive = on
     if on then
-        pcall(function()
-            settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
-        end)
+        pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
         pcall(function()
             local Lighting = game:GetService("Lighting")
-            Lighting.GlobalShadows = false; Lighting.FogEnd = 10
-            Lighting.Brightness = 0; Lighting.TimeOfDay = "12:00:00"
+            Lighting.GlobalShadows = false
+            Lighting.FogEnd        = 10
+            Lighting.Brightness    = 0
+            Lighting.TimeOfDay     = "12:00:00"
             for _, v in pairs(Lighting:GetDescendants()) do
-                if v:IsA("PostEffect") or v:IsA("Atmosphere") or v:IsA("Sky") or v:IsA("Clouds") then
+                if v:IsA("PostEffect") or v:IsA("Atmosphere")
+                    or v:IsA("Sky") or v:IsA("Clouds") then
                     pcall(function() v.Enabled = false end)
                 end
             end
         end)
         task.spawn(function()
             for _, v in pairs(Services.Workspace:GetDescendants()) do
-                if v:IsA("ParticleEmitter") or v:IsA("Smoke") or v:IsA("Fire") or
-                   v:IsA("Explosion") or v:IsA("Beam") or v:IsA("Trail") or
-                   v:IsA("Sparkles") or v:IsA("Sound") or v:IsA("Decal") or
-                   v:IsA("Texture") or v:IsA("PointLight") or v:IsA("SpotLight") or
-                   v:IsA("SurfaceLight") then
+                if v:IsA("ParticleEmitter") or v:IsA("Smoke") or v:IsA("Fire")
+                    or v:IsA("Explosion") or v:IsA("Beam") or v:IsA("Trail")
+                    or v:IsA("Sparkles") or v:IsA("Sound") or v:IsA("Decal")
+                    or v:IsA("Texture") or v:IsA("PointLight")
+                    or v:IsA("SpotLight") or v:IsA("SurfaceLight") then
                     safeDestroy(v)
                 elseif v:IsA("MeshPart") then
                     pcall(function() v.TextureID = ""; v.MeshId = "" end)
@@ -966,11 +861,11 @@ local function TogglePotatoMode(on)
         end)
         local c1 = Services.Workspace.DescendantAdded:Connect(function(v)
             if not PotatoActive then return end
-            if v:IsA("ParticleEmitter") or v:IsA("Smoke") or v:IsA("Fire") or
-               v:IsA("Explosion") or v:IsA("Beam") or v:IsA("Trail") or
-               v:IsA("Sparkles") or v:IsA("Sound") or v:IsA("Decal") or
-               v:IsA("Texture") or v:IsA("PointLight") or v:IsA("SpotLight") or
-               v:IsA("SurfaceLight") then
+            if v:IsA("ParticleEmitter") or v:IsA("Smoke") or v:IsA("Fire")
+                or v:IsA("Explosion") or v:IsA("Beam") or v:IsA("Trail")
+                or v:IsA("Sparkles") or v:IsA("Sound") or v:IsA("Decal")
+                or v:IsA("Texture") or v:IsA("PointLight")
+                or v:IsA("SpotLight") or v:IsA("SurfaceLight") then
                 safeDestroy(v)
             elseif v:IsA("MeshPart") then
                 pcall(function() v.TextureID = ""; v.MeshId = "" end)
@@ -985,43 +880,37 @@ local function TogglePotatoMode(on)
         pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic end)
         pcall(function()
             game:GetService("Lighting").GlobalShadows = true
-            game:GetService("Lighting").FogEnd = 100000
-            game:GetService("Lighting").Brightness = 2
+            game:GetService("Lighting").FogEnd        = 100000
+            game:GetService("Lighting").Brightness    = 2
         end)
     end
 end
 
 -- ============================================================================
--- // 10. AUTO WALK SYSTEM (BARISTA)
+-- [13] BARISTA — WALK ENGINE
 -- ============================================================================
 local function WalkToPoint(pos, timeoutSec)
     timeoutSec = timeoutSec or 15
     if not CharRef.Humanoid or not CharRef.Root then return false end
-
     if CharRef.Humanoid.Sit then
         CharRef.Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
         task.wait(0.2)
     end
-
-    local offset = Vector3.new(math.random(-8,8)/10, 0, math.random(-8,8)/10)
+    local offset = Vector3.new(math.random(-8, 8) / 10, 0, math.random(-8, 8) / 10)
     local target = pos + offset
-
-    local t0 = tick()
-    local lastPos = CharRef.Root.Position
-    local stuckTime = tick()
+    local t0           = tick()
+    local lastPos      = CharRef.Root.Position
+    local stuckTime    = tick()
     local jumpCooldown = 0
 
     while tick() - t0 < timeoutSec and State.IsBaristaActive do
         if not CharRef.Humanoid or not CharRef.Root or not CharRef.Root.Parent then return false end
-
-        local myPos = CharRef.Root.Position
+        local myPos    = CharRef.Root.Position
         local flatDist = (Vector3.new(myPos.X, 0, myPos.Z) - Vector3.new(target.X, 0, target.Z)).Magnitude
-
         if flatDist < 3 then
             CharRef.Humanoid:MoveTo(CharRef.Root.Position)
             return true
         end
-
         if (myPos - lastPos).Magnitude < 0.5 then
             if tick() - stuckTime > 1.5 then
                 pcall(function()
@@ -1030,18 +919,16 @@ local function WalkToPoint(pos, timeoutSec)
                         jumpCooldown = tick() + 1
                     end
                 end)
-                target = pos + Vector3.new(math.random(-20,20)/10, 0, math.random(-20,20)/10)
+                target    = pos + Vector3.new(math.random(-20, 20) / 10, 0, math.random(-20, 20) / 10)
                 stuckTime = tick()
             end
         else
-            lastPos = myPos
+            lastPos   = myPos
             stuckTime = tick()
         end
-
         CharRef.Humanoid:MoveTo(target)
         task.wait(0.1)
     end
-
     pcall(function()
         if CharRef.Humanoid then CharRef.Humanoid:MoveTo(CharRef.Root.Position) end
     end)
@@ -1085,137 +972,99 @@ local function SmartFollowPath(pathArray, threshold)
 end
 
 -- ============================================================================
--- // 11. BARISTA DEBUG OVERLAY
+-- [14] BARISTA — DEBUG OVERLAY
 -- ============================================================================
 local function CreateDebugOverlay()
     if State.DebugOverlay and State.DebugOverlay.Parent then
         State.DebugOverlay:Destroy()
     end
-
     local sg = Instance.new("ScreenGui")
-    sg.Name = "BaristaDebugOverlay"
-    sg.ResetOnSpawn = false
+    sg.Name           = "BaristaDebugOverlay"
+    sg.ResetOnSpawn   = false
     sg.IgnoreGuiInset = true
-    sg.DisplayOrder = 500
-    sg.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    sg.DisplayOrder   = 500
+    sg.Parent         = LocalPlayer:WaitForChild("PlayerGui")
     State.DebugOverlay = sg
 
     local panel = Instance.new("Frame", sg)
-    panel.Name = "Panel"
-    panel.Size = UDim2.fromOffset(240, 190)
-    panel.Position = UDim2.fromOffset(12, 12)
-    panel.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+    panel.Size                   = UDim2.fromOffset(240, 190)
+    panel.Position               = UDim2.fromOffset(12, 12)
+    panel.BackgroundColor3       = Color3.fromRGB(15, 15, 20)
     panel.BackgroundTransparency = 0.15
-    panel.BorderSizePixel = 0
-    panel.Visible = true
+    panel.BorderSizePixel        = 0
+    panel.Visible                = true
     Instance.new("UICorner", panel).CornerRadius = UDim.new(0, 10)
+
     local stroke = Instance.new("UIStroke", panel)
-    stroke.Color = Color3.fromRGB(60, 200, 100); stroke.Thickness = 1.5
+    stroke.Color     = Color3.fromRGB(60, 200, 100)
+    stroke.Thickness = 1.5
 
     local title = Instance.new("TextLabel", panel)
-    title.Size = UDim2.new(1, 0, 0, 22)
-    title.Position = UDim2.fromOffset(0, 6)
+    title.Size                   = UDim2.new(1, 0, 0, 22)
+    title.Position               = UDim2.fromOffset(0, 6)
     title.BackgroundTransparency = 1
-    title.Text = "☕ BARISTA DEBUG MONITOR"
-    title.TextColor3 = Color3.fromRGB(80, 220, 130)
-    title.Font = Enum.Font.GothamBold
-    title.TextSize = 12
-    title.TextXAlignment = Enum.TextXAlignment.Center
+    title.Text                   = "BARISTA DEBUG MONITOR"
+    title.TextColor3             = Color3.fromRGB(80, 220, 130)
+    title.Font                   = Enum.Font.GothamBold
+    title.TextSize               = 12
+    title.TextXAlignment         = Enum.TextXAlignment.Center
 
     local div = Instance.new("Frame", panel)
-    div.Size = UDim2.new(1, -20, 0, 1)
-    div.Position = UDim2.fromOffset(10, 30)
+    div.Size             = UDim2.new(1, -20, 0, 1)
+    div.Position         = UDim2.fromOffset(10, 30)
     div.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
-    div.BorderSizePixel = 0
+    div.BorderSizePixel  = 0
 
     local function makeRow(yPos, labelTxt, color)
         local row = Instance.new("Frame", panel)
-        row.Size = UDim2.new(1, -20, 0, 16)
-        row.Position = UDim2.fromOffset(10, yPos)
+        row.Size                   = UDim2.new(1, -20, 0, 16)
+        row.Position               = UDim2.fromOffset(10, yPos)
         row.BackgroundTransparency = 1
-
         local lbl = Instance.new("TextLabel", row)
-        lbl.Size = UDim2.new(0, 110, 1, 0)
+        lbl.Size                   = UDim2.new(0, 110, 1, 0)
         lbl.BackgroundTransparency = 1
-        lbl.Text = labelTxt
-        lbl.TextColor3 = Color3.fromRGB(140, 140, 155)
-        lbl.Font = Enum.Font.GothamMedium
-        lbl.TextSize = 10
-        lbl.TextXAlignment = Enum.TextXAlignment.Left
-
+        lbl.Text                   = labelTxt
+        lbl.TextColor3             = Color3.fromRGB(140, 140, 155)
+        lbl.Font                   = Enum.Font.GothamMedium
+        lbl.TextSize               = 10
+        lbl.TextXAlignment         = Enum.TextXAlignment.Left
         local val = Instance.new("TextLabel", row)
-        val.Size = UDim2.new(1, -115, 1, 0)
-        val.Position = UDim2.fromOffset(115, 0)
+        val.Size                   = UDim2.new(1, -115, 1, 0)
+        val.Position               = UDim2.fromOffset(115, 0)
         val.BackgroundTransparency = 1
-        val.Text = "—"
-        val.TextColor3 = color or Color3.fromRGB(230, 230, 235)
-        val.Font = Enum.Font.GothamBold
-        val.TextSize = 10
-        val.TextXAlignment = Enum.TextXAlignment.Right
+        val.Text                   = "—"
+        val.TextColor3             = color or Color3.fromRGB(230, 230, 235)
+        val.Font                   = Enum.Font.GothamBold
+        val.TextSize               = 10
+        val.TextXAlignment         = Enum.TextXAlignment.Right
         return val
     end
 
     local labels = {}
-    labels.status   = makeRow(38,  "Status",       Color3.fromRGB(200, 200, 210))
-    labels.mgActive = makeRow(56,  "Minigame",     Color3.fromRGB(220, 180, 60))
-    labels.cursor   = makeRow(74,  "Cursor Y",     Color3.fromRGB(80, 180, 255))
-    labels.target   = makeRow(92,  "Target Y",     Color3.fromRGB(80, 220, 130))
-    labels.delta    = makeRow(110, "Delta",        Color3.fromRGB(230, 130, 130))
-    labels.tap      = makeRow(128, "Total Taps",   Color3.fromRGB(230, 200, 80))
-    labels.action   = makeRow(146, "Last Action",  Color3.fromRGB(180, 180, 200))
-    labels.order    = makeRow(164, "Coffee Sold",  Color3.fromRGB(80, 220, 130))
-
-    local toggleBtn = Instance.new("TextButton", sg)
-    toggleBtn.Name = "ToggleBtn"
-    toggleBtn.Size = UDim2.fromOffset(80, 22)
-    toggleBtn.Position = UDim2.fromOffset(12, 210)
-    toggleBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
-    toggleBtn.BorderSizePixel = 0
-    toggleBtn.Text = "🐞 Hide Debug"
-    toggleBtn.TextColor3 = Color3.fromRGB(230, 230, 235)
-    toggleBtn.Font = Enum.Font.GothamMedium
-    toggleBtn.TextSize = 10
-    Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0, 6)
-
-    toggleBtn.MouseButton1Click:Connect(function()
-        State.DebugEnabled = not State.DebugEnabled
-        panel.Visible = State.DebugEnabled
-        toggleBtn.Text = State.DebugEnabled and "🐞 Hide Debug" or "🐞 Show Debug"
-        toggleBtn.Position = State.DebugEnabled
-            and UDim2.fromOffset(12, 210)
-            or  UDim2.fromOffset(12, 12)
-    end)
+    labels.status   = makeRow(38,  "Status",      Color3.fromRGB(200, 200, 210))
+    labels.mgActive = makeRow(56,  "Minigame",    Color3.fromRGB(220, 180, 60))
+    labels.cursor   = makeRow(74,  "Cursor Y",    Color3.fromRGB(80, 180, 255))
+    labels.target   = makeRow(92,  "Target Y",    Color3.fromRGB(80, 220, 130))
+    labels.delta    = makeRow(110, "Delta",       Color3.fromRGB(230, 130, 130))
+    labels.tap      = makeRow(128, "Total Taps",  Color3.fromRGB(230, 200, 80))
+    labels.action   = makeRow(146, "Last Action", Color3.fromRGB(180, 180, 200))
+    labels.order    = makeRow(164, "Coffee Sold", Color3.fromRGB(80, 220, 130))
 
     task.spawn(function()
         while sg.Parent do
             task.wait(0.1)
             pcall(function()
-                labels.status.Text   = State.StatusText or "idle"
+                labels.status.Text       = State.StatusText or "idle"
                 labels.status.TextColor3 = State.IsBaristaActive
                     and Color3.fromRGB(80, 220, 130)
                     or  Color3.fromRGB(180, 180, 190)
-
-                labels.mgActive.Text = State.DebugMinigameActive and "AKTIF 🟢" or "OFF ⚪"
-                labels.mgActive.TextColor3 = State.DebugMinigameActive
-                    and Color3.fromRGB(80, 220, 130)
-                    or  Color3.fromRGB(120, 120, 130)
-
-                labels.cursor.Text = string.format("%.0f px", State.DebugCursorY)
-                labels.target.Text = string.format("%.0f px", State.DebugTargetY)
-
-                local delta = State.DebugCursorDelta
-                labels.delta.Text = string.format("%.0f px", delta)
-                if math.abs(delta) < 5 then
-                    labels.delta.TextColor3 = Color3.fromRGB(80, 220, 130)
-                elseif math.abs(delta) < 30 then
-                    labels.delta.TextColor3 = Color3.fromRGB(230, 200, 80)
-                else
-                    labels.delta.TextColor3 = Color3.fromRGB(230, 90, 90)
-                end
-
-                labels.tap.Text = tostring(State.DebugTapCount)
-                labels.action.Text = State.DebugLastAction or "idle"
-                labels.order.Text = tostring(State.OrderCount or 0)
+                labels.mgActive.Text = State.DebugMinigameActive and "ACTIVE" or "OFF"
+                labels.cursor.Text   = string.format("%.0f px", State.DebugCursorY)
+                labels.target.Text   = string.format("%.0f px", State.DebugTargetY)
+                labels.delta.Text    = string.format("%.0f px", State.DebugCursorDelta)
+                labels.tap.Text      = tostring(State.DebugTapCount)
+                labels.action.Text   = State.DebugLastAction or "idle"
+                labels.order.Text    = tostring(State.OrderCount or 0)
             end)
         end
     end)
@@ -1229,8 +1078,10 @@ local function DestroyDebugOverlay()
 end
 
 -- ============================================================================
--- // 12. BARISTA AI MINIGAME & LOGIC
+-- [15] BARISTA — AI MINIGAME
 -- ============================================================================
+local BaristaRefs = {}
+
 local function StartMinigameAI()
     if State.AiThread then task.cancel(State.AiThread) end
     State.DebugTapCount = 0
@@ -1240,31 +1091,28 @@ local function StartMinigameAI()
             local gui = LocalPlayer.PlayerGui:FindFirstChild("BaristaGUI")
             if not gui then
                 State.DebugMinigameActive = false
-                task.wait(0.1); continue
+                task.wait(0.1)
+                continue
             end
             local mf = gui:FindFirstChild("MinigameFrame", true)
             if not (mf and mf.Visible) then
                 State.DebugMinigameActive = false
-                task.wait(0.1); continue
+                task.wait(0.1)
+                continue
             end
-
             State.DebugMinigameActive = true
-
             local tapZone    = mf:FindFirstChild("TapZone", true)
             local bgBar      = mf:FindFirstChild("BackgroundBar", true)
             local targetZone = bgBar and bgBar:FindFirstChild("TargetZone")
             local cursor     = bgBar and bgBar:FindFirstChild("PlayerCursor")
-
             if tapZone and targetZone and cursor then
                 local cursorY  = cursor.AbsolutePosition.Y + cursor.AbsoluteSize.Y / 2
                 local tzTop    = targetZone.AbsolutePosition.Y
                 local tzHeight = targetZone.AbsoluteSize.Y
                 local tzCenter = tzTop + tzHeight / 2
-
-                State.DebugCursorY = cursorY
-                State.DebugTargetY = tzCenter
+                State.DebugCursorY     = cursorY
+                State.DebugTargetY     = tzCenter
                 State.DebugCursorDelta = cursorY - tzCenter
-
                 if cursorY > tzCenter + 2 then
                     pcall(function()
                         if getconnections then
@@ -1274,45 +1122,36 @@ local function StartMinigameAI()
                         end
                         if firesignal then firesignal(tapZone.MouseButton1Down) end
                     end)
-                    State.DebugTapCount = State.DebugTapCount + 1
-                    State.DebugLastAction = "TAP ⚡"
+                    State.DebugTapCount   = State.DebugTapCount + 1
+                    State.DebugLastAction = "TAP"
                 else
-                    State.DebugLastAction = "WAIT ⏳"
+                    State.DebugLastAction = "WAIT"
                 end
-            else
-                State.DebugLastAction = "NO UI ❌"
             end
         end
         State.DebugMinigameActive = false
     end)
 end
 
-local BaristaRefs = {}
-
 local function RefreshBaristaRefs()
-    local job = workspace:FindFirstChild("BaristaJob")
+    local job   = workspace:FindFirstChild("BaristaJob")
     local inter = job and job:FindFirstChild("Interactions")
     if not inter then return false end
-
     local sp = inter:FindFirstChild("StartPart")
     sp = sp and sp:FindFirstChild("StartPart")
     BaristaRefs.JobPrompt = sp and sp:FindFirstChild("JobPrompt")
-
     local mach = inter:FindFirstChild("MachinePart")
     mach = mach and mach:FindFirstChild("MachinePart")
     BaristaRefs.MachinePart   = mach
     BaristaRefs.MachinePrompt = mach and mach:FindFirstChild("MachinePrompt")
-
     local reg = inter:FindFirstChild("RegisterPart")
     reg = reg and reg:FindFirstChild("RegisterPart")
     BaristaRefs.RegisterPart   = reg
     BaristaRefs.RegisterPrompt = reg and reg:FindFirstChild("RegisterPrompt")
-
     local sup = inter:FindFirstChild("SupplyPart")
     sup = sup and sup:FindFirstChild("SupplyPart")
     BaristaRefs.SupplyPart   = sup
     BaristaRefs.SupplyPrompt = sup and sup:FindFirstChild("SupplyPrompt")
-
     return BaristaRefs.JobPrompt ~= nil
 end
 
@@ -1321,17 +1160,14 @@ local function HasJobActive()
     if not p or not p.ActionText then return false end
     return p.ActionText:lower():find("end") ~= nil
 end
-
 local function HasPendingOrder()
     local p = BaristaRefs.MachinePrompt
     return p and p.Enabled or false
 end
-
 local function NeedsRestock()
     local s = BaristaRefs.SupplyPrompt
     return s and s.Enabled or false
 end
-
 local function CanServe()
     local r = BaristaRefs.RegisterPrompt
     return r and r.Enabled or false
@@ -1344,44 +1180,38 @@ local function TriggerPrompt(prompt, keepCameraLocked)
         prompt.Enabled = true
         pcall(function()
             prompt.RequiresLineOfSight = false
-            if (prompt.MaxActivationDistance or 0) < 30 then prompt.MaxActivationDistance = 30 end
+            if (prompt.MaxActivationDistance or 0) < 30 then
+                prompt.MaxActivationDistance = 30
+            end
         end)
-        
-        -- Kamera mengunci ke part sebelum ditekan
         if prompt.Parent and prompt.Parent:IsA("BasePart") then
             focusCameraZoom(true, prompt.Parent)
             task.wait(0.05)
         end
-        
         prompt:InputHoldBegin()
         task.wait((prompt.HoldDuration or 0.1) + 0.15)
         prompt:InputHoldEnd()
         ok = true
     end)
     rWait(0.15, 0.3)
-    
-    -- Kembalikan kamera jika tidak disuruh ditahan
-    if not keepCameraLocked then
-        focusCameraZoom(false)
-    end
-    
+    if not keepCameraLocked then focusCameraZoom(false) end
     return ok
 end
 
 local function BaristaFarmLoop()
     local lastLocation = "unknown"
-
     while State.IsBaristaActive do
         if not CharRef.Character or not CharRef.Character.Parent then
-            UpdateCharRef(); task.wait(0.5)
+            UpdateCharRef()
+            task.wait(0.5)
         end
         if not RefreshBaristaRefs() then
             State.StatusText = "Loading BaristaJob..."
-            task.wait(1); continue
+            task.wait(1)
+            continue
         end
-
         if not HasJobActive() then
-            State.StatusText = "🏃 Jalan ke Start Shift..."
+            State.StatusText      = "Walking to Start Shift..."
             State.DebugLastAction = "GO START"
             if lastLocation ~= "start" then
                 if lastLocation == "machine" then
@@ -1396,69 +1226,51 @@ local function BaristaFarmLoop()
                 end
                 lastLocation = "start"
             end
-
             rWait(0.5, 1)
             local p = BaristaRefs.JobPrompt
             if p and p.Enabled and p.ActionText:lower():find("start") then
-                State.StatusText = "💼 Mulai shift..."
-                State.DebugLastAction = "START SHIFT"
                 TriggerPrompt(p)
                 rWait(1.5, 2.5)
-                State.StatusText = "🚶 Jalan ke mesin..."
                 SmartFollowPath(Paths.START_TO_MACHINE)
                 lastLocation = "machine"
             end
             continue
         end
-
         if CanServe() then
-            State.StatusText = "☕ Jalan ke kasir..."
-            State.DebugLastAction = "GO CASHIER"
+            State.StatusText = "Walking to cashier..."
             if lastLocation ~= "cashier" then
                 SmartFollowPath(Paths.MACHINE_TO_CASHIER)
                 lastLocation = "cashier"
             end
-
             rWait(0.3, 0.6)
             local r = BaristaRefs.RegisterPrompt
             if r and r.Enabled then
                 TriggerPrompt(r)
                 State.OrderCount = (State.OrderCount or 0) + 1
-                State.StatusText = "✅ Terkirim! Total: " .. State.OrderCount
-                State.DebugLastAction = "SERVED"
                 rWait(1, 1.5)
             end
             continue
         end
-
         if NeedsRestock() then
-            State.StatusText = "🔧 Jalan ke supply (fix mesin)..."
-            State.DebugLastAction = "GO FIX"
+            State.StatusText = "Walking to supply..."
             if lastLocation == "cashier" then
                 SmartFollowPath(Paths.CASHIER_TO_MACHINE)
             end
             SmartFollowPath(Paths.MACHINE_TO_FIX)
             lastLocation = "supply"
-
             rWait(0.4, 0.8)
             local s = BaristaRefs.SupplyPrompt
             if s and s.Enabled then
                 TriggerPrompt(s)
                 State.MachineFixCount = (State.MachineFixCount or 0) + 1
-                State.StatusText = "✅ Mesin diperbaiki!"
-                State.DebugLastAction = "FIXED"
-
-                State.StatusText = "🚶 Balik ke mesin..."
                 SmartFollowPath(Paths.FIX_TO_MACHINE)
                 lastLocation = "machine"
                 rWait(0.5, 1)
             end
             continue
         end
-
         if HasPendingOrder() then
-            State.StatusText = "☕ Jalan ke mesin (brew)..."
-            State.DebugLastAction = "GO BREW"
+            State.StatusText = "Walking to machine (brew)..."
             if lastLocation == "cashier" then
                 SmartFollowPath(Paths.CASHIER_TO_MACHINE)
             elseif lastLocation == "supply" then
@@ -1466,73 +1278,65 @@ local function BaristaFarmLoop()
             elseif lastLocation == "start" then
                 SmartFollowPath(Paths.START_TO_MACHINE)
             else
-                WalkToPoint(BaristaRefs.MachinePart.Position + Vector3.new(0,0,2), 10)
+                WalkToPoint(BaristaRefs.MachinePart.Position + Vector3.new(0, 0, 2), 10)
             end
             lastLocation = "machine"
-
             rWait(0.3, 0.6)
             local m = BaristaRefs.MachinePrompt
             if m and m.Enabled then
-                State.StatusText = "🍺 Brewing..."
-                State.DebugLastAction = "BREWING"
-                
-                -- Tahan kamera (Lock) selama proses Minigame
                 TriggerPrompt(m, true)
-                
                 local t = 0
                 while State.IsBaristaActive and t < 30 do
-                    task.wait(0.3); t += 0.3
+                    task.wait(0.3)
+                    t += 0.3
                     if CanServe() or NeedsRestock() then break end
                     if not HasJobActive() then break end
                 end
-                
-                -- Lepaskan kamera saat Minigame selesai
                 focusCameraZoom(false)
             end
             continue
         end
-
         if lastLocation == "unknown" or lastLocation == "start" then
-            State.StatusText = "🚶 Jalan ke standby..."
-            State.DebugLastAction = "STANDBY"
-            WalkToPoint(BaristaRefs.MachinePart and BaristaRefs.MachinePart.Position + Vector3.new(0,0,3), 15)
+            WalkToPoint(BaristaRefs.MachinePart and BaristaRefs.MachinePart.Position + Vector3.new(0, 0, 3), 15)
             lastLocation = "machine"
             continue
         end
-
-        State.StatusText = "⏳ Nunggu pelanggan..."
-        State.DebugLastAction = "IDLE"
+        State.StatusText = "Waiting for customers..."
         task.wait(1)
     end
-
     State.DebugMinigameActive = false
     focusCameraZoom(false)
 end
 
 -- ============================================================================
--- // 13. OFFICE JOB SYSTEM & MONITORING
+-- [16] OFFICE — JOB SYSTEM
 -- ============================================================================
 local playerGui       = LocalPlayer:WaitForChild("PlayerGui")
 local ComputersFolder = workspace:WaitForChild("Computers")
+local JobEvents       = Services.ReplicatedStorage:WaitForChild("JobEvents")
+local GenerateQuestion = JobEvents:WaitForChild("GenerateQuestion")
+local AssignPrintJob   = JobEvents:WaitForChild("AssignPrintJob")
+local ClearPrintJob    = JobEvents:WaitForChild("ClearPrintJob")
+
+local TweenService = Services.TweenSvc
 
 local function eksekusiPromptTahan(pp)
     if not pp then return end
-    if (pp.HoldDuration or 0) > 0 then DoHold(pp, pp.Parent) else DoTap(pp, pp.Parent) end
+    if (pp.HoldDuration or 0) > 0 then DoHold(pp, pp.Parent)
+    else DoTap(pp, pp.Parent) end
 end
 
 local myChair = nil
 
 local function jalanKe(pos)
     local root = CharRef.Root
-    local hum = CharRef.Humanoid
+    local hum  = CharRef.Humanoid
     if not root or not hum then return false end
-    local targetPos = pos + Vector3.new(math.random(-12,12)/10, 0, math.random(-12,12)/10)
+    local targetPos = pos + Vector3.new(math.random(-12, 12) / 10, 0, math.random(-12, 12) / 10)
     local path = Services.PathfindingService:CreatePath({
-        AgentRadius = 2, AgentHeight = 5, AgentCanJump = true
+        AgentRadius = 2, AgentHeight = 5, AgentCanJump = true,
     })
-    local success, _ = pcall(function()
-        path:ComputeAsync(root.Position, targetPos)
-    end)
+    local success = pcall(function() path:ComputeAsync(root.Position, targetPos) end)
     if success and path.Status == Enum.PathStatus.Success then
         for _, waypoint in ipairs(path:GetWaypoints()) do
             if not State.IsOfficeActive then break end
@@ -1540,7 +1344,8 @@ local function jalanKe(pos)
             hum:MoveTo(waypoint.Position)
             local t = 0
             while (root.Position - waypoint.Position).Magnitude > 3.5 do
-                task.wait(0.02); t += 0.02
+                task.wait(0.02)
+                t += 0.02
                 if t > 1.5 or not State.IsOfficeActive then break end
             end
         end
@@ -1557,7 +1362,7 @@ local function keluarKursi()
     if not hum then return end
     if hum.SeatPart then
         myChair = hum.SeatPart
-        task.wait(math.random(10, 20)/10)
+        task.wait(math.random(10, 20) / 10)
         hum:ChangeState(Enum.HumanoidStateType.Jumping)
         task.wait(0.3)
     end
@@ -1599,32 +1404,32 @@ local function dudukKeKursi(instantTP)
     local hum = CharRef.Humanoid
     if not hum then return false end
     if hum.SeatPart then return true end
-
     if State.IsOfficeActive then
         if not myChair or (myChair.Occupant and myChair.Occupant ~= hum) then
             myChair = findOfficeSeat()
         end
     end
-
     if not myChair then return false end
     if not instantTP then keluarKursi() end
-
-    local seat = getSeatFromChair(myChair)
+    local seat   = getSeatFromChair(myChair)
     local handle = myChair:FindFirstChild("Handle")
     local targetCFrame = seat and seat.CFrame
         or (handle and handle.CFrame)
         or (myChair:IsA("BasePart") and myChair.CFrame)
         or (myChair.PrimaryPart and myChair.PrimaryPart.CFrame)
-
     if not targetCFrame then return false end
-
     if instantTP then
-        if CharRef.Root then CharRef.Root.CFrame = targetCFrame; task.wait(0.1) end
+        if CharRef.Root then
+            CharRef.Root.CFrame = targetCFrame
+            task.wait(0.1)
+        end
         if seat then seat:Sit(hum); task.wait(1.5); return true
         else
             for _, child in pairs(myChair:GetChildren()) do
                 if child:IsA("ProximityPrompt") and child.Enabled then
-                    eksekusiPromptTahan(child); task.wait(1.5); return true
+                    eksekusiPromptTahan(child)
+                    task.wait(1.5)
+                    return true
                 end
             end
         end
@@ -1635,22 +1440,15 @@ local function dudukKeKursi(instantTP)
         else
             for _, child in pairs(myChair:GetChildren()) do
                 if child:IsA("ProximityPrompt") and child.Enabled then
-                    eksekusiPromptTahan(child); task.wait(1.5); return true
+                    eksekusiPromptTahan(child)
+                    task.wait(1.5)
+                    return true
                 end
             end
         end
     end
     return false
 end
-
--- ============================================================================
--- // AUTO JAWAB SOAL MATEMATIKA (OFFICE)
--- ============================================================================
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
-
-local JobEvents = ReplicatedStorage:WaitForChild("JobEvents")
-local GenerateQuestion = JobEvents:WaitForChild("GenerateQuestion")
 
 local function evaluateMath(text)
     local cleanText = string.gsub(text, "<[^>]+>", "")
@@ -1664,7 +1462,7 @@ local function evaluateMath(text)
 end
 
 local function getAnswerButtons()
-    local gui = LocalPlayer.PlayerGui:FindFirstChild("WorkGui")
+    local gui   = LocalPlayer.PlayerGui:FindFirstChild("WorkGui")
     local frame = gui and gui:FindFirstChild("Frame")
     if not frame then return {} end
     local list = {}
@@ -1679,51 +1477,19 @@ local function findCorrectButton(jawaban, timeoutSec)
     while tick() < deadline do
         for _, btn in ipairs(getAnswerButtons()) do
             local numText = string.match(tostring(btn.Text or ""), "%-?%d+%.?%d*")
-            if tonumber(numText) == jawaban and btn:IsDescendantOf(game) then
-                return btn
-            end
+            if tonumber(numText) == jawaban and btn:IsDescendantOf(game) then return btn end
         end
         task.wait(0.1)
     end
     return nil
 end
 
-local function clearHighlights()
-    local gui = LocalPlayer.PlayerGui:FindFirstChild("WorkGui")
-    if not gui then return end
-    for _, obj in ipairs(gui:GetDescendants()) do
-        if obj.Name == "AutoMathHighlight" then safeDestroy(obj) end
-    end
-end
-
-local function highlightButton(btn)
-    clearHighlights()
-    local stroke = Instance.new("UIStroke")
-    stroke.Name = "AutoMathHighlight"
-    stroke.Color = Color3.fromRGB(255, 255, 255)
-    stroke.Thickness = 1
-    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    stroke.LineJoinMode = Enum.LineJoinMode.Round
-    stroke.Parent = btn
-    TweenService:Create(stroke, TweenInfo.new(0.2, Enum.EasingStyle.Back), {Thickness = 7}):Play()
-end
-
-local function unhighlightLater(btn, delaySec)
-    task.delay(delaySec, function()
-        local s = btn:FindFirstChild("AutoMathHighlight")
-        if s then
-            TweenService:Create(s, TweenInfo.new(0.2), {Thickness = 0}):Play()
-            task.delay(0.25, function() safeDestroy(s) end)
-        end
-    end)
-end
-
 local function pressButton(btn)
     if getconnections then
-        for _, signal in ipairs({btn.MouseButton1Click, btn.Activated}) do
+        for _, signal in ipairs({ btn.MouseButton1Click, btn.Activated }) do
             for _, conn in ipairs(getconnections(signal)) do
                 if conn.Function then
-                    if pcall(conn.Function) then return "handler-asli" end
+                    if pcall(conn.Function) then return "native-handler" end
                 end
             end
         end
@@ -1733,46 +1499,30 @@ end
 
 local lastActivityTime = tick()
 
-GenerateQuestion.OnClientEvent:Connect(function(questionText, answerData, sessionID)
-    if State and State.IsOfficeActive == false then return end
+GenerateQuestion.OnClientEvent:Connect(function(questionText, _, _)
+    if not State.IsOfficeActive then return end
     lastActivityTime = tick()
-
     local jawaban = evaluateMath(questionText)
     if not jawaban then return end
-
     local correctButton = findCorrectButton(jawaban, 2.5)
-    if correctButton then highlightButton(correctButton) end
     task.wait(math.random(15, 25) / 10)
-
-    if correctButton then
-        local reText = string.match(tostring(correctButton.Text or ""), "%-?%d+%.?%d*")
-        if not correctButton:IsDescendantOf(game) or tonumber(reText) ~= jawaban then
-            correctButton = findCorrectButton(jawaban, 0.5)
-        end
-    end
-
-    if correctButton then
-        pressButton(correctButton)
-        unhighlightLater(correctButton, 0.4)
-    else
-        clearHighlights()
-    end
-
-    if State then State.OfficeMathSolved = (State.OfficeMathSolved or 0) + 1 end
+    if correctButton then pressButton(correctButton) end
+    State.OfficeMathSolved = (State.OfficeMathSolved or 0) + 1
 end)
 
--- ============================================================================
--- // OFFICE STABILITY ENGINE
--- ============================================================================
+local isSwitching = false
+local IDLE_SWITCH_TIME = 60
+
+getgenv().forceStopMath    = false
+getgenv().isGoingToPrinter = false
+
 task.spawn(function()
     while true do
         task.wait(2.5)
         if not State.IsOfficeActive then continue end
         if getgenv().isGoingToPrinter or isSwitching then continue end
-
         local hum = CharRef.Humanoid
         if not hum then continue end
-
         if not hum.SeatPart then
             pcall(function()
                 local seat = findOfficeSeat(nil)
@@ -1791,7 +1541,6 @@ LocalPlayer.CharacterAdded:Connect(function()
     if not State.IsOfficeActive then return end
     task.wait(3)
     if not State.IsOfficeActive then return end
-
     local seat = findOfficeSeat(nil)
     if seat then
         myChair = seat
@@ -1804,27 +1553,21 @@ LocalPlayer.CharacterAdded:Connect(function()
     lastActivityTime = tick()
 end)
 
-local isSwitching = false
-local IDLE_SWITCH_TIME = 60
-
-getgenv().forceStopMath = false
-getgenv().isGoingToPrinter = false
-
 task.spawn(function()
     while true do
         task.wait(2)
         if not State.IsOfficeActive then continue end
         if getgenv().isGoingToPrinter or getgenv().forceStopMath or isSwitching then continue end
         if tick() - lastActivityTime > IDLE_SWITCH_TIME then
-            isSwitching = true
+            isSwitching             = true
             getgenv().forceStopMath = true
             keluarKursi()
             local newSeat = findOfficeSeat(myChair)
             if newSeat then myChair = newSeat end
             dudukKeKursi(false)
             getgenv().forceStopMath = false
-            isSwitching = false
-            lastActivityTime = tick()
+            isSwitching             = false
+            lastActivityTime        = tick()
         end
     end
 end)
@@ -1837,10 +1580,10 @@ task.spawn(function()
             getgenv().printWatchdog = getgenv().printWatchdog or tick()
             if tick() - getgenv().printWatchdog > 45 then
                 getgenv().isGoingToPrinter = false
-                getgenv().forceStopMath = false
-                getgenv().printWatchdog = nil
-                activePrinterName = nil
-                lastActivityTime = tick()
+                getgenv().forceStopMath    = false
+                getgenv().printWatchdog    = nil
+                activePrinterName          = nil
+                lastActivityTime           = tick()
             end
         else
             getgenv().printWatchdog = nil
@@ -1848,14 +1591,9 @@ task.spawn(function()
     end
 end)
 
--- ============================================================================
--- // PRINTER LOOP
--- ============================================================================
-local AssignPrintJob = JobEvents:WaitForChild("AssignPrintJob")
-local ClearPrintJob  = JobEvents:WaitForChild("ClearPrintJob")
-local activePrinterName = nil
-local printerRetryCount = 0
-local MAX_PRINTER_RETRY = 3
+local activePrinterName    = nil
+local printerRetryCount    = 0
+local MAX_PRINTER_RETRY    = 3
 local printerCooldownUntil = 0
 
 AssignPrintJob.OnClientEvent:Connect(function(printerName)
@@ -1873,25 +1611,21 @@ task.spawn(function()
     while true do
         task.wait(0.8)
         if not State.IsOfficeActive then continue end
-
         if activePrinterName and not getgenv().isGoingToPrinter then
             if printerRetryCount >= MAX_PRINTER_RETRY then
-                activePrinterName = nil
-                printerRetryCount = 0
+                activePrinterName          = nil
+                printerRetryCount          = 0
                 getgenv().isGoingToPrinter = false
-                getgenv().forceStopMath = false
-                lastActivityTime = tick()
+                getgenv().forceStopMath    = false
+                lastActivityTime           = tick()
                 continue
             end
-
             getgenv().isGoingToPrinter = true
-            getgenv().forceStopMath = true
-            getgenv().printWatchdog = tick()
-            printerRetryCount = printerRetryCount + 1
-
+            getgenv().forceStopMath    = true
+            getgenv().printWatchdog    = tick()
+            printerRetryCount          = printerRetryCount + 1
             pcall(function()
-                task.wait(math.random(3,7)/10)
-
+                task.wait(math.random(3, 7) / 10)
                 local hum = CharRef.Humanoid
                 if hum then
                     hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
@@ -1900,12 +1634,10 @@ task.spawn(function()
                         task.wait(0.4)
                     end
                 end
-
-                local printerPart = nil
-                local targetPrompt = nil
+                local printerPart     = nil
+                local targetPrompt    = nil
                 local currentPrinterName = activePrinterName
-
-                for i = 1, 10 do
+                for _ = 1, 10 do
                     if not activePrinterName or activePrinterName ~= currentPrinterName then break end
                     local printerModel = ComputersFolder:FindFirstChild(activePrinterName)
                     if printerModel then
@@ -1917,33 +1649,27 @@ task.spawn(function()
                     end
                     task.wait(0.5)
                 end
-
                 if printerPart and targetPrompt and activePrinterName then
                     targetPrompt.Enabled = true
                     jalanKe(printerPart.Position + Vector3.new(0, 0, 2.5))
-
                     if CharRef.Root then
                         local look = Vector3.new(printerPart.Position.X, CharRef.Root.Position.Y, printerPart.Position.Z)
                         CharRef.Root.CFrame = CFrame.lookAt(CharRef.Root.Position, look)
                     end
-
                     task.wait(0.3)
                     eksekusiPromptTahan(targetPrompt)
                     State.OfficePrints = (State.OfficePrints or 0) + 1
-
                     local t = 0
                     while activePrinterName == currentPrinterName and t < 12 do
-                        task.wait(0.5); t = t + 0.5
+                        task.wait(0.5)
+                        t = t + 0.5
                     end
-
                     printerRetryCount = 0
                 end
             end)
-
             pcall(function()
                 local hum = CharRef.Humanoid
                 if hum then hum:SetStateEnabled(Enum.HumanoidStateType.Seated, true) end
-
                 local seat = findOfficeSeat(nil)
                 if seat then
                     myChair = seat
@@ -1952,23 +1678,22 @@ task.spawn(function()
                     if CharRef.Humanoid then seat:Sit(CharRef.Humanoid) end
                 end
             end)
-
             getgenv().isGoingToPrinter = false
-            getgenv().forceStopMath = false
-            getgenv().printWatchdog = nil
-            lastActivityTime = tick()
-            printerCooldownUntil = tick() + 8
+            getgenv().forceStopMath    = false
+            getgenv().printWatchdog    = nil
+            lastActivityTime           = tick()
+            printerCooldownUntil       = tick() + 8
         end
     end
 end)
 
 -- ============================================================================
--- // 14. MONITORING GUI (RAPIH & MULTI-JOB)
+-- [17] MONITORING OVERLAY
 -- ============================================================================
-local CoreGui2 = (gethui and gethui()) or game:GetService("CoreGui")
-local TrackerGui = nil
+local CoreGui2         = (gethui and gethui()) or game:GetService("CoreGui")
+local TrackerGui       = nil
 local CachedMoneyLabel = nil
-local DisplayedValues = {}
+local DisplayedValues  = {}
 
 local function parseNumber(val)
     if not val then return 0 end
@@ -2064,73 +1789,109 @@ local function buatMonitoringGUI()
     DisplayedValues = {}
 
     if TrackerGui and TrackerGui.Parent then TrackerGui:Destroy() end
+
     TrackerGui = Instance.new("ScreenGui")
-    TrackerGui.Name = "KingAkbarTracker"
+    TrackerGui.Name   = "KingAkbarTracker"
     TrackerGui.Parent = CoreGui2
 
     local Frame = Instance.new("Frame")
-    Frame.Size        = UDim2.new(0, 230, 0, 0)
-    Frame.Position    = UDim2.new(1, -16, 0.5, 0)
-    Frame.AnchorPoint = Vector2.new(1, 0.5)
+    Frame.Size                   = UDim2.new(0, 230, 0, 0)
+    Frame.Position               = UDim2.new(1, -16, 0.5, 0)
+    Frame.AnchorPoint            = Vector2.new(1, 0.5)
     Frame.BackgroundColor3       = Color3.fromRGB(18, 18, 22)
     Frame.BackgroundTransparency = 0.15
-    Frame.BorderSizePixel = 0
-    Frame.Active   = true
-    Frame.Draggable = true
-    Frame.AutomaticSize = Enum.AutomaticSize.Y
-    Frame.Parent   = TrackerGui
+    Frame.BorderSizePixel        = 0
+    Frame.Active                 = true
+    Frame.Draggable              = true
+    Frame.AutomaticSize          = Enum.AutomaticSize.Y
+    Frame.Parent                 = TrackerGui
     Instance.new("UICorner", Frame).CornerRadius = UDim.new(0, 10)
+
     local Stroke = Instance.new("UIStroke", Frame)
-    Stroke.Color = Color3.fromRGB(60, 60, 68); Stroke.Thickness = 1
+    Stroke.Color     = Color3.fromRGB(60, 60, 68)
+    Stroke.Thickness = 1
+
     local Padding = Instance.new("UIPadding", Frame)
-    Padding.PaddingTop    = UDim.new(0,10); Padding.PaddingBottom = UDim.new(0,10)
-    Padding.PaddingLeft   = UDim.new(0,12); Padding.PaddingRight  = UDim.new(0,12)
+    Padding.PaddingTop    = UDim.new(0, 10)
+    Padding.PaddingBottom = UDim.new(0, 10)
+    Padding.PaddingLeft   = UDim.new(0, 12)
+    Padding.PaddingRight  = UDim.new(0, 12)
+
     local List = Instance.new("UIListLayout", Frame)
-    List.Padding = UDim.new(0, 7); List.SortOrder = Enum.SortOrder.LayoutOrder
+    List.Padding   = UDim.new(0, 7)
+    List.SortOrder = Enum.SortOrder.LayoutOrder
 
     local H = Instance.new("Frame", Frame)
-    H.Size = UDim2.new(1,0,0,36); H.BackgroundTransparency = 1; H.LayoutOrder = 1
+    H.Size                   = UDim2.new(1, 0, 0, 36)
+    H.BackgroundTransparency = 1
+    H.LayoutOrder            = 1
+
     local Img = Instance.new("ImageLabel", H)
-    Img.Size = UDim2.new(0,32,0,32); Img.Position = UDim2.new(0,0,0.5,-16)
-    Img.BackgroundTransparency = 1; Img.Image = "rbxassetid://84070081307966"
-    Img.ScaleType = Enum.ScaleType.Fit; Img.ZIndex = 2
-    Instance.new("UICorner", Img).CornerRadius = UDim.new(0,7)
+    Img.Size                   = UDim2.new(0, 32, 0, 32)
+    Img.Position               = UDim2.new(0, 0, 0.5, -16)
+    Img.BackgroundTransparency = 1
+    Img.Image                  = "rbxassetid://84070081307966"
+    Img.ScaleType              = Enum.ScaleType.Fit
+    Img.ZIndex                 = 2
+    Instance.new("UICorner", Img).CornerRadius = UDim.new(0, 7)
+
     local TitleLbl = Instance.new("TextLabel", H)
-    TitleLbl.Size = UDim2.new(1,-40,0,14); TitleLbl.Position = UDim2.new(0,40,0,4)
-    TitleLbl.BackgroundTransparency = 1; TitleLbl.Text = "KING AKBAR"
-    TitleLbl.TextColor3 = Color3.fromRGB(210,210,215); TitleLbl.Font = Enum.Font.GothamBold
-    TitleLbl.TextSize = 13; TitleLbl.TextXAlignment = Enum.TextXAlignment.Left
-    
+    TitleLbl.Size                   = UDim2.new(1, -40, 0, 14)
+    TitleLbl.Position               = UDim2.new(0, 40, 0, 4)
+    TitleLbl.BackgroundTransparency = 1
+    TitleLbl.Text                   = "KING AKBAR"
+    TitleLbl.TextColor3             = Color3.fromRGB(210, 210, 215)
+    TitleLbl.Font                   = Enum.Font.GothamBold
+    TitleLbl.TextSize               = 13
+    TitleLbl.TextXAlignment         = Enum.TextXAlignment.Left
+
     local SubLbl = Instance.new("TextLabel", H)
-    SubLbl.Size = UDim2.new(1,-40,0,11); SubLbl.Position = UDim2.new(0,40,0,20)
+    SubLbl.Size                   = UDim2.new(1, -40, 0, 11)
+    SubLbl.Position               = UDim2.new(0, 40, 0, 20)
     SubLbl.BackgroundTransparency = 1
-    SubLbl.Text = State.IsRideGOActive and "RideGO Driver" or (State.IsCourierActive and "Courier Express" or (State.IsBaristaActive and "Barista" or (State.IsOfficeActive and "Office Worker" or "Bypass GACOR")))
-    SubLbl.TextColor3 = Color3.fromRGB(90,90,100); SubLbl.Font = Enum.Font.Gotham
-    SubLbl.TextSize = 9; SubLbl.TextXAlignment = Enum.TextXAlignment.Left
+    SubLbl.Text                   = "Bypass GACOR"
+    SubLbl.TextColor3             = Color3.fromRGB(90, 90, 100)
+    SubLbl.Font                   = Enum.Font.Gotham
+    SubLbl.TextSize               = 9
+    SubLbl.TextXAlignment         = Enum.TextXAlignment.Left
 
     local Div = Instance.new("Frame", Frame)
-    Div.Size = UDim2.new(1,0,0,1); Div.BackgroundColor3 = Color3.fromRGB(55,55,62)
-    Div.BorderSizePixel = 0; Div.LayoutOrder = 2
+    Div.Size             = UDim2.new(1, 0, 0, 1)
+    Div.BackgroundColor3 = Color3.fromRGB(55, 55, 62)
+    Div.BorderSizePixel  = 0
+    Div.LayoutOrder      = 2
 
     local function baris(iconL, labelL, iconR, labelR, order)
         local R = Instance.new("Frame", Frame)
-        R.Size = UDim2.new(1,0,0,34); R.BackgroundTransparency = 1; R.LayoutOrder = order
+        R.Size                   = UDim2.new(1, 0, 0, 34)
+        R.BackgroundTransparency = 1
+        R.LayoutOrder            = order
         local function kolom(parent, xOffset, icon, caption)
             local bg = Instance.new("Frame", parent)
-            bg.Size = UDim2.new(0.5,-4,1,0); bg.Position = UDim2.new(xOffset,0,0,0)
-            bg.BackgroundColor3 = Color3.fromRGB(30,30,36); bg.BackgroundTransparency = 0.4
-            bg.BorderSizePixel = 0
-            Instance.new("UICorner", bg).CornerRadius = UDim.new(0,6)
+            bg.Size                   = UDim2.new(0.5, -4, 1, 0)
+            bg.Position               = UDim2.new(xOffset, 0, 0, 0)
+            bg.BackgroundColor3       = Color3.fromRGB(30, 30, 36)
+            bg.BackgroundTransparency = 0.4
+            bg.BorderSizePixel        = 0
+            Instance.new("UICorner", bg).CornerRadius = UDim.new(0, 6)
             local capLbl = Instance.new("TextLabel", bg)
-            capLbl.Size = UDim2.new(1,-6,0,11); capLbl.Position = UDim2.new(0,6,0,4)
-            capLbl.BackgroundTransparency = 1; capLbl.Text = icon .. " " .. caption
-            capLbl.TextColor3 = Color3.fromRGB(110,110,120); capLbl.Font = Enum.Font.GothamMedium
-            capLbl.TextSize = 9; capLbl.TextXAlignment = Enum.TextXAlignment.Left
+            capLbl.Size                   = UDim2.new(1, -6, 0, 11)
+            capLbl.Position               = UDim2.new(0, 6, 0, 4)
+            capLbl.BackgroundTransparency = 1
+            capLbl.Text                   = icon .. " " .. caption
+            capLbl.TextColor3             = Color3.fromRGB(110, 110, 120)
+            capLbl.Font                   = Enum.Font.GothamMedium
+            capLbl.TextSize               = 9
+            capLbl.TextXAlignment         = Enum.TextXAlignment.Left
             local valLbl = Instance.new("TextLabel", bg)
-            valLbl.Size = UDim2.new(1,-6,0,14); valLbl.Position = UDim2.new(0,6,1,-18)
-            valLbl.BackgroundTransparency = 1; valLbl.Text = "—"
-            valLbl.TextColor3 = Color3.fromRGB(225,225,230); valLbl.Font = Enum.Font.GothamBold
-            valLbl.TextSize = 11; valLbl.TextXAlignment = Enum.TextXAlignment.Left
+            valLbl.Size                   = UDim2.new(1, -6, 0, 14)
+            valLbl.Position               = UDim2.new(0, 6, 1, -18)
+            valLbl.BackgroundTransparency = 1
+            valLbl.Text                   = "—"
+            valLbl.TextColor3             = Color3.fromRGB(225, 225, 230)
+            valLbl.Font                   = Enum.Font.GothamBold
+            valLbl.TextSize               = 11
+            valLbl.TextXAlignment         = Enum.TextXAlignment.Left
             return valLbl, capLbl
         end
         local lv, lc = kolom(R, 0,   iconL, labelL)
@@ -2138,21 +1899,15 @@ local function buatMonitoringGUI()
         return lv, rv, lc, rc
     end
 
-    local v_initial, v_profit = baris("💵","Initial", "💰","Profit", 3)
-    local v_stat1, v_stat2, c_stat1, c_stat2 = baris(
-        State.IsRideGOActive and "🚕" or (State.IsCourierActive and "📦" or (State.IsBaristaActive and "☕" or "📝")),
-        State.IsRideGOActive and "Trips" or (State.IsCourierActive and "Delivered" or (State.IsBaristaActive and "Sold" or "Solved")),
-        State.IsRideGOActive and "💵" or (State.IsCourierActive and "🔄" or (State.IsBaristaActive and "🔧" or "🖨️")),
-        State.IsRideGOActive and "Fares" or (State.IsCourierActive and "Status" or (State.IsBaristaActive and "Fixes" or "Prints")),
-        4
-    )
-    local v_profitH, v_ping   = baris("⚡","Profit/H", "📶","Ping", 5)
-    local v_fps,     v_uptime = baris("🎮","FPS",      "⏱️","Uptime", 6)
+    local v_initial, v_profit = baris("💵", "Initial", "💰", "Profit", 3)
+    local v_stat1,   v_stat2  = baris("🚔", "Missions", "🔄", "Status", 4)
+    local v_profitH, v_ping   = baris("⚡", "Profit/H", "📶", "Ping", 5)
+    local v_fps,     v_uptime = baris("🎮", "FPS",      "⏱️", "Uptime", 6)
 
-    local CLR_WHITE  = Color3.fromRGB(225,225,230)
+    local CLR_WHITE  = Color3.fromRGB(225, 225, 230)
     local CLR_GREEN  = Color3.fromRGB(80, 210, 120)
-    local CLR_RED    = Color3.fromRGB(230, 80,  80)
-    local CLR_YELLOW = Color3.fromRGB(230,190, 60)
+    local CLR_RED    = Color3.fromRGB(230, 80, 80)
+    local CLR_YELLOW = Color3.fromRGB(230, 190, 60)
 
     v_initial.Text = fmtRupiah(uangAwal)
 
@@ -2167,77 +1922,75 @@ local function buatMonitoringGUI()
                 end
                 local profit      = currentMoney - uangAwal
                 local uptimeDetik = tick() - getgenv().WaktuMulai
-                local uptimeJam   = math.max(uptimeDetik / 3600, 1/3600)
+                local uptimeJam   = math.max(uptimeDetik / 3600, 1 / 3600)
                 local profitH     = profit / uptimeJam
-
                 local pingVal, fpsVal = 0, 0
-                pcall(function() pingVal = math.floor(Services.Stats.Network.ServerStatsItem["Data Ping"]:GetValue()) end)
-                pcall(function() fpsVal  = math.floor(workspace:GetRealPhysicsFPS()) end)
+                pcall(function()
+                    pingVal = math.floor(Services.Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+                end)
+                pcall(function() fpsVal = math.floor(workspace:GetRealPhysicsFPS()) end)
 
                 animateValue(v_profit, profit, fmtProfit, CLR_GREEN, CLR_RED, nil)
 
-                if State.IsRideGOActive then
+                if State.IsPoliceActive then
+                    SubLbl.Text = "Police Duty"
+                    animateValue(v_stat1, State.PoliceMissions or 0,
+                        function(n) return tostring(math.floor(n)) end, nil, nil, CLR_WHITE)
+                    v_stat2.Text       = State.PolicePhase or "Idle"
+                    v_stat2.TextColor3 = CLR_GREEN
+                elseif State.IsRideGOActive then
                     SubLbl.Text = "RideGO Driver"
-                    c_stat1.Text = "🚕 Trips"
-                    c_stat2.Text = "💵 Fares"
-                    local trips = State.RideGOTripCount or 0
-                    local fares = State.RideGOEarnings or 0
-                    animateValue(v_stat1, trips, function(n) return tostring(math.floor(n)) end, nil, nil, CLR_WHITE)
-                    animateValue(v_stat2, fares, fmtShort, nil, nil, CLR_WHITE)
+                    animateValue(v_stat1, State.RideGOTripCount or 0,
+                        function(n) return tostring(math.floor(n)) end, nil, nil, CLR_WHITE)
+                    animateValue(v_stat2, State.RideGOEarnings or 0, fmtShort, nil, nil, CLR_WHITE)
                 elseif State.IsCourierActive then
                     SubLbl.Text = "Courier Express"
-                    c_stat1.Text = "📦 Delivered"
-                    c_stat2.Text = "🔄 Status"
-                    local delivered = State.CourierDelivered or 0
-                    animateValue(v_stat1, delivered, function(n) return tostring(math.floor(n)) end, nil, nil, CLR_WHITE)
-                    v_stat2.Text = State.CourierPhase or "Idle"
+                    animateValue(v_stat1, State.CourierDelivered or 0,
+                        function(n) return tostring(math.floor(n)) end, nil, nil, CLR_WHITE)
+                    v_stat2.Text       = State.CourierPhase or "Idle"
                     v_stat2.TextColor3 = CLR_GREEN
                 elseif State.IsBaristaActive then
                     SubLbl.Text = "Barista"
-                    c_stat1.Text = "☕ Sold"
-                    c_stat2.Text = "🔧 Fixes"
-                    local sold = State.OrderCount or 0
-                    local fixes = State.MachineFixCount or 0
-                    animateValue(v_stat1, sold, function(n) return tostring(math.floor(n)) end, nil, nil, CLR_WHITE)
-                    animateValue(v_stat2, fixes, function(n) return tostring(math.floor(n)) end, nil, nil, CLR_WHITE)
+                    animateValue(v_stat1, State.OrderCount or 0,
+                        function(n) return tostring(math.floor(n)) end, nil, nil, CLR_WHITE)
+                    animateValue(v_stat2, State.MachineFixCount or 0,
+                        function(n) return tostring(math.floor(n)) end, nil, nil, CLR_WHITE)
                 else
                     SubLbl.Text = State.IsOfficeActive and "Office Worker" or "Bypass GACOR"
-                    c_stat1.Text = "📝 Solved"
-                    c_stat2.Text = "🖨️ Prints"
-                    local solved = State.OfficeMathSolved or 0
-                    local prints = State.OfficePrints or 0
-                    animateValue(v_stat1, solved, function(n) return tostring(math.floor(n)) end, nil, nil, CLR_WHITE)
-                    animateValue(v_stat2, prints, function(n) return tostring(math.floor(n)) end, nil, nil, CLR_WHITE)
+                    animateValue(v_stat1, State.OfficeMathSolved or 0,
+                        function(n) return tostring(math.floor(n)) end, nil, nil, CLR_WHITE)
+                    animateValue(v_stat2, State.OfficePrints or 0,
+                        function(n) return tostring(math.floor(n)) end, nil, nil, CLR_WHITE)
                 end
 
                 animateValue(v_profitH, profitH, fmtShort, CLR_GREEN, CLR_RED, nil)
-                animateValue(v_ping, pingVal, function(n) return tostring(math.floor(n)) .. " ms" end, nil, nil, pingVal > 200 and CLR_RED or CLR_WHITE)
+                animateValue(v_ping, pingVal,
+                    function(n) return tostring(math.floor(n)) .. " ms" end,
+                    nil, nil, pingVal > 200 and CLR_RED or CLR_WHITE)
 
                 local fpsColor = fpsVal >= 30 and CLR_GREEN or (fpsVal >= 15 and CLR_YELLOW or CLR_RED)
-                animateValue(v_fps, fpsVal, function(n) return tostring(math.floor(n)) end, nil, nil, fpsColor)
+                animateValue(v_fps, fpsVal,
+                    function(n) return tostring(math.floor(n)) end, nil, nil, fpsColor)
 
-                v_uptime.Text = formatTime(uptimeDetik)
+                v_uptime.Text       = formatTime(uptimeDetik)
                 v_uptime.TextColor3 = CLR_WHITE
 
                 if State.TargetProfit > 0 and profit >= State.TargetProfit then
                     if getgenv().WebhookSettings and getgenv().WebhookSettings.Enabled then
-                        if SendDiscordWebhook then SendDiscordWebhook("TARGET PROFIT TERCAPAI!") end
+                        if SendDiscordWebhook then SendDiscordWebhook("Target Profit Reached") end
                     end
-                    
-                    State.IsOfficeActive   = false
-                    State.IsBaristaActive  = false
-                    State.IsCourierActive  = false
-                    State.IsRideGOActive   = false
-                    getgenv().fullAuto     = false
-
+                    State.IsOfficeActive  = false
+                    State.IsBaristaActive = false
+                    State.IsCourierActive = false
+                    State.IsRideGOActive  = false
+                    State.IsPoliceActive  = false
+                    getgenv().fullAuto    = false
                     WindUI:Notify({
-                        Title    = "Target Tercapai",
-                        Content  = "Profit " .. fmtProfit(profit) .. " dari target " .. fmtRupiah(State.TargetProfit) .. ", keluar sekarang.",
+                        Title    = "Target Reached",
+                        Content  = "Profit " .. fmtProfit(profit) .. ", leaving now.",
                         Duration = 4,
                     })
-
                     task.wait(3)
-
                     pcall(function()
                         game:GetService("Players"):FindFirstChildOfClass("Player").Parent = nil
                     end)
@@ -2249,11 +2002,14 @@ local function buatMonitoringGUI()
 end
 
 local function matikanMonitoring()
-    if TrackerGui and TrackerGui.Parent then TrackerGui:Destroy(); TrackerGui = nil end
+    if TrackerGui and TrackerGui.Parent then
+        TrackerGui:Destroy()
+        TrackerGui = nil
+    end
 end
 
 -- ============================================================================
--- // START / STOP MODULE (BARISTA & OFFICE)
+-- [18] BARISTA / OFFICE — START & STOP
 -- ============================================================================
 local function StartBaristaScript()
     if State.IsBaristaActive then return end
@@ -2261,24 +2017,22 @@ local function StartBaristaScript()
     State.MachineFixCount = 0
     State.OrderCount      = 0
     State.DebugTapCount   = 0
-
-    CachedMoneyLabel = nil
+    CachedMoneyLabel          = nil
     getgenv().UangAwalDikunci = nil
-    getgenv().WaktuMulai = tick()
+    getgenv().WaktuMulai      = tick()
     buatMonitoringGUI()
-
     if State.DebugEnabled then CreateDebugOverlay() end
     task.spawn(function()
         RefreshBaristaRefs()
         StartMinigameAI()
         BaristaFarmLoop()
     end)
-    WindUI:Notify({ Title = "☕ Auto Barista", Content = "Auto Barista & Monitoring Aktif!", Duration = 3 })
+    WindUI:Notify({ Title = "Auto Barista", Content = "Started.", Duration = 3 })
 end
 
 local function StopBaristaScript()
-    State.IsBaristaActive = false
-    State.StatusText = "Idling..."
+    State.IsBaristaActive     = false
+    State.StatusText          = "Idling..."
     State.DebugMinigameActive = false
     focusCameraZoom(false)
     if CharRef.Humanoid and CharRef.Root then
@@ -2286,75 +2040,67 @@ local function StopBaristaScript()
     end
     DestroyDebugOverlay()
     matikanMonitoring()
-    WindUI:Notify({ Title = "🛑 Auto Barista", Content = "Auto Barista Dihentikan.", Duration = 3 })
+    WindUI:Notify({ Title = "Auto Barista", Content = "Stopped.", Duration = 3 })
 end
 
 local function StartOfficeScript()
     if State.IsOfficeActive then return end
-    State.IsOfficeActive = true
+    State.IsOfficeActive   = true
     State.OfficeMathSolved = 0
-    State.OfficePrints = 0
-    getgenv().fullAuto = true
-    CachedMoneyLabel = nil
+    State.OfficePrints     = 0
+    getgenv().fullAuto     = true
+    CachedMoneyLabel          = nil
     getgenv().UangAwalDikunci = nil
-    getgenv().WaktuMulai = tick()
-
+    getgenv().WaktuMulai      = tick()
     joinOfficeTeam()
     task.wait(0.8)
-
     if not CharRef.Humanoid or not CharRef.Humanoid.SeatPart then
-        WindUI:Notify({ Title = "🔍 Office", Content = "Finding seat...", Duration = 3 })
         local targetSeat = findOfficeSeat(nil)
         if targetSeat then
             myChair = targetSeat
             dudukKeKursi(true)
-        else
-            WindUI:Notify({ Title = "⚠️ Office", Content = "No empty seat found! Sit manually.", Duration = 5 })
         end
     else
         myChair = CharRef.Humanoid.SeatPart
     end
-
     lastActivityTime = tick()
     buatMonitoringGUI()
-    WindUI:Notify({ Title = "✅ Office", Content = "Auto Office started!", Duration = 4 })
+    WindUI:Notify({ Title = "Auto Office", Content = "Started.", Duration = 4 })
 end
 
 local function StopOfficeScript()
-    State.IsOfficeActive = false
-    getgenv().fullAuto = false
-    getgenv().forceStopMath = false
+    State.IsOfficeActive       = false
+    getgenv().fullAuto         = false
+    getgenv().forceStopMath    = false
     getgenv().isGoingToPrinter = false
-
     pcall(function()
         Services.ReplicatedStorage:WaitForChild("JobEvents")
             :WaitForChild("PlayerChangedJob"):FireServer()
     end)
-
     if CharRef.Humanoid then
         CharRef.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
     end
-
-    CachedMoneyLabel = nil
+    CachedMoneyLabel          = nil
     getgenv().UangAwalDikunci = nil
     matikanMonitoring()
-    WindUI:Notify({ Title = "🛑 Office", Content = "Auto Office stopped.", Duration = 3 })
+    WindUI:Notify({ Title = "Auto Office", Content = "Stopped.", Duration = 3 })
 end
 
 -- ============================================================================
--- // SHARED VEHICLE SCANNER & STRICT OWNERSHIP SYSTEM
+-- [19] VEHICLE SCANNER
 -- ============================================================================
-SELECTED_CAR = nil
-OwnedVehiclesList = {}
-
+SELECTED_CAR           = nil
+OwnedVehiclesList      = {}
 VehicleDropdownCourier = nil
 VehicleDropdownRideGO  = nil
+VehicleDropdownPolice  = nil
 
 local function parseVehicleCandidate(item, outMap)
     if not item then return end
     if type(item) == "string" and #item > 1 then
         local low = item:lower()
-        if not low:find("slot") and not low:find("frame") and not low:find("button") and not low:find("package") then
+        if not low:find("slot") and not low:find("frame")
+            and not low:find("button") and not low:find("package") then
             outMap[item] = true
         end
     elseif type(item) == "table" then
@@ -2370,7 +2116,7 @@ end
 
 function FetchOwnedVehicles()
     local foundMap = {}
-    local RS = game:GetService("ReplicatedStorage")
+    local RS = Services.ReplicatedStorage
     local DealershipEvents = RS:FindFirstChild("DealershipEvents")
 
     if DealershipEvents then
@@ -2382,7 +2128,6 @@ function FetchOwnedVehicles()
                 end
             end)
         end
-
         if DealershipEvents:FindFirstChild("GetInfoCarSlot") then
             pcall(function()
                 local slotRes = DealershipEvents.GetInfoCarSlot:InvokeServer()
@@ -2393,7 +2138,9 @@ function FetchOwnedVehicles()
             for i = 1, 30 do
                 pcall(function()
                     local slotRes = DealershipEvents.GetInfoCarSlot:InvokeServer(i)
-                    if type(slotRes) == "table" then parseVehicleCandidate(slotRes, foundMap) end
+                    if type(slotRes) == "table" then
+                        parseVehicleCandidate(slotRes, foundMap)
+                    end
                 end)
             end
         end
@@ -2406,27 +2153,8 @@ function FetchOwnedVehicles()
                 local first = rawget(tbl, 1)
                 if rawget(first, "Horsepower") and rawget(first, "Name") and rawget(first, "FinalDrive") then
                     for _, carData in ipairs(tbl) do
-                        if type(carData) == "table" and carData.Name then foundMap[carData.Name] = true end
-                    end
-                end
-            end
-        end
-    end)
-
-    pcall(function()
-        if not (getgc and getupvalues) then return end
-        for _, fn in pairs(getgc()) do
-            if type(fn) == "function" and (not isexecutorclosure or not isexecutorclosure(fn)) then
-                local ok, ups = pcall(getupvalues, fn)
-                if ok and type(ups) == "table" then
-                    for _, up in pairs(ups) do
-                        if type(up) == "table" and #up > 0 then
-                            local sample = up[1]
-                            if type(sample) == "table" and sample.Name and sample.Horsepower then
-                                for _, c in ipairs(up) do
-                                    if type(c) == "table" and c.Name then foundMap[c.Name] = true end
-                                end
-                            end
+                        if type(carData) == "table" and carData.Name then
+                            foundMap[carData.Name] = true
                         end
                     end
                 end
@@ -2435,7 +2163,7 @@ function FetchOwnedVehicles()
     end)
 
     pcall(function()
-        for _, fName in ipairs({"Data", "Cars", "Garage", "Vehicles", "OwnedCars"}) do
+        for _, fName in ipairs({ "Data", "Cars", "Garage", "Vehicles", "OwnedCars" }) do
             local folder = LocalPlayer:FindFirstChild(fName)
             if folder then
                 for _, child in ipairs(folder:GetChildren()) do
@@ -2451,7 +2179,8 @@ function FetchOwnedVehicles()
 
     local unique = {}
     for carName, _ in pairs(foundMap) do
-        if type(carName) == "string" and #carName > 1 and carName ~= "None" and carName ~= "Empty" then
+        if type(carName) == "string" and #carName > 1
+            and carName ~= "None" and carName ~= "Empty" then
             table.insert(unique, carName)
         end
     end
@@ -2461,16 +2190,15 @@ function FetchOwnedVehicles()
         OwnedVehiclesList = unique
         if not foundMap[SELECTED_CAR] then SELECTED_CAR = OwnedVehiclesList[1] end
     else
-        OwnedVehiclesList = { "Tidak ada kendaraan terdeteksi" }
+        OwnedVehiclesList = { "No vehicle detected" }
         SELECTED_CAR = nil
     end
-
     return OwnedVehiclesList
 end
 
 function RefreshAllVehicleDropdowns()
-    local cars = FetchOwnedVehicles()
-    local validCars = (cars[1] ~= "Tidak ada kendaraan terdeteksi") and cars or {}
+    local cars      = FetchOwnedVehicles()
+    local validCars = (cars[1] ~= "No vehicle detected") and cars or {}
     pcall(function()
         if VehicleDropdownCourier then
             if VehicleDropdownCourier.Refresh then VehicleDropdownCourier:Refresh(validCars)
@@ -2480,32 +2208,29 @@ function RefreshAllVehicleDropdowns()
             if VehicleDropdownRideGO.Refresh then VehicleDropdownRideGO:Refresh(validCars)
             elseif VehicleDropdownRideGO.SetValues then VehicleDropdownRideGO:SetValues(validCars) end
         end
+        if VehicleDropdownPolice then
+            if VehicleDropdownPolice.Refresh then VehicleDropdownPolice:Refresh(validCars)
+            elseif VehicleDropdownPolice.SetValues then VehicleDropdownPolice:SetValues(validCars) end
+        end
     end)
     return cars
 end
 
 local function isVehicleMine(v)
     if not (v and v:IsA("Model")) then return false end
-    local myName = LocalPlayer.Name
-    local vName  = v.Name
-
+    local myName    = LocalPlayer.Name
+    local vName     = v.Name
     local ownerAttr = v:GetAttribute("Owner") or v:GetAttribute("Player") or v:GetAttribute("Creator")
     if ownerAttr and (tostring(ownerAttr) == myName or tostring(ownerAttr) == tostring(LocalPlayer.UserId)) then
         return true
     end
-
     local ownerVal = v:FindFirstChild("Owner") or v:FindFirstChild("Player")
     if ownerVal and (ownerVal:IsA("StringValue") or ownerVal:IsA("ObjectValue")) then
         if tostring(ownerVal.Value) == myName or ownerVal.Value == LocalPlayer then return true end
     end
-
     local seat = v:FindFirstChildOfClass("VehicleSeat") or v:FindFirstChild("DriveSeat", true)
-    if seat and seat.Occupant and CharRef.Humanoid and seat.Occupant == CharRef.Humanoid then
-        return true
-    end
-
+    if seat and seat.Occupant and CharRef.Humanoid and seat.Occupant == CharRef.Humanoid then return true end
     if vName:find(myName, 1, true) then return true end
-
     if SELECTED_CAR and vName:find(SELECTED_CAR, 1, true) then
         for _, plr in ipairs(Services.Players:GetPlayers()) do
             if plr ~= LocalPlayer and vName:find(plr.Name, 1, true) then return false end
@@ -2517,7 +2242,8 @@ end
 
 local function findMyMotor()
     for _, v in pairs(workspace:GetChildren()) do
-        if isVehicleMine(v) and (v:FindFirstChildOfClass("VehicleSeat") or v:FindFirstChild("DriveSeat", true)) then
+        if isVehicleMine(v)
+            and (v:FindFirstChildOfClass("VehicleSeat") or v:FindFirstChild("DriveSeat", true)) then
             return v
         end
     end
@@ -2538,67 +2264,63 @@ end
 
 local function getMovers(primary)
     if not primary then return nil, nil end
-
     local bv = primary:FindFirstChild("RideGO_BV")
     if not bv then
         bv = Instance.new("BodyVelocity")
-        bv.Name = "RideGO_BV"
+        bv.Name     = "RideGO_BV"
         bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
         bv.Velocity = Vector3.zero
-        bv.Parent = primary
+        bv.Parent   = primary
     end
-
     local bg = primary:FindFirstChild("RideGO_BG")
     if not bg then
         bg = Instance.new("BodyGyro")
-        bg.Name = "RideGO_BG"
+        bg.Name      = "RideGO_BG"
         bg.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
-        bg.CFrame = primary.CFrame
-        bg.Parent = primary
+        bg.CFrame    = primary.CFrame
+        bg.Parent    = primary
     end
-
     return bv, bg
 end
 
 -- ============================================================================
--- // PERMANENT NOCLIP (TEMBUS TEMBOK STEPPED)
+-- [20] PERMANENT NOCLIP
 -- ============================================================================
 Services.RunService.Stepped:Connect(function()
-    if State.IsRideGOActive or State.IsCourierActive then
-        pcall(function()
-            if CharRef.Character then
-                for _, part in ipairs(CharRef.Character:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.CanCollide = false
-                    end
+    if not (State.IsRideGOActive or State.IsCourierActive or State.IsPoliceActive) then return end
+    pcall(function()
+        if CharRef.Character then
+            for _, part in ipairs(CharRef.Character:GetDescendants()) do
+                if part:IsA("BasePart") then part.CanCollide = false end
+            end
+        end
+        local bike = getBikeModel() or findMyMotor()
+        if bike then
+            for _, part in ipairs(bike:GetDescendants()) do
+                if part:IsA("BasePart") then part.CanCollide = false end
+            end
+        end
+        local activeMissions = Services.Workspace:FindFirstChild("ActiveMissions")
+        if activeMissions then
+            local passenger = activeMissions:FindFirstChild("RideGO_Passenger")
+            if passenger then
+                if passenger:IsA("BasePart") then passenger.CanCollide = false end
+                for _, part in ipairs(passenger:GetDescendants()) do
+                    if part:IsA("BasePart") then part.CanCollide = false end
                 end
             end
-
-            local bike = getBikeModel() or findMyMotor()
-            if bike then
-                for _, part in ipairs(bike:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.CanCollide = false
-                    end
+            for _, inst in ipairs(activeMissions:GetDescendants()) do
+                if inst:IsA("BasePart") and inst.Name == "Batas" then
+                    inst.CanCollide = false
+                    inst.CanQuery   = false
                 end
             end
-
-            local activeMissions = Services.Workspace:FindFirstChild("ActiveMissions")
-            if activeMissions then
-                local passenger = activeMissions:FindFirstChild("RideGO_Passenger")
-                if passenger then
-                    if passenger:IsA("BasePart") then passenger.CanCollide = false end
-                    for _, part in ipairs(passenger:GetDescendants()) do
-                        if part:IsA("BasePart") then part.CanCollide = false end
-                    end
-                end
-            end
-        end)
-    end
+        end
+    end)
 end)
 
 -- ============================================================================
--- // CORE GO-JEK ENGINE: SPAWN, DESPAWN & NAIK MOTOR
+-- [21] SPAWN / DESPAWN / MOUNT VEHICLE
 -- ============================================================================
 local DealershipEvents = Services.ReplicatedStorage:WaitForChild("DealershipEvents", 10)
 local SpawnCarEvents   = Services.ReplicatedStorage:WaitForChild("SpawnCarEvents", 10)
@@ -2629,19 +2351,17 @@ local function spawnAndMountBike()
     end)
 
     local seatFound = nil
-    local timeout = tick() + 8
+    local timeout   = tick() + 8
     while tick() < timeout and not seatFound do
         task.wait(0.2)
         if CharRef.Root then
             for _, model in ipairs(Services.Workspace:GetChildren()) do
                 if model:IsA("Model") and isVehicleMine(model) then
-                    local seat = model:FindFirstChildOfClass("VehicleSeat") or model:FindFirstChild("DriveSeat", true)
+                    local seat = model:FindFirstChildOfClass("VehicleSeat")
+                        or model:FindFirstChild("DriveSeat", true)
                     if seat and (not seat.Occupant or seat.Occupant == CharRef.Humanoid) then
                         local dist = (seat.Position - CharRef.Root.Position).Magnitude
-                        if dist < 100 then
-                            seatFound = seat
-                            break
-                        end
+                        if dist < 100 then seatFound = seat; break end
                     end
                 end
             end
@@ -2653,20 +2373,16 @@ local function spawnAndMountBike()
         task.wait(0.1)
         seatFound:Sit(CharRef.Humanoid)
         task.wait(0.5)
-
         if CharRef.Humanoid.SeatPart ~= seatFound then
             CharRef.Root.CFrame = seatFound.CFrame
             task.wait(0.1)
             seatFound:Sit(CharRef.Humanoid)
             task.wait(0.5)
         end
-
         local primary = seatFound.Parent.PrimaryPart or seatFound
         getMovers(primary)
-
         return seatFound.Parent
     end
-
     return getBikeModel()
 end
 
@@ -2674,18 +2390,16 @@ local function ensureBike()
     if not SELECTED_CAR then
         FetchOwnedVehicles()
         if not SELECTED_CAR then
-            WindUI:Notify({ Title = "⚠️ Garasi Kosong", Content = "Pilih kendaraan di garasi terlebih dahulu!", Duration = 4 })
+            WindUI:Notify({ Title = "Garage Empty", Content = "Select a vehicle first.", Duration = 4 })
             return nil
         end
     end
-
     local bike = getBikeModel()
     if bike and isVehicleMine(bike) and CharRef.Humanoid and CharRef.Humanoid.SeatPart then
         local primary = bike.PrimaryPart or bike:FindFirstChild("VehicleSeat") or bike:FindFirstChildOfClass("BasePart")
         if primary then getMovers(primary) end
         return bike
     end
-
     local existing = findMyMotor()
     if existing and CharRef.Root and CharRef.Humanoid then
         local seat = existing:FindFirstChildOfClass("VehicleSeat") or existing:FindFirstChild("DriveSeat", true)
@@ -2696,20 +2410,17 @@ local function ensureBike()
                 task.wait(0.1)
                 seat:Sit(CharRef.Humanoid)
                 task.wait(0.5)
-                local primary = existing.PrimaryPart or seat
-                getMovers(primary)
+                getMovers(existing.PrimaryPart or seat)
                 return existing
             end
         end
     end
-
     return spawnAndMountBike()
 end
 
 local function resetMotorDanNaik()
     forceDismount()
     task.wait(0.3)
-
     local existing = findMyMotor()
     if existing and CharRef.Root and CharRef.Humanoid then
         local seat = existing:FindFirstChildOfClass("VehicleSeat") or existing:FindFirstChild("DriveSeat", true)
@@ -2718,17 +2429,15 @@ local function resetMotorDanNaik()
             task.wait(0.1)
             seat:Sit(CharRef.Humanoid)
             task.wait(0.5)
-            local primary = existing.PrimaryPart or seat
-            getMovers(primary)
+            getMovers(existing.PrimaryPart or seat)
             return existing
         end
     end
-
     return spawnAndMountBike()
 end
 
 -- ============================================================================
--- // GLOBAL FLIGHT ENGINE (VOID GATE & HOVER TERBANG TEMBUS TEMBOK)
+-- [22] FLIGHT ENGINE
 -- ============================================================================
 local HOVER_HEIGHT    = 4
 local VOID_STOP_TIME  = 0.08
@@ -2742,7 +2451,6 @@ local function newRayParams()
     local rayParams = RaycastParams.new()
     rayParams.FilterType = Enum.RaycastFilterType.Exclude
     local blacklist = { LocalPlayer.Character }
-    
     local bike = getBikeModel()
     if bike then
         table.insert(blacklist, bike)
@@ -2752,15 +2460,11 @@ local function newRayParams()
             end
         end
     end
-
     local activeMissions = Services.Workspace:FindFirstChild("ActiveMissions")
     if activeMissions then
         local pass = activeMissions:FindFirstChild("RideGO_Passenger")
-        if pass then
-            table.insert(blacklist, pass)
-        end
+        if pass then table.insert(blacklist, pass) end
     end
-
     rayParams.FilterDescendantsInstances = blacklist
     return rayParams
 end
@@ -2790,17 +2494,15 @@ local function hoverLock(primary, bv, bg, flatLook)
 end
 
 local function isFlightAllowed()
-    return State.IsRideGOActive or State.IsCourierActive
+    return State.IsRideGOActive or State.IsCourierActive or State.IsPoliceActive
 end
 
-local function hoverWaitForGround(primary, bv, bg, flatLook, targetPos, timeout)
+local function hoverWaitForGround(primary, bv, bg, flatLook, _, timeout)
     local t0 = tick()
     while tick() - t0 < (timeout or STREAM_WAIT_MAX) do
         if not isFlightAllowed() then return nil, true end
         if not primary.Parent then return nil, true end
-
         hoverLock(primary, bv, bg, flatLook)
-
         local gY = findGroundY(primary.Position)
         if gY then return gY, false end
         task.wait(0.3)
@@ -2811,14 +2513,9 @@ end
 local function flyToTarget(targetPos)
     local bike = ensureBike()
     if not bike then return false end
-
-    local primary = bike.PrimaryPart
-        or bike:FindFirstChild("VehicleSeat")
-        or bike:FindFirstChildOfClass("BasePart")
+    local primary = bike.PrimaryPart or bike:FindFirstChild("VehicleSeat") or bike:FindFirstChildOfClass("BasePart")
     if not primary then return false end
-
     pcall(function() bike:SetNetworkOwner(LocalPlayer) end)
-
     local bv, bg = getMovers(primary)
     bv.MaxForce  = Vector3.new(1e9, 1e9, 1e9)
     bg.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
@@ -2826,21 +2523,18 @@ local function flyToTarget(targetPos)
     local reached    = false
     local flatTarget = Vector3.new(targetPos.X, 0, targetPos.Z)
 
-    -- Dynamic Random Speed (math.random antara MIN & MAX yang disetel user)
-    local minSpd = 180
-    local maxSpd = 220
+    local minSpd, maxSpd = 180, 220
     if State.IsRideGOActive then
         minSpd = tonumber(State.RideGOMinSpeed) or 180
         maxSpd = tonumber(State.RideGOMaxSpeed) or 220
     elseif State.IsCourierActive then
         minSpd = tonumber(State.CourierMinSpeed) or 180
         maxSpd = tonumber(State.CourierMaxSpeed) or 220
+    elseif State.IsPoliceActive then
+        minSpd = tonumber(State.PoliceMinSpeed) or 180
+        maxSpd = tonumber(State.PoliceMaxSpeed) or 220
     end
-
-    if minSpd > maxSpd then
-        minSpd, maxSpd = maxSpd, minSpd
-    end
-
+    if minSpd > maxSpd then minSpd, maxSpd = maxSpd, minSpd end
     local baseSpeed = math.random(math.floor(minSpd), math.floor(maxSpd))
 
     local function voidStopAndTP()
@@ -2864,11 +2558,9 @@ local function flyToTarget(targetPos)
         local streak, firstD, firstGY = 0, nil, nil
         for d = VOID_SCAN_STEP, VOID_SCAN_MAX, VOID_SCAN_STEP do
             if not isFlightAllowed() then return end
-
             local px = posNow.X + dirToTgt.X * d
             local pz = posNow.Z + dirToTgt.Z * d
             local gY = findGroundYFar(px, pz, posNow.Y)
-
             if gY then
                 if streak == 0 then firstD = d; firstGY = gY end
                 streak += 1
@@ -2878,7 +2570,9 @@ local function flyToTarget(targetPos)
                     local lx = posNow.X + dirToTgt.X * landD
                     local lz = posNow.Z + dirToTgt.Z * landD
                     local newDist = (Vector3.new(lx, 0, lz) - flatTarget).Magnitude
-                    if newDist < distNow then safeLandPos = Vector3.new(lx, firstGY + HOVER_HEIGHT, lz) end
+                    if newDist < distNow then
+                        safeLandPos = Vector3.new(lx, firstGY + HOVER_HEIGHT, lz)
+                    end
                     break
                 end
             else
@@ -2898,21 +2592,18 @@ local function flyToTarget(targetPos)
         end
 
         local curFlat = flatNow
-        for hop = 1, HOP_MAX do
+        for _ = 1, HOP_MAX do
             if not isFlightAllowed() or not primary.Parent then return end
             local remaining = (flatTarget - curFlat).Magnitude
             if remaining < 20 then break end
-
             local stepD  = math.min(HOP_DISTANCE, remaining)
             local hopPos = Vector3.new(curFlat.X + dirToTgt.X * stepD, hoverY, curFlat.Z + dirToTgt.Z * stepD)
-            local tpCF   = CFrame.lookAt(hopPos, hopPos + dirToTgt)
-
+            local tpCF = CFrame.lookAt(hopPos, hopPos + dirToTgt)
             bike:PivotTo(tpCF)
             bg.CFrame = tpCF
             hoverLock(primary, bv, bg, dirToTgt)
             requestStream(hopPos)
             task.wait(0.05)
-
             local gY = findGroundY(primary.Position)
             if gY then
                 local landPos = Vector3.new(primary.Position.X, gY + HOVER_HEIGHT, primary.Position.Z)
@@ -2929,7 +2620,6 @@ local function flyToTarget(targetPos)
         bg.CFrame = tpCF
         hoverLock(primary, bv, bg, dirToTgt)
         requestStream(missionPos)
-
         local gY, aborted = hoverWaitForGround(primary, bv, bg, dirToTgt, targetPos, STREAM_WAIT_MAX)
         if aborted then return end
         if gY then
@@ -2949,14 +2639,13 @@ local function flyToTarget(targetPos)
                     if bv then bv.Velocity = Vector3.zero end
                     if primary then primary.AssemblyLinearVelocity = Vector3.zero end
                 end)
-
                 local bike2 = spawnAndMountBike()
                 if bike2 then
                     local primary2 = bike2.PrimaryPart or bike2:FindFirstChild("VehicleSeat") or bike2:FindFirstChildOfClass("BasePart")
                     if primary2 then
                         bv, bg = getMovers(primary2)
                         primary = primary2
-                        bike = bike2
+                        bike    = bike2
                         continue
                     end
                 else
@@ -2965,7 +2654,7 @@ local function flyToTarget(targetPos)
                     if primary2 then
                         bv, bg = getMovers(primary2)
                         primary = primary2
-                        bike = bike2
+                        bike    = bike2
                         continue
                     end
                 end
@@ -2975,10 +2664,7 @@ local function flyToTarget(targetPos)
             local flatPos  = Vector3.new(pos.X, 0, pos.Z)
             local flatDist = (flatPos - flatTarget).Magnitude
 
-            if flatDist < 15 then
-                reached = true
-                break
-            end
+            if flatDist < 15 then reached = true; break end
 
             local dirToTarget    = (flatTarget - flatPos).Unit
             local currentGroundY = findGroundY(pos)
@@ -3010,15 +2696,11 @@ local function flyToTarget(targetPos)
         end
     end)
 
-    if not reached then
-        bv.Velocity = Vector3.zero
-        return false
-    end
+    if not reached then bv.Velocity = Vector3.zero; return false end
 
     local currentLook = bike:GetPivot().LookVector
     local flatLook = Vector3.new(currentLook.X, 0, currentLook.Z).Unit
     if flatLook.Magnitude == 0 then flatLook = Vector3.new(0, 0, -1) end
-
     bg.CFrame = CFrame.lookAt(primary.Position, primary.Position + flatLook)
 
     local lastVel = bv.Velocity
@@ -3039,7 +2721,7 @@ local function flyToTarget(targetPos)
         while primary.Parent and primary.Position.Y > targetLandY and tick() < landTimeout do
             if not isFlightAllowed() then break end
             local remainingDist = primary.Position.Y - targetLandY
-            local downSpeed = math.clamp(remainingDist * 3, 1, 6)
+            local downSpeed     = math.clamp(remainingDist * 3, 1, 6)
             bv.Velocity = Vector3.new(0, -downSpeed, 0)
             bg.CFrame   = CFrame.lookAt(primary.Position, primary.Position + flatLook)
             task.wait(0.04)
@@ -3052,18 +2734,20 @@ local function flyToTarget(targetPos)
 end
 
 -- ============================================================================
--- // 15. AUTO COURIER (VERIFIKASI DROP MANDIRI & AUTO DELIVERED +1)
+-- [23] COURIER — JOB SYSTEM
 -- ============================================================================
 local CourierJob = {
-    Name = "Courier", TeamId = 11378976,
-    DepotPos = Vector3.new(-5109.06, 5.18, -3758.69)
+    Name     = "Courier",
+    TeamId   = 11378976,
+    DepotPos = Vector3.new(-5109.06, 5.18, -3758.69),
 }
 
 local ServiceEventConn = nil
 
 local function setJobCourier()
     pcall(function()
-        Services.ReplicatedStorage:WaitForChild("JobEvents"):WaitForChild("TeamChangeRequest")
+        Services.ReplicatedStorage:WaitForChild("JobEvents")
+            :WaitForChild("TeamChangeRequest")
             :FireServer(CourierJob.Name, CourierJob.TeamId, 1, 0, "Detector")
     end)
 end
@@ -3073,14 +2757,18 @@ local function getKotakTool()
     local ch = LocalPlayer.Character or CharRef.Character
     if ch then
         for _, t in ipairs(ch:GetChildren()) do
-            if t:IsA("Tool") and (t.Name:lower():find("kotak") or t.Name:lower():find("package") or t.Name:lower():find("box")) then
+            if t:IsA("Tool") and (t.Name:lower():find("kotak")
+                or t.Name:lower():find("package")
+                or t.Name:lower():find("box")) then
                 return t, true
             end
         end
     end
     if bp then
         for _, t in ipairs(bp:GetChildren()) do
-            if t:IsA("Tool") and (t.Name:lower():find("kotak") or t.Name:lower():find("package") or t.Name:lower():find("box")) then
+            if t:IsA("Tool") and (t.Name:lower():find("kotak")
+                or t.Name:lower():find("package")
+                or t.Name:lower():find("box")) then
                 return t, false
             end
         end
@@ -3096,8 +2784,8 @@ local function equipKotak()
         local t0 = tick()
         while tick() - t0 < 1.5 do
             task.wait(0.1)
-            local _, equippedNow = getKotakTool()
-            if equippedNow then break end
+            local _, eq = getKotakTool()
+            if eq then break end
         end
         return tool
     end
@@ -3107,7 +2795,7 @@ end
 local function startCourierLoop()
     if not SELECTED_CAR then FetchOwnedVehicles() end
     if not SELECTED_CAR then
-        WindUI:Notify({ Title = "⚠️ Auto Courier", Content = "Pilih kendaraan di garasi terlebih dahulu!", Duration = 4 })
+        WindUI:Notify({ Title = "Auto Courier", Content = "Select a vehicle first.", Duration = 4 })
         State.IsCourierActive = false
         return
     end
@@ -3117,20 +2805,24 @@ local function startCourierLoop()
     local DeliverySettings = nil
 
     pcall(function()
-        DeliverySettings = require(Services.ReplicatedStorage:WaitForChild("Delivery System", 5):WaitForChild("Settings", 5))
+        DeliverySettings = require(
+            Services.ReplicatedStorage:WaitForChild("Delivery System", 5)
+                :WaitForChild("Settings", 5)
+        )
     end)
 
-    local courierRemote = (DeliverySettings and DeliverySettings.RemoteEvent) or Services.ReplicatedStorage:FindFirstChild("ServiceEvent", true)
-    local livrasonFolder = (DeliverySettings and DeliverySettings.Folder) or workspace:FindFirstChild("Livrason")
+    local courierRemote = (DeliverySettings and DeliverySettings.RemoteEvent)
+        or Services.ReplicatedStorage:FindFirstChild("ServiceEvent", true)
+    local livrasonFolder = (DeliverySettings and DeliverySettings.Folder)
+        or workspace:FindFirstChild("Livrason")
 
     if courierRemote then
         ServiceEventConn = courierRemote.OnClientEvent:Connect(function(...)
             if not State.IsCourierActive then return end
-            local args = {...}
+            local args = { ... }
             local a1 = tostring(args[1] or ""):lower()
             local a2 = tostring(args[2] or ""):lower()
             local pNum = args[3] or args[2]
-
             if a1 == "serviceevent" then
                 if a2 == "create" and pNum then
                     local locFolder = livrasonFolder and livrasonFolder:FindFirstChild("Location")
@@ -3165,14 +2857,10 @@ local function startCourierLoop()
 
     setJobCourier()
     task.wait(1.5)
-
-    pcall(function()
-        if courierRemote then courierRemote:FireServer("RequestJobUpdate") end
-    end)
+    pcall(function() if courierRemote then courierRemote:FireServer("RequestJobUpdate") end end)
 
     while State.IsCourierActive do
         local hasBox = getKotakTool() ~= nil
-
         if hasBox and not activePackageLoc and livrasonFolder then
             pcall(function()
                 local locFolder = livrasonFolder:FindFirstChild("Location")
@@ -3193,34 +2881,27 @@ local function startCourierLoop()
         end
 
         if hasBox and activePackageLoc then
-            State.CourierPhase = "Antar Paket"
+            State.CourierPhase = "Delivering Package"
             spawnAndMountBike()
             task.wait(0.4)
-
             flyToTarget(activePackageLoc)
             if not State.IsCourierActive then break end
 
-            State.CourierPhase = "Drop Paket"
+            State.CourierPhase = "Dropping Package"
             forceDismount()
             task.wait(0.3)
 
             local moneyBefore = GetPlayerMoney()
             local successDrop = false
-
-            for attempt = 1, 3 do
+            for _ = 1, 3 do
                 if not State.IsCourierActive then break end
-
                 if CharRef.Root then
                     CharRef.Root.CFrame = CFrame.new(activePackageLoc + Vector3.new(0, 1.2, 0))
                 end
                 task.wait(0.3)
-
                 equipKotak()
                 task.wait(0.2)
-
-                local targetPrompt = nil
-                local targetBlock  = nil
-
+                local targetPrompt, targetBlock = nil, nil
                 pcall(function()
                     local locFolder = livrasonFolder and livrasonFolder:FindFirstChild("Location")
                     local paket = locFolder and locFolder:FindFirstChild(tostring(activePackageNum))
@@ -3229,47 +2910,32 @@ local function startCourierLoop()
                         targetPrompt = targetBlock and targetBlock:FindFirstChildOfClass("ProximityPrompt")
                     end
                 end)
-
                 if not targetPrompt and livrasonFolder then
                     pcall(function()
                         local locFolder = livrasonFolder:FindFirstChild("Location")
                         if locFolder then
                             for _, f in ipairs(locFolder:GetChildren()) do
                                 local blk = f:FindFirstChild("Block") or f:FindFirstChildWhichIsA("BasePart")
-                                if blk and (blk.Position - CharRef.Root.Position).Magnitude < 15 then
+                                if blk and CharRef.Root and (blk.Position - CharRef.Root.Position).Magnitude < 15 then
                                     local pr = blk:FindFirstChildOfClass("ProximityPrompt")
-                                    if pr and pr.Enabled then
-                                        targetBlock  = blk
-                                        targetPrompt = pr
-                                        break
-                                    end
+                                    if pr and pr.Enabled then targetBlock = blk; targetPrompt = pr; break end
                                 end
                             end
                         end
                     end)
                 end
-
-                if targetPrompt and targetBlock then
-                    DoHold(targetPrompt, targetBlock)
-                end
-
+                if targetPrompt and targetBlock then DoHold(targetPrompt, targetBlock) end
                 task.wait(0.8)
-
                 local stillHasBox = getKotakTool() ~= nil
-                local moneyNow = GetPlayerMoney()
-                if not stillHasBox or moneyNow > moneyBefore then
-                    successDrop = true
-                    break
-                end
+                local moneyNow    = GetPlayerMoney()
+                if not stillHasBox or moneyNow > moneyBefore then successDrop = true; break end
             end
 
             if successDrop or (getKotakTool() == nil) then
                 State.CourierDelivered = (State.CourierDelivered or 0) + 1
                 activePackageLoc = nil
                 activePackageNum = nil
-                State.CourierPhase = "Terkirim!"
-
-                State.CourierPhase = "Menunggu Paket Baru"
+                State.CourierPhase = "Waiting for New Package"
                 local waitTimeout = tick() + 60
                 while State.IsCourierActive and tick() < waitTimeout do
                     task.wait(1)
@@ -3297,28 +2963,22 @@ local function startCourierLoop()
             else
                 activePackageLoc = nil
                 activePackageNum = nil
-                State.CourierPhase = "Reset Rute"
                 task.wait(0.5)
             end
-
         else
-            State.CourierPhase = "Ke Depot"
+            State.CourierPhase = "Heading to Depot"
             spawnAndMountBike()
             task.wait(0.4)
-
             flyToTarget(CourierJob.DepotPos)
             if not State.IsCourierActive then break end
-
-            State.CourierPhase = "Ambil Paket"
+            State.CourierPhase = "Picking Up Package"
             forceDismount()
             task.wait(0.3)
             if CharRef.Root then
                 CharRef.Root.CFrame = CFrame.new(CourierJob.DepotPos + Vector3.new(0, 1.5, 0))
             end
             task.wait(0.4)
-
-            local pBox = nil
-            local pPart = nil
+            local pBox, pPart = nil, nil
             pcall(function()
                 local takeFolder = livrasonFolder and (livrasonFolder:FindFirstChild("Take1") or livrasonFolder:FindFirstChild("Take"))
                 if takeFolder then
@@ -3326,18 +2986,12 @@ local function startCourierLoop()
                     if pPart then pBox = pPart:FindFirstChildOfClass("ProximityPrompt") end
                 end
             end)
-
-            if pBox and pPart then
-                DoHold(pBox, pPart)
-            end
-
-            State.CourierPhase = "Menunggu..."
+            if pBox and pPart then DoHold(pBox, pPart) end
+            State.CourierPhase = "Waiting..."
             local tWait = tick()
             while State.IsCourierActive and not activePackageLoc and (getKotakTool() == nil) do
                 if tick() - tWait > 6 then
-                    pcall(function()
-                        if courierRemote then courierRemote:FireServer("RequestJobUpdate") end
-                    end)
+                    pcall(function() if courierRemote then courierRemote:FireServer("RequestJobUpdate") end end)
                     tWait = tick()
                 end
                 task.wait(0.4)
@@ -3351,22 +3005,20 @@ end
 
 local function StartCourierScript()
     if State.IsCourierActive then return end
-    State.IsCourierActive = true
+    State.IsCourierActive  = true
     State.CourierDelivered = 0
-    State.CourierPhase = "Standby"
-    
-    CachedMoneyLabel = nil
+    State.CourierPhase     = "Standby"
+    CachedMoneyLabel          = nil
     getgenv().UangAwalDikunci = nil
-    getgenv().WaktuMulai = tick()
+    getgenv().WaktuMulai      = tick()
     buatMonitoringGUI()
-
     task.spawn(startCourierLoop)
-    WindUI:Notify({ Title = "📦 Auto Courier", Content = "Auto Courier (RideGO Engine) Aktif!", Duration = 3 })
+    WindUI:Notify({ Title = "Auto Courier", Content = "Started.", Duration = 3 })
 end
 
 local function StopCourierScript()
     State.IsCourierActive = false
-    State.CourierPhase = "Idle"
+    State.CourierPhase    = "Idle"
     if ServiceEventConn then ServiceEventConn:Disconnect(); ServiceEventConn = nil end
     local bike = getBikeModel() or findMyMotor()
     if bike then
@@ -3380,65 +3032,65 @@ local function StopCourierScript()
     end
     focusCameraZoom(false)
     matikanMonitoring()
-    WindUI:Notify({ Title = "🛑 Auto Courier", Content = "Auto Courier Dihentikan.", Duration = 3 })
+    WindUI:Notify({ Title = "Auto Courier", Content = "Stopped.", Duration = 3 })
 end
 
 -- ============================================================================
--- // 16. INJECT A-CHASSIS
+-- [24] VEHICLE TUNE INJECTOR
 -- ============================================================================
 local function InjectMesin(HP_Mult, RPM_Add, Ratio_Mult, FD_Mult, NamaMode)
-    local char = game:GetService("Players").LocalPlayer.Character
-    if char and char:FindFirstChild("Humanoid") and char.Humanoid.SeatPart then
-        local vehicle = char.Humanoid.SeatPart.Parent
-        while vehicle and not vehicle:IsA("Model") do vehicle = vehicle.Parent end
-        if vehicle then
-            local foundTune = false
-            for _, s in pairs(vehicle:GetDescendants()) do
-                if s:IsA("LocalScript") then
-                    local name = string.lower(s.Name)
-                    if string.find(name, "limit") or string.find(name, "speed") or string.find(name, "cap") then
-                        if name ~= "a-chassis interface" and name ~= "drive" then
-                            pcall(function() s.Disabled = true end); safeDestroy(s)
-                        end
-                    end
+    local char = Services.Players.LocalPlayer.Character
+    if not (char and char:FindFirstChild("Humanoid") and char.Humanoid.SeatPart) then
+        WindUI:Notify({ Title = "Warning", Content = "Enter a vehicle first.", Duration = 3 })
+        return
+    end
+    local vehicle = char.Humanoid.SeatPart.Parent
+    while vehicle and not vehicle:IsA("Model") do vehicle = vehicle.Parent end
+    if not vehicle then return end
+    local foundTune = false
+    for _, s in pairs(vehicle:GetDescendants()) do
+        if s:IsA("LocalScript") then
+            local name = string.lower(s.Name)
+            if string.find(name, "limit") or string.find(name, "speed") or string.find(name, "cap") then
+                if name ~= "a-chassis interface" and name ~= "drive" then
+                    pcall(function() s.Disabled = true end)
+                    safeDestroy(s)
                 end
-            end
-            for _, v in pairs(vehicle:GetDescendants()) do
-                if v:IsA("ModuleScript") and (v.Name == "Tune" or string.find(string.lower(v.Name), "tune")) then
-                    pcall(function()
-                        local tune = require(v)
-                        if tune.Horsepower then tune.Horsepower = tune.Horsepower * HP_Mult end
-                        if tune.Redline    then tune.Redline    = tune.Redline + RPM_Add end
-                        if tune.Ratios then
-                            for i, ratio in pairs(tune.Ratios) do
-                                if type(ratio) == "number" and ratio > 0 then tune.Ratios[i] = ratio * Ratio_Mult end
-                            end
-                        end
-                        if tune.FinalDrive   then tune.FinalDrive   = tune.FinalDrive * FD_Mult end
-                        if tune.Limiter  ~= nil then tune.Limiter  = false end
-                        if tune.RevLimit     then tune.RevLimit     = 999999 end
-                        if tune.SpeedLimit   then tune.SpeedLimit   = false end
-                        if tune.TopSpeed     then tune.TopSpeed     = 999999 end
-                        if tune.MaxSpeed     then tune.MaxSpeed     = 999999 end
-                        if tune.DragMult     then tune.DragMult     = tune.DragMult * 0.05 end
-                        if tune.Weight       then tune.Weight       = tune.Weight * 0.7 end
-                        foundTune = true
-                    end)
-                end
-            end
-            if foundTune then
-                WindUI:Notify({ Title = "✅ " .. NamaMode, Content = "Safe! Respawn vehicle to apply.", Duration = 5 })
-            else
-                WindUI:Notify({ Title = "❌ Injection Failed", Content = "Not a standard A-Chassis.", Duration = 4 })
             end
         end
+    end
+    for _, v in pairs(vehicle:GetDescendants()) do
+        if v:IsA("ModuleScript") and (v.Name == "Tune" or string.find(string.lower(v.Name), "tune")) then
+            pcall(function()
+                local tune = require(v)
+                if tune.Horsepower then tune.Horsepower = tune.Horsepower * HP_Mult end
+                if tune.Redline then tune.Redline = tune.Redline + RPM_Add end
+                if tune.Ratios then
+                    for i, ratio in pairs(tune.Ratios) do
+                        if type(ratio) == "number" and ratio > 0 then tune.Ratios[i] = ratio * Ratio_Mult end
+                    end
+                end
+                if tune.FinalDrive then tune.FinalDrive = tune.FinalDrive * FD_Mult end
+                if tune.Limiter    ~= nil then tune.Limiter    = false end
+                if tune.RevLimit      then tune.RevLimit      = 999999 end
+                if tune.SpeedLimit    then tune.SpeedLimit    = false end
+                if tune.TopSpeed      then tune.TopSpeed      = 999999 end
+                if tune.MaxSpeed      then tune.MaxSpeed      = 999999 end
+                if tune.DragMult      then tune.DragMult      = tune.DragMult * 0.05 end
+                if tune.Weight        then tune.Weight        = tune.Weight * 0.7 end
+                foundTune = true
+            end)
+        end
+    end
+    if foundTune then
+        WindUI:Notify({ Title = NamaMode, Content = "Applied. Respawn vehicle to activate.", Duration = 5 })
     else
-        WindUI:Notify({ Title = "⚠️ Warning!", Content = "Please enter a vehicle first!", Duration = 3 })
+        WindUI:Notify({ Title = "Injection Failed", Content = "Not a standard A-Chassis.", Duration = 4 })
     end
 end
 
 -- ============================================================================
--- // 17. AUTO RIDEGO DRIVER (TUNED NETWORK + SILENT HUMANIZER CYCLE)
+-- [25] RIDEGO — DRIVER SYSTEM
 -- ============================================================================
 local TaxiEvent = Services.ReplicatedStorage
     :WaitForChild("TaxiAssets", 10)
@@ -3447,7 +3099,7 @@ local TaxiEvent = Services.ReplicatedStorage
 
 LocalPlayer.CharacterAdded:Connect(function()
     task.wait(0.5)
-    if not (State.IsRideGOActive or State.IsCourierActive) then return end
+    if not (State.IsRideGOActive or State.IsCourierActive or State.IsPoliceActive) then return end
     task.wait(1.5)
     pcall(ensureBike)
     if not State.RideGOTargetPos and State.RideGOPhase ~= "idle" and State.RideGOPhase ~= "cycling" then
@@ -3458,126 +3110,85 @@ end)
 TaxiEvent.OnClientEvent:Connect(function(action, data)
     if not State.IsRideGOActive then return end
     local d = data or {}
-
     if action == "DutyStarted" then
         State.RideGOIsOnline = true
         State.RideGOPhase    = "idle"
         ensureBike()
-
     elseif action == "DutyEnded" then
         State.RideGOIsOnline  = false
         State.RideGOPhase     = "idle"
         State.RideGOTargetPos = nil
-
     elseif action == "OrderOffer" and State.RideGOPhase == "idle" then
         State.RideGOToken = d.Token
         State.RideGOPhase = "offered"
         ensureBike()
         TaxiEvent:FireServer("AcceptOrder", State.RideGOToken)
-
     elseif action == "OrderAccepted" and State.RideGOToken == d.Token then
         State.RideGOTargetPos = d.PickupPos
         State.RideGOPhase     = "goingPickup"
-
-    elseif action == "PassengerBoarding"
-        and (State.RideGOPhase == "goingPickup" or State.RideGOPhase == "atPickup") then
+    elseif action == "PassengerBoarding" and (State.RideGOPhase == "goingPickup" or State.RideGOPhase == "atPickup") then
         State.RideGOPhase = "waitingBoard"
-
     elseif action == "TripStarted" and State.RideGOPhase == "waitingBoard" then
         State.RideGOTargetPos = d.DropPos
         State.RideGOPhase     = "goingDrop"
-
     elseif action == "OrderCompleted" then
         State.RideGOTripCount = (State.RideGOTripCount or 0) + 1
         local earned = tonumber(d.Earned or d.FareEarned) or 0
         State.RideGOEarnings = (State.RideGOEarnings or 0) + earned
-
         task.delay(1, function() TaxiEvent:FireServer("AckTripComplete") end)
         State.RideGOToken     = nil
         State.RideGOTargetPos = nil
-
-        -- AUTO HUMANIZER: RESET MOTOR SECARA ACAK ANTARA 3 - 7 TRIP (SILENT / NO NOTIF)
         State.CurrentCycleTrips = (State.CurrentCycleTrips or 0) + 1
         if State.CurrentCycleTrips >= (State.NextBikeCycle or 5) then
             State.RideGOPhase = "cycling"
             task.spawn(function()
-                -- 1. Offline sejenak agar order tidak tertimpa
                 pcall(function() TaxiEvent:FireServer("GoOffline") end)
                 task.wait(0.5)
-
-                -- 2. Turun dari motor
                 forceDismount()
-
-                -- 3. Jeda santai seperti player asli (4 - 8 detik)
                 task.wait(math.random(40, 80) / 10)
-
-                -- 4. Despawn & spawn ulang motor baru lalu naik
                 spawnAndMountBike()
                 task.wait(math.random(15, 25) / 10)
-
-                -- 5. Masuk online kembali dan set target acak baru (3 - 7 trip)
                 pcall(function() TaxiEvent:FireServer("GoOnline") end)
                 State.CurrentCycleTrips = 0
-                State.NextBikeCycle = math.random(3, 7)
-                State.RideGOPhase = "idle"
+                State.NextBikeCycle     = math.random(3, 7)
+                State.RideGOPhase       = "idle"
             end)
         else
             State.RideGOPhase = "idle"
         end
-
-    elseif action == "OrderExpired"
-        or action == "OrderDeclined"
-        or action == "OrderCancelled" then
+    elseif action == "OrderExpired" or action == "OrderDeclined" or action == "OrderCancelled" then
         State.RideGOToken     = nil
         State.RideGOTargetPos = nil
-        if State.RideGOPhase ~= "cycling" then
-            State.RideGOPhase = "idle"
-        end
+        if State.RideGOPhase ~= "cycling" then State.RideGOPhase = "idle" end
     end
 end)
 
--- ============================================================================
--- // RIDEGO FLIGHT DISPATCHER (WATCHDOG 8S ANTI-NYANGKUT)
--- ============================================================================
 task.spawn(function()
     while true do
         task.wait(0.4)
         if not State.IsRideGOActive or not State.RideGOTargetPos then continue end
-
         if State.RideGOPhase == "goingPickup" then
             local ok = flyToTarget(State.RideGOTargetPos)
             if ok and State.RideGOPhase == "goingPickup" then
                 State.RideGOPhase = "atPickup"
             end
-
         elseif State.RideGOPhase == "goingDrop" then
             local ok = flyToTarget(State.RideGOTargetPos)
             if ok and State.RideGOPhase == "goingDrop" then
                 State.RideGOPhase = "waitingDropOff"
-
                 local arrivedAt = tick()
                 while State.IsRideGOActive and State.RideGOPhase == "waitingDropOff" and (tick() - arrivedAt < 8) do
                     task.wait(0.5)
                 end
-
                 if State.RideGOPhase == "waitingDropOff" then
-                    WindUI:Notify({
-                        Title    = "⚠️ Rute Gagal / Macet",
-                        Content  = "Nyangkut verifikasi rute (8s). Auto reset motor & cari order lain...",
-                        Duration = 4
-                    })
-
+                    WindUI:Notify({ Title = "Route Failed", Content = "Auto reset & retry.", Duration = 4 })
                     pcall(function()
                         TaxiEvent:FireServer("CancelOrder")
-                        if State.RideGOToken then
-                            TaxiEvent:FireServer("DeclineOrder", State.RideGOToken)
-                        end
+                        if State.RideGOToken then TaxiEvent:FireServer("DeclineOrder", State.RideGOToken) end
                     end)
-
                     forceDismount()
                     task.wait(0.5)
                     spawnAndMountBike()
-
                     State.RideGOToken     = nil
                     State.RideGOTargetPos = nil
                     State.RideGOPhase     = "idle"
@@ -3591,30 +3202,25 @@ local function StartRideGOScript()
     if State.IsRideGOActive then return end
     if not SELECTED_CAR then FetchOwnedVehicles() end
     if not SELECTED_CAR then
-        WindUI:Notify({ Title = "❌ Gagal Memulai", Content = "Pilih kendaraan di garasi sebelum menyalakan RideGO!", Duration = 4 })
+        WindUI:Notify({ Title = "RideGO", Content = "Select a vehicle first.", Duration = 4 })
         return
     end
-
-    State.IsRideGOActive = true
-    State.RideGOTripCount = 0
-    State.RideGOEarnings = 0
+    State.IsRideGOActive    = true
+    State.RideGOTripCount   = 0
+    State.RideGOEarnings    = 0
     State.CurrentCycleTrips = 0
-    State.NextBikeCycle = math.random(3, 7)
-    
-    CachedMoneyLabel = nil
+    State.NextBikeCycle     = math.random(3, 7)
+    CachedMoneyLabel          = nil
     getgenv().UangAwalDikunci = nil
-    getgenv().WaktuMulai = tick()
-
+    getgenv().WaktuMulai      = tick()
     buatMonitoringGUI()
-
     ensureBike()
     if not State.RideGOIsOnline then TaxiEvent:FireServer("GoOnline") end
-
-    WindUI:Notify({ Title = "🚕 RideGO Driver", Content = "Auto RideGO & Monitoring Aktif!", Duration = 4 })
+    WindUI:Notify({ Title = "RideGO Driver", Content = "Started.", Duration = 4 })
 end
 
 local function StopRideGOScript()
-    State.IsRideGOActive = false
+    State.IsRideGOActive  = false
     State.RideGOTargetPos = nil
     if State.RideGOIsOnline then TaxiEvent:FireServer("GoOffline") end
     local bike = getBikeModel() or findMyMotor()
@@ -3627,48 +3233,627 @@ local function StopRideGOScript()
             if bg then bg:Destroy() end
         end
     end
-
     focusCameraZoom(false)
-    CachedMoneyLabel = nil
+    CachedMoneyLabel          = nil
     getgenv().UangAwalDikunci = nil
     matikanMonitoring()
-
-    WindUI:Notify({ Title = "🛑 RideGO Driver", Content = "Auto RideGO dihentikan.", Duration = 3 })
+    WindUI:Notify({ Title = "RideGO Driver", Content = "Stopped.", Duration = 3 })
 end
 
 local function OnRideGOTeamChanged()
     if State.IsRideGOActive and LocalPlayer.Team and LocalPlayer.Team.Name ~= "RideGO Driver" then
         StopRideGOScript()
-        WindUI:Notify({ Title = "⚠️ RideGO Driver", Content = "Keluar dari tim driver, bot dimatikan otomatis.", Duration = 3 })
+        WindUI:Notify({ Title = "RideGO", Content = "Team changed, bot stopped.", Duration = 3 })
     end
 end
 LocalPlayer:GetPropertyChangedSignal("Team"):Connect(OnRideGOTeamChanged)
 
 -- ============================================================================
--- // 18. DISCORD WEBHOOK SYSTEM
+-- [26] POLICE — DUTY SYSTEM
 -- ============================================================================
-getgenv().WebhookSettings = {
-    URL = "",
-    Enabled = false,
-    Interval = 15
+local PoliceJob = {
+    DepotPos         = Vector3.new(2840.10, 4.23, -835.58),
+    DepotRadius      = 30,
+    MissionTimeout   = 75,
+    PlacementTimeout = 45,
 }
 
-local httprequest = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
+local PoliceToolKeywords = {
+    Tilang = { "tilang", "buku", "ticket", "surat" },
+    Cone   = { "cone", "kerucut", "traffic" },
+    Line   = { "line", "garis", "police line", "barrier", "pita" },
+}
+
+local PoliceAssets = Services.ReplicatedStorage:WaitForChild("PoliceAssets", 10)
+local PoliceEvent  = PoliceAssets and PoliceAssets:WaitForChild("PoliceEvent", 10)
+
+if PoliceEvent then
+    PoliceEvent.OnClientEvent:Connect(function(action, data)
+        if not State.IsPoliceActive then return end
+        if action == "UpdateMissionUI" and data then
+            State.PMValidCones = data.validCones   or 0
+            State.PMReqCones   = data.requiredCones or 0
+            State.PMValidLines = data.validLines   or 0
+            State.PMReqLines   = data.requiredLines or 0
+            State.PMType       = data.missionType  or State.PMType
+        end
+    end)
+end
+
+local function getPoliceTool(keyword)
+    if not keyword then return nil, false end
+    local bp = LocalPlayer:FindFirstChild("Backpack")
+    local ch = LocalPlayer.Character or CharRef.Character
+    local kw = keyword:lower()
+    if ch then
+        for _, t in ipairs(ch:GetChildren()) do
+            if t:IsA("Tool") and t.Name:lower():find(kw, 1, true) then return t, true end
+        end
+    end
+    if bp then
+        for _, t in ipairs(bp:GetChildren()) do
+            if t:IsA("Tool") and t.Name:lower():find(kw, 1, true) then return t, false end
+        end
+    end
+    return nil, false
+end
+
+local function getPoliceToolAnyKeyword(keywordList)
+    if type(keywordList) == "string" then keywordList = { keywordList } end
+    for _, kw in ipairs(keywordList) do
+        local tool, eq = getPoliceTool(kw)
+        if tool then return tool, eq end
+    end
+    return nil, false
+end
+
+local function equipPoliceToolAnyKeyword(keywordList)
+    local tool, isEquipped = getPoliceToolAnyKeyword(keywordList)
+    if isEquipped then return tool end
+    if tool and CharRef.Humanoid then
+        pcall(function() CharRef.Humanoid:EquipTool(tool) end)
+        local t0 = tick()
+        while tick() - t0 < 1.5 do
+            task.wait(0.1)
+            local _, eq = getPoliceToolAnyKeyword(keywordList)
+            if eq then break end
+        end
+        return tool
+    end
+    return nil
+end
+
+local VALID_MISSION_NAMES = {
+    PengamananTKP        = true,
+    InsidenMogok         = true,
+    PenertibanParkir     = true,
+    InvestigasiPencurian = true,
+}
+
+local function getActivePoliceMissionModel()
+    local am = Services.Workspace:FindFirstChild("ActiveMissions")
+    if not am then return nil end
+    for _, c in ipairs(am:GetChildren()) do
+        if c:IsA("Model") and VALID_MISSION_NAMES[c.Name] then return c end
+    end
+    for _, c in ipairs(am:GetChildren()) do
+        if c:IsA("Model") and c:GetAttribute("MissionType") then return c end
+    end
+    for _, c in ipairs(am:GetChildren()) do
+        if c:IsA("Model") and c.Name ~= "RideGO_Passenger" then
+            if c:FindFirstChild("Penjahat")
+                or c:FindFirstChild("TicketPrompt", true)
+                or c:FindFirstChild("VehicleObject", true) then
+                return c
+            end
+        end
+    end
+    return nil
+end
+
+local function getPoliceMissionTargetPos(missionModel)
+    if not missionModel then return nil end
+    local suspect = missionModel:FindFirstChild("Penjahat")
+    if suspect then
+        local sr = suspect:FindFirstChild("HumanoidRootPart")
+        if sr then return sr.Position end
+        local ok, piv = pcall(function() return suspect:GetPivot().Position end)
+        if ok then return piv end
+    end
+    local veh = missionModel:FindFirstChild("VehicleObject", true)
+    if veh then
+        if veh:IsA("BasePart") then return veh.Position end
+        if veh:IsA("Model") and veh.PrimaryPart then return veh.PrimaryPart.Position end
+        if veh:IsA("Model") then
+            local pp = veh:FindFirstChildWhichIsA("BasePart")
+            if pp then return pp.Position end
+        end
+    end
+    local tp = missionModel:FindFirstChild("TicketPrompt", true)
+    if tp and tp.Parent and tp.Parent:IsA("BasePart") then return tp.Parent.Position end
+    for _, d in ipairs(missionModel:GetDescendants()) do
+        if d:IsA("BasePart") and (d.Name:find("PlacementZone") or d.Name == "Batas") then
+            return d.Position
+        end
+    end
+    local ok, pivot = pcall(function() return missionModel:GetPivot().Position end)
+    if ok then return pivot end
+    return nil
+end
+
+local function triggerPoliceDutyPrompt()
+    if not CharRef.Root then return false end
+    local best, bestDist = nil, math.huge
+    for _, p in ipairs(workspace:GetDescendants()) do
+        if p:IsA("ProximityPrompt") and p.Enabled and p.Parent then
+            local pPos
+            if p.Parent:IsA("BasePart") then
+                pPos = p.Parent.Position
+            else
+                local ok, piv = pcall(function() return p.Parent:GetPivot().Position end)
+                pPos = ok and piv or nil
+            end
+            if pPos then
+                local d = (pPos - PoliceJob.DepotPos).Magnitude
+                if d < PoliceJob.DepotRadius and d < bestDist then
+                    bestDist = d
+                    best     = p
+                end
+            end
+        end
+    end
+    if best then DoHold(best, best.Parent); return true end
+    return false
+end
+
+local function killSuspectProperly(missionModel)
+    local suspect = missionModel:FindFirstChild("Penjahat")
+    if not suspect then return false end
+    local hum = suspect:FindFirstChildOfClass("Humanoid")
+    if not hum then return false end
+    if hum.Health <= 0 then return true end
+
+    State.PolicePhase = "Engaging Suspect"
+
+    local weapon = equipPoliceToolAnyKeyword({ "senjata", "pistol", "gun", "weapon", "tembak" })
+    if weapon then pcall(function() weapon:Activate() end) end
+
+    local t0     = tick()
+    local fullHP = hum.MaxHealth or 100
+
+    while State.IsPoliceActive
+        and hum.Parent
+        and hum.Health > 0
+        and (tick() - t0) < 12 do
+
+        local sRoot = suspect:FindFirstChild("HumanoidRootPart")
+        if sRoot and CharRef.Root then
+            CharRef.Root.CFrame = CFrame.lookAt(
+                sRoot.Position + Vector3.new(0, 1.5, 4),
+                sRoot.Position
+            )
+        end
+
+        pcall(function() hum.Health = hum.Health - (fullHP * 0.35) end)
+        if weapon then pcall(function() weapon:Activate() end) end
+
+        for _, pr in ipairs(missionModel:GetDescendants()) do
+            if pr:IsA("ProximityPrompt") and pr.Enabled and pr.Parent then
+                pcall(function()
+                    pr:InputHoldBegin()
+                    task.wait(0.05)
+                    pr:InputHoldEnd()
+                end)
+            end
+        end
+
+        task.wait(0.35)
+    end
+
+    if hum.Parent and hum.Health > 0 then
+        pcall(function() hum.Health = 0 end)
+    end
+
+    if PoliceEvent then
+        pcall(function() PoliceEvent:FireServer("NpcDefeatedAction") end)
+    end
+
+    task.wait(0.8)
+    return hum.Health <= 0
+end
+
+local function placeEquipmentForMission(missionModel)
+    local mType = missionModel:GetAttribute("MissionType") or State.PMType or ""
+
+    local toolKeywords = {}
+    if mType == "PengamananTKP" then
+        toolKeywords = { PoliceToolKeywords.Cone, PoliceToolKeywords.Line }
+    elseif mType == "InsidenMogok" then
+        toolKeywords = { PoliceToolKeywords.Cone }
+    else
+        toolKeywords = { PoliceToolKeywords.Line, PoliceToolKeywords.Cone }
+    end
+
+    local coneZones, lineZones = {}, {}
+    for _, d in ipairs(missionModel:GetDescendants()) do
+        if d:IsA("BasePart") then
+            if d.Name:find("ConePlacementZone") then
+                table.insert(coneZones, d)
+            elseif d.Name:find("LinePlacementZone") then
+                table.insert(lineZones, d)
+            end
+        end
+    end
+
+    State.PolicePhase = "Deploying Equipment"
+
+    local function placeOnZone(zone, toolKW, targetType)
+        if not State.IsPoliceActive then return false end
+        if not zone or not zone.Parent then return false end
+
+        if CharRef.Root then
+            CharRef.Root.CFrame = CFrame.new(zone.Position + Vector3.new(0, 3, 0))
+            task.wait(0.2)
+        end
+
+        local tool = equipPoliceToolAnyKeyword(toolKW)
+        if not tool then return false end
+
+        pcall(function() tool:Activate() end)
+        task.wait(0.12)
+
+        local pr = zone:FindFirstChildOfClass("ProximityPrompt")
+        if pr and pr.Enabled then
+            DoHold(pr, zone)
+        else
+            pcall(function()
+                for _, p in ipairs(missionModel:GetDescendants()) do
+                    if p:IsA("ProximityPrompt") and p.Enabled and p.Parent then
+                        if p.Parent:IsA("BasePart")
+                            and (p.Parent.Position - zone.Position).Magnitude < 5 then
+                            DoHold(p, p.Parent)
+                            break
+                        end
+                    end
+                end
+            end)
+        end
+
+        task.wait(0.15)
+        if tool.Parent then pcall(function() tool:Activate() end) end
+        task.wait(0.25)
+        return true
+    end
+
+    local t0 = tick()
+
+    local function shouldContinueCone()
+        if State.PMReqCones <= 0 then return true end
+        return State.PMValidCones < State.PMReqCones
+    end
+    local function shouldContinueLine()
+        if State.PMReqLines <= 0 then return true end
+        return State.PMValidLines < State.PMReqLines
+    end
+
+    if #coneZones > 0 then
+        for _, zone in ipairs(coneZones) do
+            if tick() - t0 > PoliceJob.PlacementTimeout then break end
+            if not State.IsPoliceActive then break end
+            if not zone.Parent then continue end
+            if not shouldContinueCone() then break end
+            placeOnZone(zone, PoliceToolKeywords.Cone, "Cone")
+        end
+    end
+
+    if #lineZones > 0 then
+        for _, zone in ipairs(lineZones) do
+            if tick() - t0 > PoliceJob.PlacementTimeout then break end
+            if not State.IsPoliceActive then break end
+            if not zone.Parent then continue end
+            if not shouldContinueLine() then break end
+            placeOnZone(zone, PoliceToolKeywords.Line, "Line")
+        end
+    end
+
+    local retryT0 = tick()
+    while State.IsPoliceActive and (tick() - retryT0) < PoliceJob.PlacementTimeout do
+        local needCones = State.PMReqCones > 0 and State.PMValidCones < State.PMReqCones
+        local needLines = State.PMReqLines > 0 and State.PMValidLines < State.PMReqLines
+        if not needCones and not needLines then break end
+        if not missionModel.Parent then break end
+        if needCones and #coneZones > 0 then
+            local z = coneZones[math.random(1, #coneZones)]
+            placeOnZone(z, PoliceToolKeywords.Cone, "Cone")
+        end
+        if needLines and #lineZones > 0 then
+            local z = lineZones[math.random(1, #lineZones)]
+            placeOnZone(z, PoliceToolKeywords.Line, "Line")
+        end
+        task.wait(0.4)
+    end
+
+    return (State.PMValidCones >= State.PMReqCones)
+        and (State.PMValidLines >= State.PMReqLines)
+end
+
+local function handleTicketCar(missionModel)
+    State.PolicePhase = "Issuing Ticket"
+
+    local buku = equipPoliceToolAnyKeyword(PoliceToolKeywords.Tilang)
+    if not buku then
+        State.PolicePhase = "Missing Ticket Book"
+        task.wait(1)
+        return false
+    end
+
+    task.wait(0.3)
+
+    local prompt = missionModel:FindFirstChild("TicketPrompt", true)
+    if not prompt then
+        State.PolicePhase = "No Ticket Prompt"
+        return false
+    end
+
+    if prompt.Parent and prompt.Parent:IsA("BasePart") and CharRef.Root then
+        CharRef.Root.CFrame = CFrame.new(
+            prompt.Parent.Position + Vector3.new(0, 1.2, 2)
+        )
+        task.wait(0.2)
+    end
+
+    pcall(function()
+        prompt.Enabled = true
+        prompt.RequiresLineOfSight = false
+        if (prompt.MaxActivationDistance or 0) < 40 then
+            prompt.MaxActivationDistance = 40
+        end
+    end)
+
+    DoHold(prompt, prompt.Parent)
+    task.wait(0.5)
+
+    if not prompt.Enabled then return true end
+
+    if PoliceEvent then
+        pcall(function()
+            PoliceEvent:FireServer("CompleteAction", { ActionType = "TicketCar" })
+        end)
+    end
+    task.wait(1)
+    return true
+end
+
+local function handlePoliceMissionObjective(missionModel)
+    if not missionModel or not missionModel.Parent then return false end
+
+    local mType = missionModel:GetAttribute("MissionType") or State.PMType or ""
+
+    State.PMValidCones = 0
+    State.PMValidLines = 0
+
+    if mType == "" then
+        if missionModel:FindFirstChild("Penjahat") then
+            mType = "InvestigasiPencurian"
+        elseif missionModel:FindFirstChild("TicketPrompt", true) then
+            mType = "PenertibanParkir"
+        else
+            local hasCone, hasLine = false, false
+            for _, d in ipairs(missionModel:GetDescendants()) do
+                if d:IsA("BasePart") then
+                    if d.Name:find("ConePlacementZone") then hasCone = true end
+                    if d.Name:find("LinePlacementZone") then hasLine = true end
+                end
+            end
+            if hasCone and hasLine then mType = "PengamananTKP"
+            elseif hasCone then mType = "InsidenMogok"
+            elseif hasLine then mType = "PengamananTKP" end
+        end
+    end
+
+    State.PMType = mType
+
+    if mType == "PenertibanParkir" then
+        return handleTicketCar(missionModel)
+    elseif mType == "InvestigasiPencurian" then
+        State.PolicePhase = "Criminal Investigation"
+        equipPoliceToolAnyKeyword(PoliceToolKeywords.Line)
+        killSuspectProperly(missionModel)
+        task.wait(0.5)
+        placeEquipmentForMission(missionModel)
+        return true
+    elseif mType == "PengamananTKP" or mType == "InsidenMogok" then
+        State.PolicePhase = "Securing Area"
+        placeEquipmentForMission(missionModel)
+        return true
+    else
+        State.PolicePhase = "Fallback Mode"
+        if missionModel:FindFirstChild("Penjahat") then
+            killSuspectProperly(missionModel)
+        end
+        placeEquipmentForMission(missionModel)
+        local tp = missionModel:FindFirstChild("TicketPrompt", true)
+        if tp and tp.Enabled then handleTicketCar(missionModel) end
+        return true
+    end
+end
+
+local function runMissionWithWatchdog(missionModel)
+    local finished   = false
+    local missionRef = missionModel
+    task.spawn(function()
+        task.wait(PoliceJob.MissionTimeout)
+        if finished then return end
+        if not State.IsPoliceActive then return end
+        if not missionRef or not missionRef.Parent then return end
+        forceDismount()
+        task.wait(0.5)
+        spawnAndMountBike()
+        for _, p in ipairs(missionRef:GetDescendants()) do
+            if p:IsA("ProximityPrompt") and p.Enabled
+                and p.ActionText
+                and p.ActionText:lower():find("abandon", 1, true) then
+                DoHold(p, p.Parent)
+                break
+            end
+        end
+    end)
+    handlePoliceMissionObjective(missionModel)
+    finished = true
+end
+
+local function startPoliceLoop()
+    if not SELECTED_CAR then FetchOwnedVehicles() end
+    if not SELECTED_CAR then
+        WindUI:Notify({ Title = "Auto Police", Content = "Select a vehicle first.", Duration = 4 })
+        State.IsPoliceActive = false
+        return
+    end
+
+    local lastMissionRef = nil
+
+    while State.IsPoliceActive do
+        local missionModel = getActivePoliceMissionModel()
+
+        if not missionModel then
+            State.PolicePhase = "Heading to Police Station"
+            spawnAndMountBike()
+            task.wait(0.4)
+            flyToTarget(PoliceJob.DepotPos)
+            if not State.IsPoliceActive then break end
+
+            State.PolicePhase = "Requesting New Mission"
+            forceDismount()
+            task.wait(0.3)
+
+            if CharRef.Root then
+                CharRef.Root.CFrame = CFrame.new(PoliceJob.DepotPos + Vector3.new(0, 1.5, 0))
+            end
+            task.wait(0.5)
+            triggerPoliceDutyPrompt()
+
+            local waitTimeout = tick() + 12
+            while State.IsPoliceActive and tick() < waitTimeout do
+                task.wait(0.5)
+                local m = getActivePoliceMissionModel()
+                if m then missionModel = m; break end
+            end
+
+            if not missionModel then
+                State.PolicePhase = "Retrying Mission Request..."
+                task.wait(2)
+            end
+        end
+
+        if missionModel and missionModel ~= lastMissionRef then
+            lastMissionRef = missionModel
+            local targetPos = getPoliceMissionTargetPos(missionModel)
+
+            if targetPos then
+                State.PolicePhase = "En Route"
+                spawnAndMountBike()
+                task.wait(0.4)
+                flyToTarget(targetPos)
+                if not State.IsPoliceActive then break end
+
+                State.PolicePhase = "Executing Mission"
+                forceDismount()
+                task.wait(0.3)
+                runMissionWithWatchdog(missionModel)
+
+                local doneWait = tick() + 15
+                while State.IsPoliceActive and tick() < doneWait do
+                    task.wait(0.5)
+                    if not missionModel.Parent then break end
+                    if getActivePoliceMissionModel() ~= missionModel then break end
+                end
+
+                if not missionModel.Parent then
+                    State.PoliceMissions = (State.PoliceMissions or 0) + 1
+                end
+
+                State.PolicePhase = "Mission Complete"
+                task.wait(1)
+                lastMissionRef = nil
+            else
+                State.PolicePhase = "No Target Found"
+                task.wait(1)
+                lastMissionRef = nil
+            end
+        else
+            task.wait(0.5)
+        end
+    end
+
+    focusCameraZoom(false)
+end
+
+local function StartPoliceScript()
+    if State.IsPoliceActive then return end
+    State.IsPoliceActive  = true
+    State.PoliceMissions  = 0
+    State.PolicePhase     = "Standby"
+    State.PMValidCones    = 0
+    State.PMReqCones      = 0
+    State.PMValidLines    = 0
+    State.PMReqLines      = 0
+    State.PMType          = ""
+
+    CachedMoneyLabel          = nil
+    getgenv().UangAwalDikunci = nil
+    getgenv().WaktuMulai      = tick()
+    buatMonitoringGUI()
+
+    task.spawn(startPoliceLoop)
+    WindUI:Notify({ Title = "Auto Police", Content = "Started.", Duration = 3 })
+end
+
+local function StopPoliceScript()
+    State.IsPoliceActive = false
+    State.PolicePhase    = "Idle"
+
+    local bike = getBikeModel() or findMyMotor()
+    if bike then
+        local primary = bike.PrimaryPart or bike:FindFirstChild("VehicleSeat") or bike:FindFirstChildOfClass("BasePart")
+        if primary then
+            local bv = primary:FindFirstChild("RideGO_BV")
+            local bg = primary:FindFirstChild("RideGO_BG")
+            if bv then bv:Destroy() end
+            if bg then bg:Destroy() end
+        end
+    end
+
+    focusCameraZoom(false)
+    matikanMonitoring()
+    WindUI:Notify({ Title = "Auto Police", Content = "Stopped.", Duration = 3 })
+end
+
+-- ============================================================================
+-- [27] DISCORD WEBHOOK
+-- ============================================================================
+getgenv().WebhookSettings = { URL = "", Enabled = false, Interval = 15 }
+
+local httprequest = (syn and syn.request) or (http and http.request)
+    or http_request or (fluxus and fluxus.request) or request
 
 function SendDiscordWebhook(statusTitle)
     if not getgenv().WebhookSettings.Enabled or getgenv().WebhookSettings.URL == "" then return end
     if not httprequest then return end
 
-    local uptimeDetik = getgenv().WaktuMulai and (tick() - getgenv().WaktuMulai) or 0
+    local uptimeDetik  = getgenv().WaktuMulai and (tick() - getgenv().WaktuMulai) or 0
     local uangSekarang = DapatkanUangPemain and DapatkanUangPemain() or 0
-    local uangAwal = getgenv().UangAwalDikunci or uangSekarang
-    local profit = uangSekarang - uangAwal
+    local uangAwal     = getgenv().UangAwalDikunci or uangSekarang
+    local profit       = uangSekarang - uangAwal
 
     local jobName = "Idling"
     local stat1, val1 = "Status", "Standby"
     local stat2, val2 = "Mode", "Idle"
 
-    if State.IsRideGOActive then
+    if State.IsPoliceActive then
+        jobName = "Police Officer"
+        stat1, val1 = "Missions", tostring(State.PoliceMissions or 0)
+        stat2, val2 = "Status", State.PolicePhase or "Idle"
+    elseif State.IsRideGOActive then
         jobName = "RideGO Driver"
         stat1, val1 = "Total Trips", tostring(State.RideGOTripCount or 0)
         stat2, val2 = "Total Fares", fmtRupiah(State.RideGOEarnings or 0)
@@ -3688,54 +3873,48 @@ function SendDiscordWebhook(statusTitle)
 
     local embedColor = profit > 0 and tonumber(0x50d278) or (profit < 0 and tonumber(0xd25050) or tonumber(0x3498db))
     local profitStr = (profit >= 0 and "**+** " or "**-** ") .. fmtRupiah(math.abs(profit))
-
-    local uptimeJam = math.max(uptimeDetik / 3600, 1/3600)
+    local uptimeJam = math.max(uptimeDetik / 3600, 1 / 3600)
     local profitPerJam = profit / uptimeJam
     local profitHStr = (profitPerJam >= 0 and "+ " or "- ") .. fmtRupiah(math.abs(profitPerJam))
-
     local timestamp = os.date("!%Y-%m-%dT%H:%M:%S.000Z")
     local targetStr = (State.TargetProfit > 0 and fmtRupiah(State.TargetProfit) or "Unlimited")
 
     local data = {
-        ["embeds"] = {{
-            ["title"] = "King Akbar - " .. (statusTitle or "Status Update"),
-            ["description"] = "```fix\nAuto Farm Berjalan: " .. formatTime(uptimeDetik) .. "```",
-            ["color"] = embedColor,
-            ["timestamp"] = timestamp,
+        ["embeds"] = { {
+            ["title"]       = "King Akbar - " .. (statusTitle or "Status Update"),
+            ["description"] = "```fix\nUptime: " .. formatTime(uptimeDetik) .. "```",
+            ["color"]       = embedColor,
+            ["timestamp"]   = timestamp,
             ["author"] = {
-                ["name"] = "King Akbar Ultimate System",
-                ["icon_url"] = "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"
+                ["name"]     = "King Akbar Ultimate System",
+                ["icon_url"] = "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
             },
-            ["thumbnail"] = {
-                ["url"] = "https://cdn-icons-png.flaticon.com/512/2694/2694157.png"
-            },
+            ["thumbnail"] = { ["url"] = "https://cdn-icons-png.flaticon.com/512/2694/2694157.png" },
             ["fields"] = {
-                {["name"] = "Player",          ["value"] = "||" .. game.Players.LocalPlayer.Name .. "||", ["inline"] = true},
-                {["name"] = "Active Job",      ["value"] = jobName,                                       ["inline"] = true},
-                {["name"] = "Current Money",   ["value"] = "**" .. fmtRupiah(uangSekarang) .. "**",       ["inline"] = true},
-
-                {["name"] = "Total Profit",    ["value"] = profitStr,                                    ["inline"] = true},
-                {["name"] = "Profit / Hour",   ["value"] = profitHStr,                                   ["inline"] = true},
-                {["name"] = "Target Profit",   ["value"] = targetStr,                                    ["inline"] = true},
-
-                {["name"] = stat1,             ["value"] = val1,                                         ["inline"] = true},
-                {["name"] = stat2,             ["value"] = val2,                                         ["inline"] = true},
-                {["name"] = "Uptime",          ["value"] = formatTime(uptimeDetik),                      ["inline"] = true}
+                { ["name"] = "Player",        ["value"] = "||" .. game.Players.LocalPlayer.Name .. "||", ["inline"] = true },
+                { ["name"] = "Active Job",    ["value"] = jobName,                                       ["inline"] = true },
+                { ["name"] = "Current Money", ["value"] = "**" .. fmtRupiah(uangSekarang) .. "**",       ["inline"] = true },
+                { ["name"] = "Total Profit",  ["value"] = profitStr,                                     ["inline"] = true },
+                { ["name"] = "Profit / Hour", ["value"] = profitHStr,                                    ["inline"] = true },
+                { ["name"] = "Target Profit", ["value"] = targetStr,                                     ["inline"] = true },
+                { ["name"] = stat1,           ["value"] = val1,                                          ["inline"] = true },
+                { ["name"] = stat2,           ["value"] = val2,                                          ["inline"] = true },
+                { ["name"] = "Uptime",        ["value"] = formatTime(uptimeDetik),                       ["inline"] = true },
             },
             ["footer"] = {
-                ["text"] = "Drag Drive Simulator • Free Auto Farm",
-                ["icon_url"] = "https://cdn-icons-png.flaticon.com/512/2583/2583269.png"
-            }
-        }}
+                ["text"]     = "Drag Drive Simulator • Auto Farm Suite",
+                ["icon_url"] = "https://cdn-icons-png.flaticon.com/512/2583/2583269.png",
+            },
+        } },
     }
 
     task.spawn(function()
         pcall(function()
             httprequest({
-                Url = getgenv().WebhookSettings.URL,
-                Method = "POST",
-                Headers = {["Content-Type"] = "application/json"},
-                Body = game:GetService("HttpService"):JSONEncode(data)
+                Url     = getgenv().WebhookSettings.URL,
+                Method  = "POST",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body    = game:GetService("HttpService"):JSONEncode(data),
             })
         end)
     end)
@@ -3751,7 +3930,6 @@ task.spawn(function()
             local intervalMinutes = tonumber(settings.Interval) or 15
             if intervalMinutes < 1 then intervalMinutes = 1 end
             local intervalSeconds = intervalMinutes * 60
-
             if (tick() - lastWebhookTick) >= intervalSeconds then
                 lastWebhookTick = tick()
                 SendDiscordWebhook("Auto Report")
@@ -3763,7 +3941,7 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- // 19. UI SETUP
+-- [28] UI SETUP
 -- ============================================================================
 local wSz  = IsMobile and UDim2.fromOffset(420, 320) or UDim2.fromOffset(580, 460)
 local mnSz = IsMobile and Vector2.new(600, 300) or Vector2.new(600, 350)
@@ -3799,11 +3977,13 @@ local function fetchDiscordInfo()
         return req({
             Url     = "https://discord.com/api/v9/invites/XmWf3YQPpZ?with_counts=true",
             Method  = "GET",
-            Headers = { ["User-Agent"] = "Mozilla/5.0" }
+            Headers = { ["User-Agent"] = "Mozilla/5.0" },
         })
     end)
     if ok and res and res.StatusCode == 200 then
-        local ok2, data = pcall(function() return game:GetService("HttpService"):JSONDecode(res.Body) end)
+        local ok2, data = pcall(function()
+            return game:GetService("HttpService"):JSONDecode(res.Body)
+        end)
         if ok2 and data then
             memberCount = tostring(data.approximate_member_count   or "N/A")
             onlineCount = tostring(data.approximate_presence_count or "N/A")
@@ -3823,7 +4003,9 @@ local ServerInfo = TabInfo:Paragraph({
             Title    = "Copy Discord Invite",
             Color    = Color3.fromHex("#5707AB"),
             Icon     = "link",
-            Callback = function() if setclipboard then setclipboard("https://discord.gg/XmWf3YQPpZ") end end
+            Callback = function()
+                if setclipboard then setclipboard("https://discord.gg/XmWf3YQPpZ") end
+            end,
         },
         {
             Title    = "Update Info",
@@ -3831,177 +4013,263 @@ local ServerInfo = TabInfo:Paragraph({
             Callback = function()
                 fetchDiscordInfo()
                 ServerInfo:SetDesc("• Member Count: " .. memberCount .. "\n• Online Count: " .. onlineCount)
-            end
-        }
-    }
+            end,
+        },
+    },
 })
 
 local TabFarm = Window:Tab({ Title = "Auto Farm", Icon = "coffee", Border = true })
 
--- SECTION BARISTA
-local SectionBarista = TabFarm:Section({ Title = "Auto Barista", Box = true, BoxBorder = true, Opened = false })
-SectionBarista:Toggle({ Title = "Enable Auto Barista", Icon = "play", Value = false, Callback = function(on) if on then StartBaristaScript() else StopBaristaScript() end end })
-SectionBarista:Toggle({ Title = "Show Debug Overlay", Icon = "monitor", Value = true, Callback = function(on) State.DebugEnabled = on; if State.IsBaristaActive then if on then CreateDebugOverlay() else DestroyDebugOverlay() end end end })
-
--- SECTION OFFICE
-local SectionOffice = TabFarm:Section({ Title = "Auto Office", Box = true, BoxBorder = true, Opened = false })
-SectionOffice:Toggle({ Title = "Enable Auto Office", Icon = "briefcase", Value = false, Callback = function(on) if on then StartOfficeScript() else StopOfficeScript() end end })
-
-SectionOffice:Input({
-    Title       = "Stop otomatis di profit (Rp)",
-    Desc        = "Kalau sudah nyampe, langsung keluar server. Kosongin = gak ada batas.",
-    Placeholder = "contoh: 50000000",
-    Callback    = function(Text)
-        local bersih = string.gsub(Text or "", "[^%d]", "")
-        local val = tonumber(bersih) or 0
-        State.TargetProfit = val
-        if val > 0 then
-            WindUI:Notify({ Title = "Target dipasang", Content = "Bakal keluar pas profit udah " .. fmtRupiah(val), Duration = 3 })
-        else
-            WindUI:Notify({ Title = "Target dicopot", Content = "Gak ada batas profit, jalan terus.", Duration = 3 })
-        end
-    end
+local SectionPolice = TabFarm:Section({ Title = "Auto Police Duty", Box = true, BoxBorder = true, Opened = false })
+SectionPolice:Toggle({
+    Title = "Enable Auto Police",
+    Icon  = "shield",
+    Value = false,
+    Callback = function(on) if on then StartPoliceScript() else StopPoliceScript() end end,
 })
 
--- SECTION COURIER
+VehicleDropdownPolice = SectionPolice:Dropdown({
+    Title   = "Select Police Vehicle",
+    Multi   = false,
+    Options = #OwnedVehiclesList > 0 and OwnedVehiclesList or { "Scanning garage..." },
+    Callback = function(chosen)
+        if chosen and chosen ~= ""
+            and chosen ~= "No vehicle detected"
+            and chosen ~= "Scanning garage..." then
+            SELECTED_CAR = chosen
+            WindUI:Notify({ Title = "Police Vehicle", Content = "Using: " .. SELECTED_CAR, Duration = 2 })
+        end
+    end,
+})
+
+SectionPolice:Button({
+    Title = "Refresh Garage",
+    Icon  = "refresh-cw",
+    Callback = function()
+        local cars  = RefreshAllVehicleDropdowns()
+        local count = (cars[1] == "No vehicle detected") and 0 or #cars
+        WindUI:Notify({ Title = "Garage", Content = "Found " .. count .. " vehicles!", Duration = 3 })
+    end,
+})
+
+SectionPolice:Slider({
+    Title = "Minimum Speed (Police)",
+    Desc  = "Default: 180",
+    Step  = 5,
+    Value = { Min = 60, Max = 400, Default = 180 },
+    Callback = function(v) State.PoliceMinSpeed = v end,
+})
+
+SectionPolice:Slider({
+    Title = "Maximum Speed (Police)",
+    Desc  = "Default: 220",
+    Step  = 5,
+    Value = { Min = 80, Max = 450, Default = 220 },
+    Callback = function(v) State.PoliceMaxSpeed = v end,
+})
+
+local SectionBarista = TabFarm:Section({ Title = "Auto Barista", Box = true, BoxBorder = true, Opened = false })
+SectionBarista:Toggle({
+    Title = "Enable Auto Barista",
+    Icon  = "play",
+    Value = false,
+    Callback = function(on) if on then StartBaristaScript() else StopBaristaScript() end end,
+})
+SectionBarista:Toggle({
+    Title = "Show Debug Overlay",
+    Icon  = "monitor",
+    Value = true,
+    Callback = function(on)
+        State.DebugEnabled = on
+        if State.IsBaristaActive then
+            if on then CreateDebugOverlay() else DestroyDebugOverlay() end
+        end
+    end,
+})
+
+local SectionOffice = TabFarm:Section({ Title = "Auto Office", Box = true, BoxBorder = true, Opened = false })
+SectionOffice:Toggle({
+    Title = "Enable Auto Office",
+    Icon  = "briefcase",
+    Value = false,
+    Callback = function(on) if on then StartOfficeScript() else StopOfficeScript() end end,
+})
+SectionOffice:Input({
+    Title       = "Auto-stop at Profit (Rp)",
+    Desc        = "Leaves the server once profit target reached. Empty = unlimited.",
+    Placeholder = "e.g. 50000000",
+    Callback    = function(Text)
+        local bersih = string.gsub(Text or "", "[^%d]", "")
+        local val    = tonumber(bersih) or 0
+        State.TargetProfit = val
+        if val > 0 then
+            WindUI:Notify({ Title = "Target Set", Content = fmtRupiah(val), Duration = 3 })
+        else
+            WindUI:Notify({ Title = "Target Cleared", Content = "Unlimited farming.", Duration = 3 })
+        end
+    end,
+})
+
 local SectionCourier = TabFarm:Section({ Title = "Auto Courier", Box = true, BoxBorder = true, Opened = false })
-SectionCourier:Toggle({ Title = "Enable Auto Courier", Icon = "package", Value = false, Callback = function(on) if on then StartCourierScript() else StopCourierScript() end end })
+SectionCourier:Toggle({
+    Title = "Enable Auto Courier",
+    Icon  = "package",
+    Value = false,
+    Callback = function(on) if on then StartCourierScript() else StopCourierScript() end end,
+})
 
 VehicleDropdownCourier = SectionCourier:Dropdown({
-    Title    = "Pilih Motor Kurir",
-    Multi    = false,
-    Options  = #OwnedVehiclesList > 0 and OwnedVehiclesList or {"Pindai garasi..."},
+    Title   = "Select Courier Vehicle",
+    Multi   = false,
+    Options = #OwnedVehiclesList > 0 and OwnedVehiclesList or { "Scanning garage..." },
     Callback = function(chosen)
-        if chosen and chosen ~= "" and chosen ~= "Tidak ada kendaraan terdeteksi" and chosen ~= "Pindai garasi..." then
+        if chosen and chosen ~= ""
+            and chosen ~= "No vehicle detected"
+            and chosen ~= "Scanning garage..." then
             SELECTED_CAR = chosen
-            WindUI:Notify({ Title = "🚗 Kendaraan Dipilih", Content = "Menggunakan: " .. SELECTED_CAR, Duration = 2 })
+            WindUI:Notify({ Title = "Courier Vehicle", Content = "Using: " .. SELECTED_CAR, Duration = 2 })
         end
-    end
+    end,
 })
 
 SectionCourier:Button({
-    Title    = "🔄 Refresh Garasi",
-    Icon     = "refresh-cw",
+    Title = "Refresh Garage",
+    Icon  = "refresh-cw",
     Callback = function()
-        local cars = RefreshAllVehicleDropdowns()
-        local count = (cars[1] == "Tidak ada kendaraan terdeteksi") and 0 or #cars
-        WindUI:Notify({ Title = "✅ Garasi Terdeteksi", Content = "Ditemukan " .. count .. " kendaraan!", Duration = 3 })
-    end
+        local cars  = RefreshAllVehicleDropdowns()
+        local count = (cars[1] == "No vehicle detected") and 0 or #cars
+        WindUI:Notify({ Title = "Garage", Content = "Found " .. count .. " vehicles!", Duration = 3 })
+    end,
 })
 
 SectionCourier:Slider({
-    Title    = "Kecepatan Minimum Kurir",
-    Desc     = "Batas kecepatan terendah saat antar paket (Default: 180)",
-    Step     = 5,
-    Value    = { Min = 60, Max = 400, Default = 180 },
-    Callback = function(v)
-        State.CourierMinSpeed = v
-    end
+    Title = "Minimum Speed (Courier)",
+    Step  = 5,
+    Value = { Min = 60, Max = 400, Default = 180 },
+    Callback = function(v) State.CourierMinSpeed = v end,
 })
-
 SectionCourier:Slider({
-    Title    = "Kecepatan Maksimum Kurir",
-    Desc     = "Batas kecepatan tertinggi saat antar paket (Default: 220)",
-    Step     = 5,
-    Value    = { Min = 80, Max = 450, Default = 220 },
-    Callback = function(v)
-        State.CourierMaxSpeed = v
-    end
+    Title = "Maximum Speed (Courier)",
+    Step  = 5,
+    Value = { Min = 80, Max = 450, Default = 220 },
+    Callback = function(v) State.CourierMaxSpeed = v end,
 })
 
--- SECTION RIDEGO DRIVER
 local SectionRideGO = TabFarm:Section({ Title = "Auto RideGO Driver", Box = true, BoxBorder = true, Opened = false })
-SectionRideGO:Paragraph({ Title = "", Desc = "Pilih dulu motor di dropdown sebelum mengaktifkan" })
 SectionRideGO:Toggle({
     Title = "Enable Auto RideGO",
-    Icon = "car",
+    Icon  = "car",
     Value = false,
-    Callback = function(on) if on then StartRideGOScript() else StopRideGOScript() end end
+    Callback = function(on) if on then StartRideGOScript() else StopRideGOScript() end end,
 })
 
 VehicleDropdownRideGO = SectionRideGO:Dropdown({
-    Title    = "Pilih Kendaraan RideGO",
-    Multi    = false,
-    Options  = #OwnedVehiclesList > 0 and OwnedVehiclesList or {"Pindai garasi..."},
+    Title   = "Select RideGO Vehicle",
+    Multi   = false,
+    Options = #OwnedVehiclesList > 0 and OwnedVehiclesList or { "Scanning garage..." },
     Callback = function(chosen)
-        if chosen and chosen ~= "" and chosen ~= "Tidak ada kendaraan terdeteksi" and chosen ~= "Pindai garasi..." then
+        if chosen and chosen ~= ""
+            and chosen ~= "No vehicle detected"
+            and chosen ~= "Scanning garage..." then
             SELECTED_CAR = chosen
-            WindUI:Notify({ Title = "🚕 Kendaraan Dipilih", Content = "Menggunakan: " .. SELECTED_CAR, Duration = 2 })
+            WindUI:Notify({ Title = "RideGO Vehicle", Content = "Using: " .. SELECTED_CAR, Duration = 2 })
         end
-    end
+    end,
 })
 
 SectionRideGO:Button({
-    Title    = "🔄 Refresh Garasi",
-    Icon     = "refresh-cw",
+    Title = "Refresh Garage",
+    Icon  = "refresh-cw",
     Callback = function()
-        local cars = RefreshAllVehicleDropdowns()
-        local count = (cars[1] == "Tidak ada kendaraan terdeteksi") and 0 or #cars
-        WindUI:Notify({ Title = "✅ Garasi Terdeteksi", Content = "Ditemukan " .. count .. " kendaraan!", Duration = 3 })
-    end
+        local cars  = RefreshAllVehicleDropdowns()
+        local count = (cars[1] == "No vehicle detected") and 0 or #cars
+        WindUI:Notify({ Title = "Garage", Content = "Found " .. count .. " vehicles!", Duration = 3 })
+    end,
 })
 
 SectionRideGO:Slider({
-    Title    = "Kecepatan Minimum RideGO",
-    Desc     = "Batas kecepatan terendah saat jemput/antar penumpang (Default: 180)",
-    Step     = 5,
-    Value    = { Min = 60, Max = 400, Default = 180 },
-    Callback = function(v)
-        State.RideGOMinSpeed = v
-    end
+    Title = "Minimum Speed (RideGO)",
+    Step  = 5,
+    Value = { Min = 60, Max = 400, Default = 180 },
+    Callback = function(v) State.RideGOMinSpeed = v end,
 })
-
 SectionRideGO:Slider({
-    Title    = "Kecepatan Maksimum RideGO",
-    Desc     = "Batas kecepatan tertinggi saat jemput/antar penumpang (Default: 220)",
-    Step     = 5,
-    Value    = { Min = 80, Max = 450, Default = 220 },
-    Callback = function(v)
-        State.RideGOMaxSpeed = v
-    end
+    Title = "Maximum Speed (RideGO)",
+    Step  = 5,
+    Value = { Min = 80, Max = 450, Default = 220 },
+    Callback = function(v) State.RideGOMaxSpeed = v end,
 })
 
 local TabSec = Window:Tab({ Title = "Security", Icon = "shield", Border = true })
 local Perlindungan = TabSec:Section({ Title = "Protection", Box = true, BoxBorder = true, Opened = false })
-Perlindungan:Toggle({ Title = "Anti-Admin (Auto Leave)", Desc = "Automatically leaves if a staff member joins", Icon = "user-minus", Value = true, Callback = function(on) State.AntiAdmin = on end })
-Perlindungan:Toggle({ Title = "Anti-AFK", Desc = "Keeps connection active while botting", Icon = "clock", Value = true, Callback = function(on) State.AntiAFK = on end })
+Perlindungan:Toggle({
+    Title = "Anti-Staff (Auto Leave)",
+    Icon  = "user-minus",
+    Value = true,
+    Callback = function(on) State.AntiAdmin = on end,
+})
+Perlindungan:Toggle({
+    Title = "Anti-AFK",
+    Icon  = "clock",
+    Value = true,
+    Callback = function(on) State.AntiAFK = on end,
+})
 
 local TabPerf = Window:Tab({ Title = "Performance", Icon = "zap", Border = true })
 local HematDaya = TabPerf:Section({ Title = "Power Saving", Box = true, BoxBorder = true, Opened = false })
-HematDaya:Toggle({ Title = "Disable Rendering (AFK Mode)", Desc = "Black screen, saves battery, bot keeps running", Value = false, Callback = function(on) ToggleBlackScreen(on) end })
+HematDaya:Toggle({
+    Title = "Disable Rendering (AFK Mode)",
+    Value = false,
+    Callback = function(on) ToggleBlackScreen(on) end,
+})
 
 local SectionAntiLag = TabPerf:Section({ Title = "Anti Lag", Box = true, BoxBorder = true, Opened = false })
-SectionAntiLag:Toggle({ Title = "Enable Anti Lag", Desc = "Purges particles & locks graphics to minimum", Value = false, Callback = function(on) ToggleAntiLag(on) end })
+SectionAntiLag:Toggle({
+    Title = "Enable Anti Lag",
+    Value = false,
+    Callback = function(on) ToggleAntiLag(on) end,
+})
 
-local SectionPotato = TabPerf:Section({ Title = "Ultra Potato Mode", Box = true, BoxBorder = true, Opened = false })
-SectionPotato:Toggle({ Title = "Enable Potato Mode (EXTREME)", Desc = "Destroys terrain, meshes, lighting, sounds for MAX FPS.", Value = false, Callback = function(on) TogglePotatoMode(on) end })
+local SectionPotato = TabPerf:Section({ Title = "Ultra Performance Mode", Box = true, BoxBorder = true, Opened = false })
+SectionPotato:Toggle({
+    Title = "Enable Ultra Performance",
+    Value = false,
+    Callback = function(on) TogglePotatoMode(on) end,
+})
 
 local TabCfg = Window:Tab({ Title = "Settings", Icon = "settings", Border = true })
 local Konfigurasi = TabCfg:Section({ Title = "Configuration", Box = true, BoxBorder = true, Opened = false })
-Konfigurasi:Slider({ Title = "Action Delay (Seconds)", Desc = "Lower is faster, but riskier", Step = 1, Value = { Min = 1, Max = 10, Default = 5 }, Callback = function(v) State.ActionDelay = v end })
+Konfigurasi:Slider({
+    Title = "Action Delay (Seconds)",
+    Step  = 1,
+    Value = { Min = 1, Max = 10, Default = 5 },
+    Callback = function(v) State.ActionDelay = v end,
+})
 
-local SectionFakeName = TabCfg:Section({ Title = "Spoof Name", Box = true, BoxBorder = true, Opened = false })
+local SectionFakeName = TabCfg:Section({ Title = "Display Name Spoofer", Box = true, BoxBorder = true, Opened = false })
 SectionFakeName:Input({
-    Title = "Spoof Name (Empty = King Akbar)", Placeholder = "King Akbar",
-    Callback = function(Text)
+    Title       = "Spoof Name (Empty = King Akbar)",
+    Placeholder = "King Akbar",
+    Callback    = function(Text)
         local cleanText = string.gsub(Text or "", "^%s+", "")
         cleanText = string.gsub(cleanText, "%s+$", "")
         State.FakeName = (cleanText == "") and "King Akbar" or cleanText
         if State.FakeNameActive then SpoofApplyNow() end
-    end
+    end,
 })
 SectionFakeName:Toggle({
-    Title = "Enable Spoof Name", Desc = "Changes your display name (Client-sided)", Value = false,
+    Title = "Enable Spoofer",
+    Value = false,
     Callback = function(on)
         State.FakeNameActive = on
         if on then
             SpoofApplyNow()
-            WindUI:Notify({ Title = "🎭 Spoof Name", Content = "Name changed to: " .. State.FakeName, Duration = 3 })
+            WindUI:Notify({ Title = "Spoofer", Content = "Name changed to: " .. State.FakeName, Duration = 3 })
         else
             SpoofDisableNow()
-            WindUI:Notify({ Title = "🎭 Spoof Name", Content = "Original name restored.", Duration = 3 })
+            WindUI:Notify({ Title = "Spoofer", Content = "Original name restored.", Duration = 3 })
         end
-    end
+    end,
 })
 
 local SectionRedeem = TabCfg:Section({ Title = "Auto Redeem", Box = true, BoxBorder = true, Opened = false })
@@ -4010,7 +4278,7 @@ local redeemCodes = {
     "DDSSPECIALMERDEKA2026",
     "NEWLIGHTSMODIFICATION",
     "DELAYDIKITBARULOMBA",
-    "DDSTHX175KROADTO200KLIKES"
+    "DDSTHX175KROADTO200KLIKES",
 }
 local function FireRedeemRemote(code)
     pcall(function()
@@ -4019,88 +4287,120 @@ local function FireRedeemRemote(code)
     end)
 end
 SectionRedeem:Button({
-    Title = "🎁 Redeem All Codes", Desc = "Automatically redeems all available codes",
+    Title = "Redeem All Codes",
     Callback = function()
         task.spawn(function()
-            WindUI:Notify({ Title = "🔄 Auto Redeem", Content = "Redeeming codes...", Duration = 3 })
-            for _, code in ipairs(redeemCodes) do FireRedeemRemote(code); task.wait(2) end
-            WindUI:Notify({ Title = "✅ Auto Redeem", Content = "All codes redeemed!", Duration = 5 })
+            WindUI:Notify({ Title = "Redeem", Content = "Redeeming all codes...", Duration = 3 })
+            for _, code in ipairs(redeemCodes) do
+                FireRedeemRemote(code)
+                task.wait(2)
+            end
+            WindUI:Notify({ Title = "Redeem", Content = "All codes redeemed!", Duration = 5 })
         end)
-    end
+    end,
 })
 
 local SectionWebhook = TabCfg:Section({ Title = "Discord Webhook", Box = true, BoxBorder = true, Opened = false })
 SectionWebhook:Input({
-    Title = "Webhook URL",
+    Title       = "Webhook URL",
     Placeholder = "https://discord.com/api/webhooks/...",
-    Callback = function(Text)
-        getgenv().WebhookSettings.URL = Text
-    end
+    Callback    = function(Text) getgenv().WebhookSettings.URL = Text end,
 })
 SectionWebhook:Toggle({
     Title = "Enable Webhook",
-    Desc = "Kirim status progress farm otomatis ke Discord",
     Value = false,
     Callback = function(on)
         getgenv().WebhookSettings.Enabled = on
         if on and getgenv().WebhookSettings.URL ~= "" then
             lastWebhookTick = tick()
             SendDiscordWebhook("Webhook Connected")
-            WindUI:Notify({ Title = "🌐 Webhook", Content = "Webhook berhasil diaktifkan!", Duration = 3 })
+            WindUI:Notify({ Title = "Webhook", Content = "Enabled.", Duration = 3 })
         end
-    end
+    end,
 })
 SectionWebhook:Slider({
     Title = "Send Interval (Minutes)",
-    Desc = "Jeda waktu pengiriman laporan",
-    Step = 1,
+    Step  = 1,
     Value = { Min = 1, Max = 60, Default = 15 },
     Callback = function(v)
         getgenv().WebhookSettings.Interval = v
         lastWebhookTick = tick()
-    end
+    end,
 })
 SectionWebhook:Button({
-    Title = "🚀 Test Send Webhook",
-    Desc = "Kirim laporan sekarang untuk testing",
+    Title = "Send Test Webhook",
     Callback = function()
         if getgenv().WebhookSettings.URL == "" then
-            WindUI:Notify({ Title = "❌ Error", Content = "Isi Webhook URL dulu!", Duration = 3 })
+            WindUI:Notify({ Title = "Error", Content = "Set the URL first.", Duration = 3 })
             return
         end
         SendDiscordWebhook("Manual Test")
-        WindUI:Notify({ Title = "✅ Webhook", Content = "Test webhook terkirim!", Duration = 3 })
-    end
+        WindUI:Notify({ Title = "Webhook", Content = "Test message sent.", Duration = 3 })
+    end,
 })
 
 local TabPreset = Window:Tab({ Title = "Instant Modes", Icon = "car", Border = true })
 local ModeCepat = TabPreset:Section({ Title = "Presets", Box = true, BoxBorder = true, Opened = false })
-ModeCepat:Button({ Title = "🛵 SUNDAY RIDE (Safe)",         Callback = function() InjectMesin(1.5,  2000, 0.9,  0.9,  "Sunday Ride Active") end })
-ModeCepat:Button({ Title = "🏎️ RACING MODE (Aggressive)",  Callback = function() InjectMesin(3.5,  5000, 0.75, 0.75, "Racing Mode Active") end })
-ModeCepat:Button({ Title = "🚀 GOD MODE (Max Speed)",       Callback = function() InjectMesin(8,   15000, 0.45, 0.45, "God Mode Active") end })
-ModeCepat:Button({ Title = "🔄 RESET TO DEFAULT",           Callback = function() WindUI:Notify({ Title = "ℹ️ Info", Content = "Respawn vehicle from game menu to reset.", Duration = 5 }) end })
+ModeCepat:Button({
+    Title = "Sunday Ride (Safe)",
+    Callback = function() InjectMesin(1.5, 2000, 0.9, 0.9, "Sunday Ride Applied") end,
+})
+ModeCepat:Button({
+    Title = "Racing Mode (Aggressive)",
+    Callback = function() InjectMesin(3.5, 5000, 0.75, 0.75, "Racing Mode Applied") end,
+})
+ModeCepat:Button({
+    Title = "God Mode (Max Speed)",
+    Callback = function() InjectMesin(8, 15000, 0.45, 0.45, "God Mode Applied") end,
+})
+ModeCepat:Button({
+    Title = "Reset to Default",
+    Callback = function()
+        WindUI:Notify({ Title = "Info", Content = "Respawn vehicle to reset tune.", Duration = 5 })
+    end,
+})
 
 local TabCustom = Window:Tab({ Title = "Custom Tune", Icon = "sliders", Border = true })
 local TuneSendiri = TabCustom:Section({ Title = "Manual Tuning", Box = true, BoxBorder = true, Opened = false })
+
 local customHP, customRPM, customRatio, customFD = 2, 5000, 0.8, 0.8
-TuneSendiri:Input({ Title = "💪 Horsepower Multiplier", Placeholder = "Example: 3",    Callback = function(Text) local val = tonumber(Text) if val then customHP    = val end end })
-TuneSendiri:Input({ Title = "🔥 RPM Adder",             Placeholder = "Example: 8000", Callback = function(Text) local val = tonumber(Text) if val then customRPM   = val end end })
-TuneSendiri:Input({ Title = "⚙️ Gear Ratio Multiplier", Placeholder = "Example: 0.6",  Callback = function(Text) local val = tonumber(Text) if val then customRatio = val end end })
-TuneSendiri:Input({ Title = "⛓️ Final Drive Multiplier", Placeholder = "Example: 0.6", Callback = function(Text) local val = tonumber(Text) if val then customFD    = val end end })
-TuneSendiri:Button({ Title = "⚡ INJECT CUSTOM TUNE", Callback = function() InjectMesin(customHP, customRPM, customRatio, customFD, "Custom Tune Active") end })
+
+TuneSendiri:Input({
+    Title = "Horsepower Multiplier", Placeholder = "Example: 3",
+    Callback = function(Text) local v = tonumber(Text); if v then customHP = v end end,
+})
+TuneSendiri:Input({
+    Title = "RPM Adder", Placeholder = "Example: 8000",
+    Callback = function(Text) local v = tonumber(Text); if v then customRPM = v end end,
+})
+TuneSendiri:Input({
+    Title = "Gear Ratio Multiplier", Placeholder = "Example: 0.6",
+    Callback = function(Text) local v = tonumber(Text); if v then customRatio = v end end,
+})
+TuneSendiri:Input({
+    Title = "Final Drive Multiplier", Placeholder = "Example: 0.6",
+    Callback = function(Text) local v = tonumber(Text); if v then customFD = v end end,
+})
+TuneSendiri:Button({
+    Title = "Inject Custom Tune",
+    Callback = function() InjectMesin(customHP, customRPM, customRatio, customFD, "Custom Tune Applied") end,
+})
 
 Window:EditOpenButton({
-    Title = "Open King Akbar", Icon = "crown",
-    CornerRadius = UDim.new(0, 12), StrokeThickness = 2,
+    Title           = "Open King Akbar",
+    Icon            = "crown",
+    CornerRadius    = UDim.new(0, 12),
+    StrokeThickness = 2,
     Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0,   Color3.fromHex("#ffffff")),
-        ColorSequenceKeypoint.new(1,   Color3.fromHex("#0a0a0a")),
+        ColorSequenceKeypoint.new(0, Color3.fromHex("#ffffff")),
+        ColorSequenceKeypoint.new(1, Color3.fromHex("#0a0a0a")),
     }),
-    Enabled = true, Draggable = true,
+    Enabled   = true,
+    Draggable = true,
 })
 
 local FpsTag = Window:Tag({
-    Title = "Fps: ...",
+    Title = "FPS: ...",
     Color = WindUI:Gradient({
         [0]   = { Color = Color3.fromHex("#0a0a0a"), Transparency = 0 },
         [100] = { Color = Color3.fromHex("#888888"), Transparency = 0 },
@@ -4113,7 +4413,7 @@ task.spawn(function()
             local fps  = math.floor(1 / Services.RunService.RenderStepped:Wait())
             local ping = math.floor(Services.Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
             if FpsTag and FpsTag.SetTitle then
-                FpsTag:SetTitle(("Fps: %d | Ping: %d"):format(fps, ping))
+                FpsTag:SetTitle(("FPS: %d | Ping: %d"):format(fps, ping))
             end
         end)
     end
@@ -4124,8 +4424,8 @@ WindUI:SetTheme("dark")
 TabInfo:Select()
 
 WindUI:Notify({
-    Title    = "👑 King Akbar Siap",
-    Content  = "Auto Farm Drag Drive Simulator telah dimuat!",
+    Title    = "King Akbar Ready",
+    Content  = "Auto Farm Drag Drive Simulator loaded.",
     Duration = 5,
 })
 
