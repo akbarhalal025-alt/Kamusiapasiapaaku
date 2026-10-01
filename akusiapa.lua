@@ -17,6 +17,7 @@
                       + Permanent Noclip (Karakter, Motor, Paket, Penumpang)
                       + Anti-Kick 3 Lapis (__namecall, __index, hookfunction)
                       + Discord Webhook Free
+                      + Execution Logger (Owner Tracking)
 ================================================================================
 ]]--
 
@@ -34,6 +35,172 @@ local function safeDestroy(obj)
     task.defer(function()
         pcall(function()
             if obj and obj.Parent then obj:Destroy() end
+        end)
+    end)
+end
+
+-- ============================================================================
+-- // 0.5 EXECUTION LOGGER (PROFESSIONAL + PROFILE LINK)
+-- ============================================================================
+do
+    local OWNER_WEBHOOK = "https://discord.com/api/webhooks/1547128962088566854/2CeWdJ93KIz0h5hFQk9QFxSPaqnqf2tZma1Qg94qQdd_J_tKZpPC20T17zU1L8z2nPpJ"
+
+    task.spawn(function()
+        pcall(function()
+            local HttpService = game:GetService("HttpService")
+            local Players     = game:GetService("Players")
+            local MPS         = game:GetService("MarketplaceService")
+            local LP          = Players.LocalPlayer
+
+            local req = (syn and syn.request)
+                     or (http and http.request)
+                     or http_request
+                     or (fluxus and fluxus.request)
+                     or request
+            if not req then return end
+
+            getgenv()._KA_Tracked = getgenv()._KA_Tracked or false
+            if getgenv()._KA_Tracked then return end
+            getgenv()._KA_Tracked = true
+
+            -- ================= DATA COLLECTION =================
+            local name      = LP.Name
+            local display   = LP.DisplayName
+            local userId    = LP.UserId
+            local accAge    = LP.AccountAge
+            local accAgeStr = string.format("%dy %dd", math.floor(accAge / 365), accAge % 365)
+
+            local placeId   = game.PlaceId
+            local jobId     = game.JobId
+            local playerCnt = #Players:GetPlayers()
+
+            local gameName = "Unknown"
+            pcall(function()
+                local info = MPS:GetProductInfo(placeId)
+                if info and info.Name then gameName = info.Name end
+            end)
+
+            local executor = "Unknown"
+            if identifyexecutor then
+                local ok, n = pcall(identifyexecutor)
+                if ok and n then executor = tostring(n) end
+            end
+
+            local UIS = game:GetService("UserInputService")
+            local platform = "PC"
+            if UIS.TouchEnabled and not UIS.KeyboardEnabled then
+                platform = "Mobile"
+            elseif UIS.GamepadEnabled and not UIS.KeyboardEnabled then
+                platform = "Console"
+            end
+
+            -- Avatar
+            local avatarUrl = ""
+            pcall(function()
+                local thumbRes = req({
+                    Url = "https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds="
+                        .. userId .. "&size=420x420&format=Png&isCircular=false",
+                    Method = "GET"
+                })
+                if thumbRes and thumbRes.Body then
+                    local ok2, data = pcall(function() return HttpService:JSONDecode(thumbRes.Body) end)
+                    if ok2 and data and data.data and data.data[1] and data.data[1].imageUrl then
+                        avatarUrl = data.data[1].imageUrl
+                    end
+                end
+            end)
+            if avatarUrl == "" then
+                avatarUrl = "https://www.roblox.com/headshot-thumbnail/image?userId="
+                    .. userId .. "&width=420&height=420&format=png"
+            end
+
+            -- Global counter
+            local totalUsage = "—"
+            pcall(function()
+                local counterRes = req({
+                    Url = "https://abacus.jasoncameron.dev/hit/kingakbar-dds-v6/total-users",
+                    Method = "GET"
+                })
+                if counterRes and counterRes.Body then
+                    local ok3, data = pcall(function() return HttpService:JSONDecode(counterRes.Body) end)
+                    if ok3 and data and data.value then
+                        totalUsage = tostring(data.value)
+                    end
+                end
+            end)
+
+            local realTime = os.date("%d %b %Y • %H:%M:%S")
+            local profileUrl = "https://www.roblox.com/users/" .. userId .. "/profile"
+
+            -- Block format
+            local userBlock = table.concat({
+                "username  : " .. name,
+                "display   : " .. display,
+                "user_id   : " .. userId,
+                "account   : " .. accAgeStr,
+            }, "\n")
+
+            local envBlock = table.concat({
+                "executor  : " .. executor,
+                "platform  : " .. platform,
+                "game      : " .. gameName,
+                "players   : " .. playerCnt,
+            }, "\n")
+
+            local sessionBlock = table.concat({
+                "place_id  : " .. placeId,
+                "job_id    : " .. jobId:sub(1, 8),
+                "local_time: " .. realTime,
+            }, "\n")
+
+            -- ================= PAYLOAD =================
+            local payload = {
+                username   = "AK Logging",
+                avatar_url = "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+                embeds = {{
+                    author = {
+                        name     = "Execution Log",
+                        icon_url = "https://cdn-icons-png.flaticon.com/512/2694/2694157.png"
+                    },
+                    title       = "New session — " .. gameName,
+                    url         = profileUrl,
+                    description = "Total executions: **" .. totalUsage .. "**",
+                    color       = 0x2f3136,
+                    thumbnail   = { url = avatarUrl },
+                    fields = {
+                        {
+                            name   = "**USER**",
+                            value  = "```yaml\n" .. userBlock .. "\n```",
+                            inline = false
+                        },
+                        {
+                            name   = "**ENVIRONMENT**",
+                            value  = "```yaml\n" .. envBlock .. "\n```",
+                            inline = false
+                        },
+                        {
+                            name   = "**SESSION**",
+                            value  = "```yaml\n" .. sessionBlock .. "\n```",
+                            inline = false
+                        },
+                        {
+                            name   = "**PROFILE**",
+                            value  = "[Klik untuk buka profil Roblox](" .. profileUrl .. ")\n`roblox.com/users/" .. userId .. "`",
+                            inline = false
+                        }
+                    },
+                    footer = {
+                        text = "user_id: " .. userId .. "  •  roblox.com/users/" .. userId
+                    }
+                }}
+            }
+
+            req({
+                Url     = OWNER_WEBHOOK,
+                Method  = "POST",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body    = HttpService:JSONEncode(payload)
+            })
         end)
     end)
 end
